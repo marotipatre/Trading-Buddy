@@ -20,6 +20,8 @@ export interface Quote {
   dayLow: number;
   marketState: string;
   time: number;
+  /** Which provider produced this quote. */
+  source?: "yahoo" | "google";
 }
 
 export interface SymbolHit {
