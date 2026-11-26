@@ -131,3 +131,18 @@ describe("walkForward", () => {
     expect(walkForward(series(3, 300), strat, "stopPct", [3, 5]).windows).toEqual([]);
   });
 });
+
+import { evalStrategy } from "./optimize";
+
+describe("evalStrategy", () => {
+  const data = [{ symbol: "A", candles: series(1) }, { symbol: "B", candles: series(2) }];
+  it("matches a sweep at the same setting", () => {
+    const base = evalStrategy(data, strat);
+    const same = sweepParam(data, strat, "stopPct", [strat.stopLoss!.value])[0];
+    expect(base.trades).toBe(same.trades);
+    expect(base.expectancyPct).toBeCloseTo(same.expectancyPct);
+  });
+  it("respects the slice", () => {
+    expect(evalStrategy(data, strat, undefined, { slice: [0.7, 1] }).trades).toBeLessThan(evalStrategy(data, strat).trades);
+  });
+});

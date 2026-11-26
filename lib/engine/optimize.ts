@@ -170,3 +170,18 @@ export function walkForward(
     distinctChoices: new Set(windows.map((w) => w.chosen).filter((c) => c !== null)).size,
   };
 }
+
+/** Pooled result of the strategy exactly as it is (no setting changed), for comparison with an optimised value. */
+export function evalStrategy(
+  series: Series[], strat: StrategyDef, costs: CostConfig = DEFAULT_COSTS,
+  opts: { objective?: Objective; minTrades?: number; slice?: [number, number] } = {},
+): GridPoint {
+  const { objective = "expectancy", minTrades = 15, slice = [0, 1] } = opts;
+  const trades: Trade[] = [];
+  for (const { symbol, candles } of series) {
+    const from = Math.floor(candles.length * slice[0]);
+    const to = Math.floor(candles.length * slice[1]);
+    trades.push(...runBacktest(symbol, candles.slice(0, to), strat, costs).trades.filter((t) => t.entryIdx >= from));
+  }
+  return point(NaN, trades, objective, minTrades);
+}
