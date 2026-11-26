@@ -11,6 +11,7 @@ import { SimpleSelect } from "@/components/backtest/simple-select";
 import { fmtInr, fmtPct } from "@/lib/format";
 import { isMarketOpen } from "@/lib/market-hours";
 import { usePaper } from "./paper-provider";
+import { displaySymbol } from "@/lib/symbols";
 
 export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
   const { state, place, ready } = usePaper();
@@ -47,7 +48,7 @@ export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
     });
     setBusy(false);
     if (r.error) toast.error(r.error);
-    else toast.success(r.filled ? `${side === "buy" ? "Bought" : "Sold"} ${qty} ${symbol}` : `Limit order placed for ${symbol}`);
+    else toast.success(r.filled ? `${side === "buy" ? "Bought" : "Sold"} ${qty} ${displaySymbol(symbol)}` : `Limit order placed for ${displaySymbol(symbol)}`);
   }
 
   return (
@@ -116,7 +117,7 @@ export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
         </dl>
         {closing && <p className="text-xs text-muted-foreground">This closes your existing {held!.qty}-share {held!.direction} position.</p>}
         <Button className="w-full" disabled={!ready || busy || !ltp} onClick={submit}>
-          {busy ? "Placing…" : `${closing ? "Close" : side === "buy" ? "Buy" : "Sell"} ${qty} × ${symbol}`}
+          {busy ? "Placing…" : `${closing ? "Close" : side === "buy" ? "Buy" : "Sell"} ${qty} × ${displaySymbol(symbol)}`}
         </Button>
       </CardContent>
     </Card>

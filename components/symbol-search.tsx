@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { SymbolHit } from "@/lib/data/types";
+import { SymbolLabel } from "@/components/symbol-label";
+import { rememberName, tidyName } from "@/lib/symbols";
 
 export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RELIANCE)" }: {
   onPick: (hit: SymbolHit) => void;
@@ -19,7 +21,9 @@ export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RE
       try {
         const res = await fetch(`/api/symbols?q=${encodeURIComponent(q)}`, { signal: ctl.signal });
         const json = await res.json();
-        setHits(json.results ?? []);
+        const results: SymbolHit[] = json.results ?? [];
+        results.forEach((r) => rememberName(r.symbol, tidyName(r.name)));
+        setHits(results);
       } catch {}
     }, 250);
     return () => {
@@ -44,8 +48,7 @@ export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RE
                   setHits([]);
                 }}
               >
-                <span className="font-medium">{h.symbol}</span>
-                <span className="truncate text-xs text-muted-foreground">{h.name}</span>
+                <SymbolLabel symbol={h.symbol} name={tidyName(h.name)} />
               </button>
             </li>
           ))}

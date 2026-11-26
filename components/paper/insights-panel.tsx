@@ -8,6 +8,7 @@ import { MetricCard } from "@/components/backtest/metric-card";
 import { fmtInr, fmtNum, fmtPct } from "@/lib/format";
 import { computeInsights, type GroupStat } from "@/lib/paper/insights";
 import { usePaper } from "./paper-provider";
+import { displaySymbol } from "@/lib/symbols";
 
 function Groups({ title, rows }: { title: string; rows: GroupStat[] }) {
   if (!rows.length) return null;
@@ -25,7 +26,7 @@ function Groups({ title, rows }: { title: string; rows: GroupStat[] }) {
         <TableBody>
           {rows.map((g) => (
             <TableRow key={g.key}>
-              <TableCell className="pl-4 font-medium">{g.key}</TableCell>
+              <TableCell className="pl-4 font-medium">{title === "By stock" ? displaySymbol(g.key) : g.key}</TableCell>
               <TableCell className="text-right font-mono">{g.n}</TableCell>
               <TableCell className="text-right font-mono">{fmtPct(g.winRate * 100, 0)}</TableCell>
               <TableCell className="text-right font-mono">{fmtPct(g.avgReturnPct, 2, { sign: true })}</TableCell>

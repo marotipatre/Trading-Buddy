@@ -8,6 +8,8 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtInr, fmtPct } from "@/lib/format";
 import { usePaper } from "./paper-provider";
+import { SymbolLabel } from "@/components/symbol-label";
+import { displaySymbol } from "@/lib/symbols";
 
 export function PositionsPanel() {
   const { state, quotes, closeNow, cancel } = usePaper();
@@ -40,7 +42,7 @@ export function PositionsPanel() {
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="pl-4">
-                      <div className="font-medium">{p.symbol}</div>
+                      <SymbolLabel symbol={p.symbol} />
                       <div className="flex gap-1 text-[11px] text-muted-foreground">
                         <Badge variant="outline">{p.direction}</Badge><Badge variant="outline">{p.product === "delivery" ? "CNC" : "MIS"}</Badge>
                       </div>
@@ -56,7 +58,7 @@ export function PositionsPanel() {
                     <TableCell className="pr-2">
                       <Button variant="outline" size="xs" onClick={async () => {
                         const r = await closeNow(p.id);
-                        if (r.error) toast.error(r.error); else toast.success(`Closed ${p.symbol}`);
+                        if (r.error) toast.error(r.error); else toast.success(`Closed ${displaySymbol(p.symbol)}`);
                       }}>Close</Button>
                     </TableCell>
                   </TableRow>
@@ -80,7 +82,7 @@ export function PositionsPanel() {
             <TableBody>
               {state.orders.map((o) => (
                 <TableRow key={o.id}>
-                  <TableCell className="pl-4 font-medium">{o.symbol}</TableCell>
+                  <TableCell className="pl-4"><SymbolLabel symbol={o.symbol} /></TableCell>
                   <TableCell><Badge variant="outline">{o.side}</Badge></TableCell>
                   <TableCell className="text-right font-mono">{o.qty}</TableCell>
                   <TableCell className="text-right font-mono">{o.limitPrice.toFixed(2)}</TableCell>

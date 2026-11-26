@@ -13,6 +13,7 @@ import { normalizeTags, PRESET_TAGS } from "@/lib/paper/journal";
 import type { ClosedTrade } from "@/lib/paper/types";
 import { cn } from "@/lib/utils";
 import { usePaper } from "./paper-provider";
+import { SymbolLabel } from "@/components/symbol-label";
 
 function Editor({ trade, onSave }: { trade: ClosedTrade; onSave: (patch: { note: string; tags: string[] }) => void }) {
   const [note, setNote] = useState(trade.note ?? "");
@@ -66,7 +67,7 @@ export function JournalTable() {
                   <TableRow className="cursor-pointer" onClick={() => setOpen(open === t.id ? null : t.id)}>
                     <TableCell className="pl-3 text-muted-foreground">{open === t.id ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}</TableCell>
                     <TableCell className="text-xs">{fmtDate(t.exitTime)}</TableCell>
-                    <TableCell className="font-medium">{t.symbol}</TableCell>
+                    <TableCell><SymbolLabel symbol={t.symbol} compact /></TableCell>
                     <TableCell className="text-right font-mono">{t.qty}</TableCell>
                     <TableCell className="text-right font-mono">{t.entryPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right font-mono">{t.exitPrice.toFixed(2)}</TableCell>
