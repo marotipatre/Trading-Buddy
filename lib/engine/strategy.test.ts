@@ -29,4 +29,8 @@ describe("StrategyDef", () => {
     });
     expect(r.success).toBe(true);
   });
+  it("rejects delivery shorts (not possible in NSE cash equity)", () => {
+    expect(StrategyDef.safeParse({ ...base, direction: "short", product: "delivery" }).success).toBe(false);
+    expect(StrategyDef.safeParse({ ...base, direction: "short", product: "intraday" }).success).toBe(true);
+  });
 });
