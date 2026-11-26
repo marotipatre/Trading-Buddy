@@ -14,6 +14,7 @@ import { useUniverse } from "@/components/use-universe";
 import type { Candle } from "@/lib/data/types";
 import { newsMood } from "@/lib/analysis/sentiment";
 import { rankSectors, type SectorRow } from "@/lib/analysis/sectors";
+import { interleaveMixed } from "@/lib/analysis/mixed";
 import { buildMixedPortfolio } from "@/lib/analysis/portfolio-mix";
 import { assessStock, FRAME_LABEL, HISTORY_DAYS, positionSize, withOverlay, withRelativeStrength, type Frame, type StockView } from "@/lib/analysis/stock-view";
 import type { AnalystCall, Consensus, NewsItem } from "@/lib/data/news";
@@ -41,7 +42,7 @@ export function IdeasView() {
   const { stocks, loading: uniLoading } = useUniverse();
   const [frame, setFrame] = useState<Frame>("daily");
   const [ranFrame, setRanFrame] = useState<Frame>("daily");
-  const [cap, setCap] = useState<Cap>("large");
+  const [cap, setCap] = useState<Cap | "mixed">("large");
   const [count, setCount] = useState("60");
   const [capital, setCapital] = useState(300000);
   const [riskPct, setRiskPct] = useState(1);
@@ -54,7 +55,13 @@ export function IdeasView() {
   const [open, setOpen] = useState<string | null>(null);
   const stopRef = useRef(false);
 
-  const pool = useMemo(() => (stocks ?? []).filter((s) => s.cap === cap).sort((a, b) => a.name.localeCompare(b.name)), [stocks, cap]);
+  const pool = useMemo(() => {
+    const all = stocks ?? [];
+    if (cap !== "mixed") return all.filter((s) => s.cap === cap).sort((a, b) => a.name.localeCompare(b.name));
+    // Mixed: interleave large, mid and small caps 40/35/25 so any count taken from the front holds all three sizes.
+    const by = (c: Cap) => all.filter((s) => s.cap === c).sort((a, b) => a.name.localeCompare(b.name));
+    return interleaveMixed(by("large"), by("mid"), by("small"));
+  }, [stocks, cap]);
 
   async function scan() {
     const picks = pool.slice(0, Number(count));
@@ -144,8 +151,8 @@ export function IdeasView() {
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="w-44 space-y-1"><Label className="text-xs text-muted-foreground">Look at</Label>
             <SimpleSelect className="w-full" value={frame} onChange={setFrame} options={[{ value: "daily", label: "Daily (1–3 weeks)" }, { value: "weekly", label: "Weekly (3–8 weeks)" }, { value: "monthly", label: "Monthly (2–6 months)" }]} /></div>
-          <div className="w-36 space-y-1"><Label className="text-xs text-muted-foreground">Stock size</Label>
-            <SimpleSelect className="w-full" value={cap} onChange={setCap} options={(["large", "mid", "small"] as Cap[]).map((c) => ({ value: c, label: CAP_LABEL[c] }))} /></div>
+          <div className="w-52 space-y-1"><Label className="text-xs text-muted-foreground">Stock size</Label>
+            <SimpleSelect className="w-full" value={cap} onChange={setCap} options={[{ value: "mixed" as const, label: "Mixed (large + mid + small)" }, ...(["large", "mid", "small"] as Cap[]).map((c) => ({ value: c, label: CAP_LABEL[c] }))]} /></div>
           <div className="w-32 space-y-1"><Label className="text-xs text-muted-foreground">How many</Label>
             <SimpleSelect className="w-full" value={count} onChange={setCount} options={[30, 60, 100].map((n) => ({ value: String(n), label: `${n} stocks` }))} /></div>
           <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Capital (₹)</Label><NumberField min={10000} step={50000} value={capital} onChange={setCapital} /></div>
