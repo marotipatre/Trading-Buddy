@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { OrderTicket } from "@/components/paper/order-ticket";
 import { AlertForm } from "@/components/alerts/alert-form";
 import { StockChart } from "@/components/chart/stock-chart";
-import { NewsPanel } from "@/components/news/news-panel";import { PositionsPanel } from "@/components/paper/positions-panel";
+import { NewsPanel } from "@/components/news/news-panel";
+import { ForecastCard } from "@/components/forecast/forecast-card";import { PositionsPanel } from "@/components/paper/positions-panel";
 import { SymbolSearch } from "@/components/symbol-search";
 import type { Quote } from "@/lib/data/types";
 import { fmtInr, fmtPct } from "@/lib/format";
@@ -149,6 +150,7 @@ export function TradeView() {
           </CardContent>
         </Card>
           <StockChart symbol={symbol} />
+          <ForecastCard symbol={symbol} />
           <NewsPanel name={companyName(symbol) ?? displaySymbol(symbol)} price={q?.price} />
         </div>
         <div className="space-y-4">
