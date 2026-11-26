@@ -30,18 +30,22 @@ import { RiskForm } from "./risk-form";
 import { BacktestResults } from "./results";
 import { RuleGroupEditor } from "./rule-group-editor";
 import { SimpleSelect } from "./simple-select";
+import { EmaBuilderForm } from "./ema-builder-form";
+import { buildEmaStrategy, DEFAULT_EMA_SPEC, type EmaSpec } from "@/lib/engine/ema-builder";
 
 const YEARS = [1, 2, 3, 5, 8, 12].map((y) => ({ value: String(y), label: `${y} year${y > 1 ? "s" : ""}` }));
 const PRESET_OPTIONS = [...PRESETS.map((p) => ({ value: p.id, label: p.label })), { value: "custom", label: "Custom (edited)" }];
 
-interface Output { analysis: Analysis; candles: Candle[]; label: string }
+interface Output { analysis: Analysis; candles: Candle[]; label: string; strategy: StrategyDef }
 interface ScanOutput { summary: ScanSummary; rows: ScanRow[]; failed: { symbol: string; error: string }[]; label: string }
 
 export function Workbench() {
   const [symbol, setSymbol] = useState("RELIANCE.NS");
   const [years, setYears] = useState("5");
   const [presetId, setPresetId] = useState(PRESETS[0].id);
-  const [strategy, setStrategy] = useState<StrategyDef>(PRESETS[0].strategy);
+  const [strategy, setStrategy] = useState<StrategyDef>(() => buildEmaStrategy(DEFAULT_EMA_SPEC));
+  const [builder, setBuilder] = useState<"simple" | "advanced">("simple");
+  const [emaSpec, setEmaSpec] = useState<EmaSpec>(DEFAULT_EMA_SPEC);
   const [slippageBps, setSlippageBps] = useState(DEFAULT_COSTS.slippageBps);
   const [zeroBrokerage, setZeroBrokerage] = useState(true);
   const [running, setRunning] = useState(false);
@@ -82,6 +86,15 @@ export function Workbench() {
     setStrategy(s);
     setPresetId("custom");
   };
+
+  function editSpec(s: EmaSpec) {
+    setEmaSpec(s);
+    setStrategy((cur) => ({ ...buildEmaStrategy(s), sizing: cur.sizing, product: cur.product, direction: cur.direction, initialCapital: cur.initialCapital }));
+  }
+  function chooseBuilder(b: "simple" | "advanced") {
+    setBuilder(b);
+    if (b === "simple") setStrategy((cur) => ({ ...buildEmaStrategy(emaSpec), sizing: cur.sizing, product: cur.product, direction: cur.direction, initialCapital: cur.initialCapital }));
+  }
 
   function pickPreset(id: string) {
     const p = getPreset(id);
@@ -264,7 +277,7 @@ export function Workbench() {
       };
       const name = csv ? csv.name : symbol;
       const analysis = analyze(name, candles, parsed.data, costs);
-      setOut({ analysis, candles, label: `${parsed.data.name} on ${name}` });
+      setOut({ analysis, candles, label: `${parsed.data.name} on ${name}`, strategy: parsed.data });
       toast.success(`${analysis.result.trades.length} trades simulated`);
     } catch (e) {
       toast.error((e as Error).message);
@@ -369,9 +382,18 @@ export function Workbench() {
         <Card>
           <CardHeader>
             <CardTitle>2 · Strategy</CardTitle>
-            <CardDescription>Start from a swing preset or build your own rules</CardDescription>
+            <CardDescription>Pick the simple moving-average builder, or use ready-made presets and your own rules</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Strategy style">
+              {([["simple", "Simple (EMA)"], ["advanced", "Presets & rules"]] as const).map(([b, label]) => (
+                <button key={b} type="button" role="tab" aria-selected={builder === b} onClick={() => chooseBuilder(b)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${builder === b ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
+              ))}
+            </div>
+            {builder === "simple" ? (
+              <EmaBuilderForm spec={emaSpec} onChange={editSpec} />
+            ) : (<>
             <SimpleSelect className="w-full" value={presetId} options={PRESET_OPTIONS} onChange={(id) => id !== "custom" && pickPreset(id)} />
             {getPreset(presetId) && <p className="text-xs text-muted-foreground">{getPreset(presetId)!.description}</p>}
             <div>
@@ -389,16 +411,17 @@ export function Workbench() {
                 </Button>
               )}
             </div>
+            </>)}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>3 · Risk &amp; costs</CardTitle>
+            <CardTitle>3 · Position size &amp; costs</CardTitle>
             <CardDescription>Stops, targets, sizing and Indian transaction charges</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <RiskForm strategy={strategy} onChange={edit} />
+            {builder === "advanced" ? <RiskForm strategy={strategy} onChange={edit} /> : <RiskForm strategy={strategy} onChange={edit} sizingOnly />}
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Slippage (bps per fill)</Label>
@@ -438,7 +461,7 @@ export function Workbench() {
         ) : mode === "one" && out ? (
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">{out.label}</h2>
-            <BacktestResults analysis={out.analysis} candles={out.candles} />
+            <BacktestResults analysis={out.analysis} candles={out.candles} strategy={out.strategy} />
           </div>
         ) : (
           <Card className="grid min-h-96 place-items-center text-center">

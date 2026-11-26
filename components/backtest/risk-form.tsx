@@ -25,10 +25,12 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   );
 }
 
-export function RiskForm({ strategy: s, onChange }: { strategy: StrategyDef; onChange: (s: StrategyDef) => void }) {
+/** `sizingOnly` hides stop, target and time-stop (the simple builder sets those) and keeps size, capital and product. */
+export function RiskForm({ strategy: s, onChange, sizingOnly = false }: { strategy: StrategyDef; onChange: (s: StrategyDef) => void; sizingOnly?: boolean }) {
   const set = (patch: Partial<StrategyDef>) => onChange({ ...s, ...patch });
   return (
     <div className="space-y-5">
+      {!sizingOnly && (<>
       <div className="space-y-2.5">
         <Toggle label="Stop-loss" checked={!!s.stopLoss}
           onChange={(on) => set({ stopLoss: on ? { type: "percent", value: 5, trailing: false, atrPeriod: 14 } : undefined,
@@ -86,6 +88,7 @@ export function RiskForm({ strategy: s, onChange }: { strategy: StrategyDef; onC
         )}
       </div>
 
+      </>)}
       <div className="grid grid-cols-2 gap-2.5">
         <Field label="Position size">
           <SimpleSelect className="w-full" value={s.sizing.type}
