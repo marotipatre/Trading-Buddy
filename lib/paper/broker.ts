@@ -3,8 +3,8 @@ import type { Bar, CloseReason, ClosedTrade, Direction, OrderRequest, PaperPosit
 
 export const INTRADAY_SQUAREOFF_MINUTES = 15 * 60 + 15; // 15:15 IST
 
-export function newAccount(initialCapital = 1_000_000, costs: CostConfig = { ...DEFAULT_COSTS, ...DELIVERY_ZERO_BROKERAGE, slippageBps: 2 }): PaperState {
-  return { version: 1, initialCapital, cash: initialCapital, nextId: 1, positions: [], orders: [], trades: [], costs };
+export function newAccount(initialCapital = 1_000_000, costs: CostConfig = { ...DEFAULT_COSTS, ...DELIVERY_ZERO_BROKERAGE, slippageBps: 2 }, bank = 0): PaperState {
+  return { version: 1, initialCapital, cash: initialCapital, nextId: 1, positions: [], orders: [], trades: [], costs, bank, tradingCapital: initialCapital, transfers: [] };
 }
 
 export type Result = { state: PaperState; error?: string; filled?: boolean };

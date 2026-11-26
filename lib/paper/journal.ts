@@ -45,6 +45,6 @@ export function recordEquity(state: PaperState, equity: number, time: number, op
   if (!Number.isFinite(equity)) return state;
   if (last && !force && time - last.time < minGapSec) return state;
   if (last && last.time === time && last.equity === equity) return state;
-  const next = [...hist, { time, equity }];
+  const next = [...hist, { time, equity, capital: state.tradingCapital ?? state.initialCapital }];
   return { ...state, equityHistory: next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next };
 }

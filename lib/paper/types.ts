@@ -78,7 +78,24 @@ export interface PaperState {
   trades: ClosedTrade[];
   costs: CostConfig;
   /** Account value over time, appended by the app while it is open. */
-  equityHistory?: { time: number; equity: number }[];
+  equityHistory?: { time: number; equity: number; /** Money allocated to trading at that moment, so deposits don't look like profit. */ capital?: number }[];
+  /** Second pot: money set aside from trading (a bank balance). Missing on accounts saved before pots existed. */
+  bank?: number;
+  /** Net money ever moved into the trading pot (initial + deposits - withdrawals). Returns are measured against this. */
+  tradingCapital?: number;
+  transfers?: Transfer[];
+}
+
+export type Pot = "trading" | "bank";
+
+export interface Transfer {
+  id: number;
+  time: number;
+  type: "deposit" | "withdraw" | "to_trading" | "to_bank";
+  /** The pot whose balance changed first (for transfers, the source). */
+  pot: Pot;
+  amount: number;
+  note?: string;
 }
 
 export interface OrderRequest {
