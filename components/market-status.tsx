@@ -15,7 +15,7 @@ export function MarketStatus() {
   if (!now) return <div className="h-6" />;
   const open = isMarketOpen(now);
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex items-center gap-2">
       <Badge variant="outline" className="gap-1.5">
         <span className={`size-1.5 rounded-full ${open ? "bg-up" : "bg-down"}`} />
         NSE {open ? "open" : "closed"}

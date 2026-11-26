@@ -7,9 +7,10 @@ import type { SymbolHit } from "@/lib/data/types";
 import { SymbolLabel } from "@/components/symbol-label";
 import { rememberName, tidyName } from "@/lib/symbols";
 
-export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RELIANCE)" }: {
+export function SymbolSearch({ onPick, placeholder = "Search stocks, e.g. RELIANCE", className = "w-72" }: {
   onPick: (hit: SymbolHit) => void;
   placeholder?: string;
+  className?: string;
 }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SymbolHit[]>([]);
@@ -33,7 +34,7 @@ export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RE
   }, [q]);
 
   return (
-    <div className="relative w-72">
+    <div className={`relative ${className}`}>
       <Search className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
       <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} className="pl-8" />
       {q.trim().length >= 2 && hits.length > 0 && (
