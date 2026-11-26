@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Play } from "lucide-react";
+import { useRef, useState } from "react";
+import { Loader2, Play, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { SymbolSearch } from "@/components/symbol-search";
 import type { Candle } from "@/lib/data/types";
+import { parseCandlesCsv } from "@/lib/data/csv";
 import { analyze, type Analysis } from "@/lib/engine/analyze";
 import { DEFAULT_COSTS, DELIVERY_ZERO_BROKERAGE } from "@/lib/engine/costs";
 import { PRESETS, getPreset } from "@/lib/engine/presets";
@@ -33,6 +34,20 @@ export function Workbench() {
   const [zeroBrokerage, setZeroBrokerage] = useState(true);
   const [running, setRunning] = useState(false);
   const [out, setOut] = useState<Output | null>(null);
+  const [csv, setCsv] = useState<{ name: string; candles: Candle[] } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    const r = parseCandlesCsv(await file.text());
+    r.warnings.forEach((w) => toast.warning(w));
+    if (r.candles.length < 60) {
+      toast.error("Need at least 60 valid daily candles");
+      return;
+    }
+    setCsv({ name: file.name.replace(/\.[^.]+$/, ""), candles: r.candles });
+    toast.success(`Loaded ${r.candles.length} candles from ${file.name}`);
+  }
 
   const edit = (s: StrategyDef) => {
     setStrategy(s);
@@ -54,10 +69,14 @@ export function Workbench() {
     }
     setRunning(true);
     try {
-      const res = await fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&days=${Number(years) * 365}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Could not load price history");
-      const candles: Candle[] = json.candles;
+      let candles: Candle[];
+      if (csv) candles = csv.candles;
+      else {
+        const res = await fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&days=${Number(years) * 365}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Could not load price history");
+        candles = json.candles;
+      }
       if (candles.length < 60) throw new Error(`Only ${candles.length} candles available for ${symbol}`);
       await new Promise((r) => setTimeout(r, 30)); // let the spinner paint before the CPU-heavy part
       const costs = {
@@ -65,8 +84,9 @@ export function Workbench() {
         ...(zeroBrokerage && parsed.data.product === "delivery" ? DELIVERY_ZERO_BROKERAGE : {}),
         slippageBps,
       };
-      const analysis = analyze(symbol, candles, parsed.data, costs);
-      setOut({ analysis, candles, label: `${parsed.data.name} on ${symbol}` });
+      const name = csv ? csv.name : symbol;
+      const analysis = analyze(name, candles, parsed.data, costs);
+      setOut({ analysis, candles, label: `${parsed.data.name} on ${name}` });
       toast.success(`${analysis.result.trades.length} trades simulated`);
     } catch (e) {
       toast.error((e as Error).message);
@@ -94,6 +114,20 @@ export function Workbench() {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">History</Label>
               <SimpleSelect className="w-full" value={years} options={YEARS} onChange={setYears} />
+            </div>
+            <div className="rounded-lg border border-dashed p-3">
+              <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+              {csv ? (
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span>Using <b>{csv.name}.csv</b> · {csv.candles.length} candles</span>
+                  <Button variant="ghost" size="icon-sm" aria-label="Stop using CSV" onClick={() => setCsv(null)}><X /></Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">Longer history or a data source of your own? Upload daily OHLC as CSV.</p>
+                  <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}><Upload /> CSV</Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
