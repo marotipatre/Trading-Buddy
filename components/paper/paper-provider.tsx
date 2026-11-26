@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createClient } from "@/lib/supabase/client";
 import type { Candle, Quote } from "@/lib/data/types";
 import { catchUp, closePosition, intradayDue, newAccount, onPrice, placeOrder, squareOffIntraday, cancelOrder, equity as equityOf } from "@/lib/paper/broker";
+import { annotateTrade, recordEquity } from "@/lib/paper/journal";
 import { loadAccount, saveAccount, type Loaded } from "@/lib/paper/store";
 import type { OrderRequest, PaperState } from "@/lib/paper/types";
 import { isMarketOpen } from "@/lib/market-hours";
@@ -19,6 +20,7 @@ interface PaperCtx {
   place: (req: OrderRequest) => Promise<{ error?: string; filled?: boolean }>;
   closeNow: (positionId: number, qty?: number) => Promise<{ error?: string }>;
   cancel: (orderId: number) => void;
+  annotate: (tradeId: number, patch: { note?: string; tags?: string[] }) => void;
   reset: (capital: number) => void;
 }
 
@@ -46,6 +48,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const stateRef = useRef(state);
+  const priceRef = useRef<Record<string, number>>({}); // latest known price per symbol
   const loadedRef = useRef<Pick<Loaded, "id" | "localOnly">>({ localOnly: true });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supabase = useMemo(() => createClient(), []);
@@ -114,9 +117,12 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
         const qs = await fetchQuotes(symbolsKey.split(","));
         if (stop || !qs.length) return;
         setQuotes((prev) => ({ ...prev, ...Object.fromEntries(qs.map((q) => [q.symbol, q])) }));
+        for (const q of qs) priceRef.current[q.symbol] = q.price;
         let st = stateRef.current;
         for (const q of qs) st = onPrice(st, q.symbol, q.price, q.time || nowSec());
         if (intradayDue(st, nowSec())) st = squareOffIntraday(st, Object.fromEntries(qs.map((q) => [q.symbol, q.price])), nowSec());
+        // Sample account value for the equity curve (immediately after a trade closes, else every 15 min).
+        st = recordEquity(st, equityOf(st, priceRef.current), nowSec(), { force: st.trades.length !== stateRef.current.trades.length });
         if (st !== stateRef.current) commit(st);
       } catch {}
     };
@@ -133,6 +139,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
       const [q] = await fetchQuotes([req.symbol]);
       if (!q) return { error: "No live price available for this symbol" };
       setQuotes((prev) => ({ ...prev, [q.symbol]: q }));
+      priceRef.current[q.symbol] = q.price;
       // One clock: stamp the order with the quote's own time so later ticks (also q.time) are
       // never judged against a different clock. The intraday session check uses the wall clock.
       const r = placeOrder(stateRef.current, req, q.price, q.time || nowSec(), { intradayClock: nowSec() });
@@ -150,7 +157,10 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
       const [q] = await fetchQuotes([pos.symbol]);
       if (!q) return { error: "No live price available" };
       const r = closePosition(stateRef.current, positionId, qty ?? pos.qty, q.price, nowSec(), "manual");
-      if (!r.error) commit(r.state);
+      if (!r.error) {
+        priceRef.current[q.symbol] = q.price;
+        commit(recordEquity(r.state, equityOf(r.state, priceRef.current), nowSec(), { force: true }));
+      }
       return { error: r.error };
     } catch (e) {
       return { error: (e as Error).message };
@@ -158,14 +168,18 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
   }, [commit]);
 
   const cancel = useCallback((orderId: number) => commit(cancelOrder(stateRef.current, orderId)), [commit]);
+  const annotate = useCallback(
+    (tradeId: number, patch: { note?: string; tags?: string[] }) => commit(annotateTrade(stateRef.current, tradeId, patch)),
+    [commit],
+  );
   const reset = useCallback((capital: number) => commit(newAccount(capital)), [commit]);
 
   const prices = useMemo(() => Object.fromEntries(Object.values(quotes).map((q) => [q.symbol, q.price])), [quotes]);
   const equity = useMemo(() => equityOf(state, prices), [state, prices]);
 
   const value = useMemo<PaperCtx>(
-    () => ({ state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, reset }),
-    [state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, reset],
+    () => ({ state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, reset }),
+    [state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, reset],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
