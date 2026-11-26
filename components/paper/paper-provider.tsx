@@ -133,7 +133,9 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
       const [q] = await fetchQuotes([req.symbol]);
       if (!q) return { error: "No live price available for this symbol" };
       setQuotes((prev) => ({ ...prev, [q.symbol]: q }));
-      const r = placeOrder(stateRef.current, req, q.price, nowSec());
+      // One clock: stamp the order with the quote's own time so later ticks (also q.time) are
+      // never judged against a different clock. The intraday session check uses the wall clock.
+      const r = placeOrder(stateRef.current, req, q.price, q.time || nowSec(), { intradayClock: nowSec() });
       if (!r.error) commit(r.state);
       return { error: r.error, filled: r.filled };
     } catch (e) {
