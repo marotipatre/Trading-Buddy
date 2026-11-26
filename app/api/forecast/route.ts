@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getCandles } from "@/lib/data";
 import { summarizePaths } from "@/lib/forecast";
+import { allow } from "@/lib/server/rate-limit";
 
 const Query = z.object({ symbol: z.string().min(1).max(30), days: z.coerce.number().int().min(1).max(30).default(5) });
 
@@ -19,6 +20,9 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rl = allow(`forecast:${auth.user.id}`, 10, 60_000);
+  if (!rl.ok) return NextResponse.json({ error: `Too many requests. Try again in ${rl.retryAfterSec}s.` }, { status: 429 });
 
   try {
     const to = Math.floor(Date.now() / 1000);

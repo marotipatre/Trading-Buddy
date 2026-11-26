@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { consensus, fetchCompanyNews } from "@/lib/data/news";
+import { allow } from "@/lib/server/rate-limit";
 
 const cache = new Map<string, { at: number; body: unknown }>();
 const TTL = 10 * 60_000;
@@ -13,6 +14,9 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rl = allow(`news:${auth.user.id}`, 90, 60_000);
+  if (!rl.ok) return NextResponse.json({ error: `Too many requests. Try again in ${rl.retryAfterSec}s.` }, { status: 429, headers: { "retry-after": String(rl.retryAfterSec) } });
 
   const key = name.toLowerCase();
   const hit = cache.get(key);

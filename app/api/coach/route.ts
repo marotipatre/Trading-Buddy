@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { buildMessages, unknownNumbers } from "@/lib/coach";
+import { allow } from "@/lib/server/rate-limit";
 
 const Body = z.object({ kind: z.enum(["portfolio", "idea", "intraday", "backtest"]), data: z.record(z.string(), z.unknown()) });
 
@@ -21,6 +22,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rl = allow(`coach:${auth.user.id}`, 20, 60_000);
+  if (!rl.ok) return NextResponse.json({ error: `Too many requests. Try again in ${rl.retryAfterSec}s.` }, { status: 429 });
 
   const model = process.env.OLLAMA_MODEL || "llama3.2";
   try {
