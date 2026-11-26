@@ -91,6 +91,7 @@ export function IdeasView() {
   const [regime, setRegime] = useState<MarketRegime | null>(null);
   const [asOf, setAsOf] = useState<number | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [sectorFilter, setSectorFilter] = useState<string | null>(null);
   const stopRef = useRef(false);
   const [restoredAt, setRestoredAt] = useState<number | null>(null);
 
@@ -262,6 +263,29 @@ export function IdeasView() {
       <RealityCheck />
 
       {sectors.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-baseline justify-between"><h2 className="text-lg font-semibold">Sector map</h2><span className="text-xs text-muted-foreground">Colour = 1-month move. Click a tile to list only that sector.</span></div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {sectors.map((sc) => {
+              const k = Math.min(1, Math.abs(sc.m1) / 14);
+              const mix = Math.round(14 + k * 56);
+              const bg = `color-mix(in oklab, var(${sc.m1 >= 0 ? "--up" : "--down"}) ${mix}%, var(--card))`;
+              const on = sectorFilter === sc.sector;
+              return (
+                <button key={sc.sector} type="button" onClick={() => { setSectorFilter(on ? null : sc.sector); setShowAll(true); }} aria-pressed={on} style={{ backgroundColor: bg }}
+                  className={cn("rounded-xl border p-3 text-left transition-transform hover:-translate-y-0.5", on && "ring-2 ring-primary")}>
+                  <div className="flex items-start justify-between gap-2"><span className="text-sm font-semibold leading-tight">{sc.sector}</span>
+                    <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold", sc.stance === "focus" ? "bg-up/25 text-up" : sc.stance === "avoid" ? "bg-down/25 text-down" : "bg-background/70 text-muted-foreground")}>{sc.stance === "focus" ? "FOCUS" : sc.stance === "avoid" ? "AVOID" : "NEUTRAL"}</span></div>
+                  <div className="tabular mt-1 font-mono text-lg font-semibold">{pct(sc.m1)}</div>
+                  <div className="text-[11px] text-muted-foreground">{sc.breadth.toFixed(0)}% in uptrend · {sc.buys}/{sc.stocks} buy setups</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {sectors.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Sectors</CardTitle>
@@ -369,9 +393,9 @@ export function IdeasView() {
 
       {ideas.length > 0 && (
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold">Stocks</h2>
+          <h2 className="text-lg font-semibold">Stocks{sectorFilter && <span className="ml-2 text-sm font-normal text-muted-foreground">in {sectorFilter} <button type="button" className="underline" onClick={() => setSectorFilter(null)}>show all sectors</button></span>}</h2>
           {asOf && <p className="text-xs text-muted-foreground">Scanned at {new Date(asOf).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} on the latest daily candles. Click a stock for the reasons, news and broker calls.</p>}
-          {ideas.slice(0, showAll ? 300 : 40).map((i) => {
+          {ideas.filter((x) => !sectorFilter || x.stock.sector === sectorFilter).slice(0, showAll ? 300 : 40).map((i) => {
             const v = i.view, p = v.plan;
             const size = p ? positionSize(capital, riskPct, 25, p) : null;
             const isOpen = open === i.stock.symbol;
