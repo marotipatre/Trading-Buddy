@@ -14,10 +14,13 @@ import { InsightsPanel } from "./insights-panel";
 import { JournalTable } from "./journal-table";
 import { usePaper } from "./paper-provider";
 import { PositionsPanel } from "./positions-panel";
+import { bankOf, capitalOf, tradingPnl } from "@/lib/paper/funds";
+import { FundsCard } from "./funds-card";
 
 export function PortfolioView() {
   const { state, equity, quotes, localOnly, error, ready, reset } = usePaper();
   const [capital, setCapital] = useState(state.initialCapital);
+  const [bankStart, setBankStart] = useState(0);
   const [confirm, setConfirm] = useState(false);
   const m = useMemo(() => paperMetrics(state), [state]);
 
@@ -41,10 +44,10 @@ export function PortfolioView() {
         </div>
       )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard label="Account value" value={fmtInr(equity)} sub={`Started with ${fmtInr(state.initialCapital)}`} />
-        <MetricCard label="Total return" value={fmtPct((equity / state.initialCapital - 1) * 100, 2, { sign: true })}
-          tone={equity >= state.initialCapital ? "up" : "down"} sub={`Open ${fmtInr(open, { sign: true })} · Realised ${fmtInr(realised, { sign: true })}`} />
-        <MetricCard label="Cash available" value={fmtInr(state.cash)} />
+        <MetricCard label="Trading balance" value={fmtInr(equity)} sub={`Capital put in ${fmtInr(capitalOf(state))}`} />
+        <MetricCard label="Total return" value={fmtPct(tradingPnl(state, equity).pct, 2, { sign: true })}
+          tone={equity >= capitalOf(state) ? "up" : "down"} sub={`Open ${fmtInr(open, { sign: true })} · Realised ${fmtInr(realised, { sign: true })}`} />
+        <MetricCard label="Available to trade" value={fmtInr(state.cash)} sub={`Bank balance ${fmtInr(bankOf(state))}`} />
         <MetricCard label="Win rate (paper)" value={m.trades ? fmtPct(m.winRate * 100, 0) : "—"}
           sub={m.trades ? `95% range ${fmtPct(lo * 100, 0)} – ${fmtPct(hi * 100, 0)} · ${m.trades} trades` : "No closed trades yet"} />
       </div>
@@ -60,11 +63,12 @@ export function PortfolioView() {
         <Card>
           <CardHeader>
             <CardTitle>Account value</CardTitle>
-            <CardDescription>Sampled while the app is open and after every closed trade. Dashed line is your starting capital.</CardDescription>
+            <CardDescription>Profit or loss on the money you put into trading, so adding funds never looks like profit.</CardDescription>
           </CardHeader>
-          <CardContent><AccountEquityChart history={state.equityHistory!} initial={state.initialCapital} /></CardContent>
+          <CardContent><AccountEquityChart history={state.equityHistory!} initial={capitalOf(state)} /></CardContent>
         </Card>
       )}
+      <FundsCard />
       <PositionsPanel />
       <InsightsPanel />
       <JournalTable />
@@ -74,10 +78,11 @@ export function PortfolioView() {
           <CardDescription>Clears every position, order and journal entry and starts again with fresh virtual cash.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="w-48"><NumberField min={10000} step={100000} value={capital} onChange={setCapital} /></div>
+          <div className="w-44 space-y-1"><div className="text-xs text-muted-foreground">Trading balance (₹)</div><NumberField min={0} step={100000} value={capital} onChange={setCapital} /></div>
+          <div className="w-44 space-y-1"><div className="text-xs text-muted-foreground">Bank balance (₹)</div><NumberField min={0} step={100000} value={bankStart} onChange={setBankStart} /></div>
           {confirm ? (
             <>
-              <Button variant="destructive" onClick={() => { reset(capital); setConfirm(false); toast.success("Account reset"); }}>Yes, erase and reset</Button>
+              <Button variant="destructive" onClick={() => { reset(capital, bankStart); setConfirm(false); toast.success("Account reset"); }}>Yes, erase and reset</Button>
               <Button variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button>
             </>
           ) : (
