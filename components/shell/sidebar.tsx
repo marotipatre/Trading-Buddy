@@ -23,17 +23,17 @@ export function Sidebar() {
       <LayoutGroup id="sidebar">
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3">
           {NAV_GROUPS.map((g) => (
-            <div key={g.title}>
-              <div className="px-2.5 pb-1.5 text-xs font-medium text-muted-foreground">{g.title}</div>
+            <div key={g.title} className="tone" style={{ "--h": g.hue } as React.CSSProperties}>
+              <div className="flex items-center gap-1.5 px-2.5 pb-1.5 text-xs font-medium text-muted-foreground"><span className="size-1.5 rounded-full bg-[var(--tone)]" />{g.title}</div>
               <ul className="space-y-0.5">
                 {g.items.map(({ href, label, icon: Icon }) => {
                   const on = isActive(path, href);
                   return (
                     <li key={href} className="relative">
-                      {on && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-[10px] bg-accent" transition={SPRING} />}
+                      {on && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-[10px] bg-[var(--tone-soft)]" transition={SPRING} />}
                       <Link href={href} aria-current={on ? "page" : undefined}
-                        className={cn("relative flex items-center gap-3 rounded-[10px] px-2.5 py-2 text-sm font-medium transition-colors", on ? "text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-                        <Icon className={cn("size-[18px] shrink-0 transition-colors", on && "text-primary")} strokeWidth={on ? 2.3 : 1.9} />
+                        className={cn("relative flex items-center gap-3 rounded-[10px] px-2.5 py-2 text-sm font-medium transition-colors", on ? "text-[var(--tone-ink)]" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                        <Icon className={cn("size-[18px] shrink-0 transition-colors", on && "text-[var(--tone)]")} strokeWidth={on ? 2.3 : 1.9} />
                         {label}
                       </Link>
                     </li>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Info } from "@/components/ui/info";
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { FlaskConical, Loader2, Play } from "lucide-react";
@@ -70,7 +71,7 @@ export function StrategyLab() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>What we measured (27 Nov 2026)</CardTitle><CardDescription>One run of this lab: 19 large-cap stocks, 8 years, costs included. Your run will differ.</CardDescription></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-1.5">What we measured (27 Nov 2026)<Info title="What we measured (27 Nov 2026)"><p>One run of this lab: 19 large-cap stocks, 8 years, costs included. Your run will differ.</p></Info></CardTitle></CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
           <p>Almost every ready-made swing strategy <b className="text-foreground">lost its edge in the later 30% of history</b>. The best, &ldquo;Pullback in an uptrend&rdquo; (476 trades) and &ldquo;EMA 20/50 trend&rdquo; (209), earned about +0.4% and +0.7% a trade overall but roughly zero in the later period. The Minervini template looked best early (+1.36% a trade) and lost money later (−1.30%).</p>
           <p>Simply <b className="text-foreground">holding the stock beat the strategy on about 95% of stocks</b>, for almost every strategy: this was a strong market for buy-and-hold.</p>

@@ -1,11 +1,12 @@
 "use client";
 
+import { Info } from "@/components/ui/info";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Play, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { SymbolSearch } from "@/components/symbol-search";
@@ -326,8 +327,7 @@ export function Workbench() {
         {showGroup ? (
           <Card>
             <CardHeader>
-              <CardTitle>1 · Group &amp; history</CardTitle>
-              <CardDescription>Test the strategy on many stocks at once. If it only works on one, it does not work.</CardDescription>
+              <CardTitle className="flex items-center gap-1.5">1 · Group &amp; history<Info title="1 · Group and history"><p>Test the strategy on many stocks at once. If it only works on one, it does not work.</p></Info></CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <GroupPicker cap={cap} setCap={(c) => { setCap(c); setSector("all"); }} sector={sector} setSector={setSector} count={count} setCount={setCount}
@@ -340,14 +340,13 @@ export function Workbench() {
           </Card>
         ) : mode === "optimize" ? (
           <Card>
-            <CardHeader><CardTitle>1 · History</CardTitle><CardDescription>Optimizing needs plenty of history: 8 to 12 years is best.</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-1.5">1 · History<Info title="1 · History"><p>Optimizing needs plenty of history: 8 to 12 years is best.</p></Info></CardTitle></CardHeader>
             <CardContent><SimpleSelect className="w-full" value={years} options={YEARS} onChange={setYears} /></CardContent>
           </Card>
         ) : (
         <Card>
           <CardHeader>
-            <CardTitle>1 · Stock &amp; history</CardTitle>
-            <CardDescription>Daily candles, adjusted for splits and dividends</CardDescription>
+            <CardTitle className="flex items-center gap-1.5">1 · Stock &amp; history<Info title="1 · Stock and history"><p>Daily candles, adjusted for splits and dividends</p></Info></CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -387,8 +386,7 @@ export function Workbench() {
         {mode === "optimize" && (
           <Card>
             <CardHeader>
-              <CardTitle>What to optimize</CardTitle>
-              <CardDescription>Tries each value on the earlier 70% of history, then checks the winner on the later 30% it has never seen.</CardDescription>
+              <CardTitle className="flex items-center gap-1.5">What to optimize<Info title="What to optimize"><p>Tries each value on the earlier 70% of history, then checks the winner on the later 30% it has never seen.</p></Info></CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-2.5">
@@ -412,8 +410,7 @@ export function Workbench() {
 
         <Card>
           <CardHeader>
-            <CardTitle>2 · Strategy</CardTitle>
-            <CardDescription>Pick the simple moving-average builder, or use ready-made presets and your own rules</CardDescription>
+            <CardTitle className="flex items-center gap-1.5">2 · Strategy<Info title="2 · Strategy"><p>Pick the simple moving-average builder, or use ready-made presets and your own rules</p></Info></CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Strategy style">
@@ -448,8 +445,7 @@ export function Workbench() {
 
         <Card>
           <CardHeader>
-            <CardTitle>3 · Position size &amp; costs</CardTitle>
-            <CardDescription>Stops, targets, sizing and Indian transaction charges</CardDescription>
+            <CardTitle className="flex items-center gap-1.5">3 · Position size &amp; costs<Info title="3 · Position size and costs"><p>Stops, targets, sizing and Indian transaction charges</p></Info></CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {builder === "advanced" ? <RiskForm strategy={strategy} onChange={edit} /> : <RiskForm strategy={strategy} onChange={edit} sizingOnly />}

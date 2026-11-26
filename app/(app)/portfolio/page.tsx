@@ -8,7 +8,7 @@ export const metadata = { title: "Portfolio — Trading Buddy" };
 export default function PortfolioPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Portfolio" description="Your paper-trading holdings, positions, orders and funds" />
+      <PageHeader title="Portfolio" description="Your paper holdings, orders and funds." />
       <Suspense fallback={<div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-64 w-full" /></div>}>
         <PortfolioView />
       </Suspense>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Info } from "@/components/ui/info";
 import { Check } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { graduation } from "@/lib/graduation";
@@ -11,8 +12,7 @@ export function GraduationCard({ trades, book = "swing" }: { trades: ClosedTrade
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ready for real money?</CardTitle>
-        <CardDescription>{g.metCount} of {g.criteria.length} checks met. This is the <Link className="underline" href={`/playbook?book=${book}#path`}>stage path</Link> from the rule book, measured from your journal. Passing it does not mean you will profit; failing it means you are not ready.</CardDescription>
+        <CardTitle className="flex items-center gap-1.5">Ready for real money?<Info title="Ready for real money?"><p>{g.metCount} of {g.criteria.length} checks met. This is the <Link className="underline" href={`/playbook?book=${book}#path`}>stage path</Link> from the rule book, measured from your journal. Passing it does not mean you will profit; failing it means you are not ready.</p></Info></CardTitle>
       </CardHeader>
       <CardContent className="grid gap-2 sm:grid-cols-2">
         {g.criteria.map((c) => (

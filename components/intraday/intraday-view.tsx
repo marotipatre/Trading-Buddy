@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, Play } from "lucide-react";
+import { Loader2, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/backtest/number-field";
 import { useNow } from "@/components/use-now";
@@ -32,7 +32,8 @@ import { AccountEquityChart } from "@/components/paper/account-equity-chart";
 import { capitalOf } from "@/lib/paper/funds";
 import { IntradayProvider, useIntraday } from "./intraday-provider";
 import { AnimatePresence, motion } from "motion/react";
-import { Money, PillTabs, SPRING, Swap } from "@/components/motion/primitives";
+import { Collapse, Money, PillTabs, SPRING, Stagger, StaggerItem, Swap } from "@/components/motion/primitives";
+import { Info } from "@/components/ui/info";
 import { backtestPicks, type PickBacktest } from "@/lib/intraday/pick-backtest";
 import { useLivePicks } from "./use-live-picks";
 import { CALL_LABEL, CALL_TONE } from "@/lib/intraday/live";
@@ -63,8 +64,7 @@ function Inner() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Set up your intraday pot</CardTitle>
-          <CardDescription>A separate paper account for day trading. Put in the money you would risk, and you can trade five times that with margin. Its profit and loss are tracked on their own, never mixed with your main paper account. Everything closes by 3:15 pm.</CardDescription>
+          <CardTitle className="flex items-center gap-1.5">Set up your intraday pot<Info title="Set up your intraday pot"><p>A separate paper account for day trading. Put in the money you would risk, and you can trade five times that with margin. Its profit and loss are tracked on their own, never mixed with your main paper account. Everything closes by 3:15 pm.</p></Info></CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="w-48 space-y-1"><Label className="text-xs text-muted-foreground">Your money in the pot (₹)</Label><NumberField min={1000} step={10000} value={potInput} onChange={setPotInput} /></div>
@@ -84,7 +84,7 @@ function Inner() {
   const lossBudget = (acc.pot * limits.maxLossPct) / 100;
   const lossUsed = Math.max(0, -status.pnlToday);
   return (
-    <div className="space-y-6">
+    <div className="tone space-y-6" style={{ "--h": 264 } as React.CSSProperties}>
       <DeskHero todayPnl={todayPnl} trades={today?.trades ?? 0} potValue={view.value} totalPnl={view.pnl} buyingPower={view.buyingPower} leverage={acc.leverage}
         lossUsed={lossUsed} lossBudget={lossBudget} tradesUsed={status.tradesToday} maxTrades={limits.maxTrades} streak={status.lossStreak} maxStreak={limits.maxLossStreak}
         locked={status.locked} reason={status.reason} pledged={pledged} onPledge={() => setDeskTab("today")} />
@@ -101,7 +101,7 @@ function Inner() {
             <div className="min-w-0 space-y-6">
           {!status.locked && !pledged && (
             <Card className="border-primary/40">
-              <CardHeader><CardTitle>Today&apos;s pledge</CardTitle><CardDescription>Orders stay off until you tick this, once each day.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">Today&apos;s pledge<Info title="Today&apos;s pledge"><p>Orders stay off until you tick this, once each day.</p></Info></CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <details className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
                   <summary className="cursor-pointer font-medium">Read the {INTRADAY.constitution.length} rules</summary>
@@ -147,7 +147,7 @@ function Inner() {
       </Card>
             </div>
             <Card>
-              <CardHeader><CardTitle>Your pot</CardTitle><CardDescription>Add money or start again. Changes here never touch your main paper account.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">Your pot<Info title="Your pot"><p>Add money or start again. Changes here never touch your main paper account.</p></Info></CardTitle></CardHeader>
               <CardContent className="flex flex-wrap items-center gap-2">
                 <div className="w-36"><NumberField min={1000} step={5000} value={add} onChange={setAdd} /></div>
                 <Button variant="outline" size="sm" onClick={() => { const r = topUp(add); if (r.error) toast.error(r.error); else toast.success(`Added ${fmtInr(add)} to the pot`); }}>Add to pot</Button>
@@ -158,7 +158,6 @@ function Inner() {
           </div>
         )}
       </Swap>
-      <p className="text-xs text-muted-foreground">Day trading on margin loses money for most people (SEBI&apos;s own studies of Indian traders say so). Read the <Link className="underline" href="/playbook?book=intraday">intraday rule book</Link> before you trade. Paper money only, for learning; picks are rule-based screens, not advice.</p>
     </div>
   );
 }
@@ -271,69 +270,78 @@ function Picks({ lock }: { lock: string | null }) {
 
   const pot = acc?.pot ?? 0;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Picks for the next session</CardTitle>
-        <CardDescription>Five liquid stocks in uptrends that closed strong on rising volume, with headline tone checked. Each has a buy-stop entry, a stop-loss and targets. Scan after the close, trade the next morning.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={generate} disabled={running}>{running ? <Loader2 className="animate-spin" /> : <Play />}{running ? "Scanning the market…" : batch ? "Refresh picks" : "Find picks"}</Button>
-          {running && <Button variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
-          {progress && <span className="font-mono text-xs text-muted-foreground">{progress.done} of {progress.total} stocks</span>}
-          <button type="button" onClick={() => setSettings((x) => !x)} aria-expanded={settings} className="ml-auto text-xs text-muted-foreground underline">Settings</button>
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="flex items-center gap-1.5 text-lg font-semibold">Next session picks
+          <Info title="How the picks are chosen">
+            <p>Liquid stocks in uptrends that closed strong on rising volume, with headline tone checked. Each has a buy-stop entry, a stop-loss and targets.</p>
+            <p>Scan after the close, trade the next morning. If nothing qualifies, sitting out is a valid trade.</p>
+          </Info>
+        </h2>
+        {batch && <span className="text-sm text-muted-foreground">for {batch.forDate}</span>}
+        <div className="ml-auto flex items-center gap-2">
+          {progress && <span className="figure text-xs text-muted-foreground">{progress.done} of {progress.total}</span>}
+          {running && <Button variant="outline" size="sm" onClick={() => { stopRef.current = true; }}>Stop</Button>}
+          <Button size="sm" onClick={generate} disabled={running}>{running ? <Loader2 className="animate-spin" /> : <RefreshCw />}{running ? "Scanning" : batch ? "Refresh" : "Find picks"}</Button>
+          <button type="button" aria-label="Pick settings" aria-expanded={settings} onClick={() => setSettings((x) => !x)} className="grid size-8 place-items-center rounded-lg border bg-card text-muted-foreground hover:text-foreground"><SlidersHorizontal className="size-4" /></button>
         </div>
-        {settings && (
-          <div className="flex flex-wrap items-end gap-4 rounded-lg border p-3">
-            <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (% of pot)</Label><NumberField min={0.25} max={3} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
-            <AiSentimentToggle />
-          </div>
-        )}
-        {regime && (
-          <p className={cn("rounded-lg border p-2.5 text-xs", regime.regime === "bull" ? "border-up/40 bg-up/5" : regime.regime === "bear" ? "border-down/40 bg-down/5" : "border-warn/40 bg-warn/5")}>
-            <b>Market: {regime.label.toLowerCase()}.</b> {regime.advice}{regime.sizeFactor < 1 && <> Sizes below use {Math.round(regime.sizeFactor * 100)}% of your normal risk.</>}
-          </p>
-        )}
-        {batch && (
-          <>
-            <p className="text-sm">For the session on <b>{batch.forDate}</b> (found {new Date(batch.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}).</p>
-            <div className="grid gap-3 lg:grid-cols-2">
-              {batch.picks.map((p) => {
-                const ls = live.status[p.symbol];
-                const size = intradaySize(pot, acc?.leverage ?? 5, riskPct * (regime?.sizeFactor ?? 1), 5, p.plan);
-                return (
-                  <div key={p.symbol} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span><b className="font-mono text-base">{displaySymbol(p.symbol)}</b> <span className="text-xs text-muted-foreground">{p.sector}</span></span>
-                      <span className="tabular font-mono text-sm">{p.score}<span className="text-xs text-muted-foreground">/100</span></span>
-                    </div>
-                    {ls && (
-                      <div className={cn("rounded-md border px-2.5 py-1.5 text-xs", CALL_TONE[ls.call] === "up" ? "border-up/40 bg-up/10" : CALL_TONE[ls.call] === "down" ? "border-down/40 bg-down/10" : CALL_TONE[ls.call] === "warn" ? "border-warn/40 bg-warn/10" : "bg-muted/50")}>
-                        <b>Live: {CALL_LABEL[ls.call]}.</b> {ls.say}
-                        <span className="mt-0.5 block font-mono text-muted-foreground">Price {ls.price.toFixed(2)}{ls.vwap ? ` · VWAP ${ls.vwap.toFixed(2)}` : ""}{ls.orHigh ? ` · first-15-min range ${ls.orLow!.toFixed(2)} to ${ls.orHigh.toFixed(2)}` : ""}</span>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-4 gap-2 rounded-md bg-muted/50 p-2 text-xs">
-                      <span><span className="text-muted-foreground">Buy above</span><b className="block font-mono text-sm">{p.plan.entry.toFixed(2)}</b></span>
-                      <span><span className="text-muted-foreground">Stop</span><b className="block font-mono text-sm text-down">{p.plan.stop.toFixed(2)}</b></span>
-                      <span><span className="text-muted-foreground">Target 1</span><b className="block font-mono text-sm text-up">{p.plan.target1.toFixed(2)}</b></span>
-                      <span><span className="text-muted-foreground">Target 2</span><b className="block font-mono text-sm text-up">{p.plan.target2.toFixed(2)}</b></span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Risk {p.plan.riskPct.toFixed(2)}% · reward 1.5R · {size.qty} shares = {fmtInr(size.notional)} using {fmtInr(size.margin)} of your money. Risking {fmtInr(size.riskAmt)} to make {fmtInr(size.rewardAmt)}.</p>
-                    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">{p.reasons.slice(0, 4).map((r) => <li key={r}>{r}</li>)}</ul>
-                    <p className="text-xs text-muted-foreground"><b>Skip it if</b> it opens above {(p.plan.entry * 1.01).toFixed(2)} or below {p.plan.stop.toFixed(2)}. Exit by 3:15 pm if neither level is hit.</p>
-                    <Button size="sm" disabled={size.qty < 1 || !!lock} title={lock ?? undefined} onClick={async () => {
-                      const r = await place({ symbol: p.symbol, side: "buy", qty: size.qty, type: "stop", triggerPrice: p.plan.entry, validity: "day", stop: p.plan.stop, target: p.plan.target1, note: `pick:${p.forDate}` });
-                      if (r.error) toast.error(r.error); else toast.success(`Order placed: buys ${size.qty} ${displaySymbol(p.symbol)} if it trades up to ${p.plan.entry.toFixed(2)}`);
-                    }}>Place order (buy-stop, SL and TP attached)</Button>
+      </div>
+      <Collapse open={settings}>
+        <div className="flex flex-wrap items-end gap-4 rounded-2xl border bg-card p-3.5">
+          <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (% of pot)</Label><NumberField min={0.25} max={3} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
+          <AiSentimentToggle />
+        </div>
+      </Collapse>
+      {regime && (
+        <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2 text-sm", "bg-muted text-foreground")}>
+          <span className="font-medium">Market: {regime.label.toLowerCase()}</span>
+          {regime.sizeFactor < 1 && <span className="text-xs opacity-80">sizes use {Math.round(regime.sizeFactor * 100)}% of normal risk</span>}
+          <Info title="Market condition" className="ml-auto" align="end"><p>{regime.advice}</p></Info>
+        </div>
+      )}
+      {batch && (
+        <Stagger className="grid gap-4 md:grid-cols-2">
+          {batch.picks.map((p) => {
+            const ls = live.status[p.symbol];
+            const size = intradaySize(pot, acc?.leverage ?? 5, riskPct * (regime?.sizeFactor ?? 1), 5, p.plan);
+            const tone = ls ? CALL_TONE[ls.call] : null;
+            return (
+              <StaggerItem key={p.symbol} className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--tone-soft)] font-heading text-sm font-semibold text-[var(--tone)]">{p.score}</span>
+                  <div className="min-w-0">
+                    <div className="font-heading text-lg font-semibold leading-tight">{displaySymbol(p.symbol)}</div>
+                    <div className="truncate text-xs text-muted-foreground">{p.sector}</div>
                   </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+                  {ls && <span title={ls.say} className={cn("ml-auto rounded-full px-2.5 py-1 text-xs font-semibold", tone === "up" ? "bg-up/15 text-up" : tone === "down" ? "bg-down/15 text-down" : "bg-muted text-muted-foreground")}>{CALL_LABEL[ls.call]}</span>}
+                </div>
+                <div className="grid grid-cols-4 gap-px overflow-hidden rounded-xl border bg-border text-center text-xs">
+                  {([["Stop", p.plan.stop, "text-down"], ["Buy above", p.plan.entry, ""], ["Target 1", p.plan.target1, "text-up"], ["Target 2", p.plan.target2, "text-up"]] as const).map(([l, v, c]) => (
+                    <div key={l} className="bg-muted/40 px-1 py-2"><div className="text-muted-foreground">{l}</div><div className={cn("figure text-[15px]", c)}>{v.toFixed(2)}</div></div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{size.qty} shares · <span className="text-foreground">{fmtInr(size.notional)}</span></span>
+                  <span className="text-muted-foreground">risk <span className="text-down">{fmtInr(size.riskAmt)}</span> → <span className="text-up">{fmtInr(size.rewardAmt)}</span></span>
+                </div>
+                <div className="mt-auto flex items-center gap-2">
+                  <Button className="flex-1" disabled={size.qty < 1 || !!lock} title={lock ?? undefined} onClick={async () => {
+                    const r = await place({ symbol: p.symbol, side: "buy", qty: size.qty, type: "stop", triggerPrice: p.plan.entry, validity: "day", stop: p.plan.stop, target: p.plan.target1, note: `pick:${p.forDate}` });
+                    if (r.error) toast.error(r.error); else toast.success(`Order placed: buys ${size.qty} ${displaySymbol(p.symbol)} if it trades up to ${p.plan.entry.toFixed(2)}`);
+                  }}>Place order</Button>
+                  <Info label="Why this pick" title={`${displaySymbol(p.symbol)}: why and when to skip`} align="end">
+                    <ul className="list-disc space-y-1 pl-4">{p.reasons.slice(0, 5).map((r) => <li key={r}>{r}</li>)}</ul>
+                    <p><b>Skip it if</b> it opens above {(p.plan.entry * 1.01).toFixed(2)} or below {p.plan.stop.toFixed(2)}. Exit by 3:15 pm if neither level is hit.</p>
+                    <p>Risk {p.plan.riskPct.toFixed(2)}% to the stop, reward 1.5R to target 1. The order is a buy-stop with the stop-loss and target 1 attached. It uses {fmtInr(size.margin)} of your own money.</p>
+                    {ls && <p><b>Live:</b> {ls.say} Price {ls.price.toFixed(2)}{ls.vwap ? `, VWAP ${ls.vwap.toFixed(2)}` : ""}{ls.orHigh ? `, first 15 minutes ${ls.orLow!.toFixed(2)} to ${ls.orHigh.toFixed(2)}` : ""}.</p>}
+                  </Info>
+                </div>
+              </StaggerItem>
+            );
+          })}
+        </Stagger>
+      )}
+    </section>
   );
 }
 
@@ -375,7 +383,7 @@ function EquityCard() {
   if (!acc || h.length < 2) return null;
   return (
     <Card>
-      <CardHeader><CardTitle>Profit and loss over time</CardTitle><CardDescription>Your intraday pot&apos;s result, in rupees, on its own.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-1.5">Profit and loss over time<Info title="Profit and loss over time"><p>Your intraday pot&apos;s result, in rupees, on its own.</p></Info></CardTitle></CardHeader>
       <CardContent><AccountEquityChart history={h} initial={capitalOf(acc.state)} /></CardContent>
     </Card>
   );
@@ -416,8 +424,7 @@ function Results() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Your results</CardTitle>
-        <CardDescription>{total} trades, {total ? ((wins / total) * 100).toFixed(0) : 0}% winners. Charges and slippage are included. Tag mistakes honestly: the count shows which rule you break most.</CardDescription>
+        <CardTitle className="flex items-center gap-1.5">Your results<Info title="Your results"><p>{total} trades, {total ? ((wins / total) * 100).toFixed(0) : 0}% winners. Charges and slippage are included. Tag mistakes honestly: the count shows which rule you break most.</p></Info></CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-6 lg:grid-cols-2">
@@ -505,8 +512,7 @@ function Scorecard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Are the suggestions working?</CardTitle>
-        <CardDescription>Replays every saved pick on that day&apos;s 5-minute candles as if you had followed it exactly (entry, stop, first target, out by 3:15; stop assumed first when a candle touches both). Independent of what you actually traded. Needs a few weeks of picks to mean anything; free intraday history reaches back about 40 days.</CardDescription>
+        <CardTitle className="flex items-center gap-1.5">Are the suggestions working?<Info title="Are the suggestions working?"><p>Replays every saved pick on that day&apos;s 5-minute candles as if you had followed it exactly (entry, stop, first target, out by 3:15; stop assumed first when a candle touches both). Independent of what you actually traded. Needs a few weeks of picks to mean anything; free intraday history reaches back about 40 days.</p></Info></CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <Button variant="outline" onClick={check} disabled={busy}>{busy && <Loader2 className="animate-spin" />}Check past picks</Button>
@@ -557,8 +563,7 @@ function PickBacktestCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Backtest the pick rules</CardTitle>
-        <CardDescription>Runs the exact pick rules on each of the last ~40 sessions using only what was known the day before, then replays the top 5 on that day&apos;s 5-minute candles (30 liquid large caps, before charges). It is a sanity check on a short window, not proof.</CardDescription>
+        <CardTitle className="flex items-center gap-1.5">Backtest the pick rules<Info title="Backtest the pick rules"><p>Runs the exact pick rules on each of the last ~40 sessions using only what was known the day before, then replays the top 5 on that day&apos;s 5-minute candles (30 liquid large caps, before charges). It is a sanity check on a short window, not proof.</p></Info></CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <Button variant="outline" onClick={run} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{busy ? `Replaying… ${Math.round(prog * 100)}%` : r ? "Run again" : "Run backtest"}</Button>

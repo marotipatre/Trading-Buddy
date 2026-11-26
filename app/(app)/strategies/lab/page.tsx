@@ -6,7 +6,7 @@ export const metadata = { title: "Strategy lab — Trading Buddy" };
 export default function LabPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Strategy lab" description="Compare every ready-made strategy on the same stocks and see which ones actually held up" />
+      <PageHeader title="Strategy lab" description="Every ready-made strategy on the same stocks." />
       <StrategyLab />
     </div>
   );

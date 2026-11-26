@@ -1,10 +1,11 @@
 "use client";
 
+import { Info } from "@/components/ui/info";
 import { useState } from "react";
 import { ArrowDownToLine, ArrowRightLeft, Landmark, LineChart, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
@@ -66,8 +67,7 @@ export function FundsCard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Manage funds</CardTitle>
-          <CardDescription>This is virtual money. Adding to your trading balance is not counted as profit.</CardDescription>
+          <CardTitle className="flex items-center gap-1.5">Manage funds<Info title="Manage funds"><p>This is virtual money. Adding to your trading balance is not counted as profit.</p></Info></CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">

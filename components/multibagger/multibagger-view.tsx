@@ -1,5 +1,6 @@
 "use client";
 
+import { Info } from "@/components/ui/info";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Loader2, RefreshCw } from "lucide-react";
@@ -103,8 +104,13 @@ export function MultibaggerView() {
   const p = mb.progress;
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-warn/40 bg-warn/10 p-4 text-sm">
-        <b>Read this first.</b> A multibagger is a stock that grows 5 to 10 times. Many small and penny stocks fall or become impossible to sell, and some are manipulated. This tab only lists stocks that pass <b>both</b> a financial check and a chart check, and flags the dangers. It narrows the haystack; it does not predict winners. Paper trade first, keep each position small, and read the company before you buy.
+      <div className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-3 text-sm">
+        <span className="font-medium">High risk.</span>
+        <span className="text-muted-foreground">Narrows the haystack; it does not predict winners.</span>
+        <Info label="Read the risks" title="Before you buy a small stock" align="end" className="ml-auto">
+          <p>A multibagger is a stock that grows 5 to 10 times. Many small and penny stocks fall or become impossible to sell, and some are manipulated.</p>
+          <p>This tab lists only stocks that pass <b>both</b> a financial check and a chart check, and flags the dangers. Paper trade first, keep each position small, and read the company before you buy.</p>
+        </Info>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3.5">

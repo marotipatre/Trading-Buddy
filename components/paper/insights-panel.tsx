@@ -1,8 +1,9 @@
 "use client";
 
+import { Info } from "@/components/ui/info";
 import { useMemo } from "react";
 import { Lightbulb } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MetricCard } from "@/components/backtest/metric-card";
 import { fmtInr, fmtNum, fmtPct } from "@/lib/format";
@@ -46,8 +47,7 @@ export function InsightsPanel() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>How you&apos;re doing</CardTitle>
-          <CardDescription>Findings from your own closed paper trades. They get sharper as the trade count grows.</CardDescription>
+          <CardTitle className="flex items-center gap-1.5">How you&apos;re doing<Info title="How you&apos;re doing"><p>Findings from your own closed paper trades. They get sharper as the trade count grows.</p></Info></CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2.5">

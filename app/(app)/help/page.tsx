@@ -21,7 +21,7 @@ const SHORTCUTS = [["Ctrl K  or  /", "Quick jump to a page or stock"], ["Esc", "
 export default function HelpPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Help and about" description="What this app is, where its data comes from, and how to set up the optional extras" />
+      <PageHeader title="Help and about" description="Data sources, optional extras and answers." />
 
       <Card>
         <CardHeader><CardTitle>Start here</CardTitle></CardHeader>

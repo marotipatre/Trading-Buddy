@@ -6,7 +6,7 @@ export const metadata = { title: "Multibagger — Trading Buddy" };
 export default function MultibaggerPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Multibagger hunt" description="Every listed small, micro and penny stock, checked on both the business and the chart" />
+      <PageHeader title="Multibagger hunt" description="Small, micro and penny stocks, checked on the business and the chart." />
       <MultibaggerView />
     </div>
   );
