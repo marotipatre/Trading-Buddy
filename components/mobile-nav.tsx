@@ -30,7 +30,7 @@ export function MobileNav() {
   return (
     <>
       {more && (
-        <div className="fixed inset-0 z-30 md:hidden" onClick={() => setMore(false)}>
+        <div className="fixed inset-0 z-30 lg:hidden" onClick={() => setMore(false)}>
           <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
           <div className="absolute inset-x-3 bottom-[calc(4rem+env(safe-area-inset-bottom))] space-y-1 rounded-2xl border bg-popover p-2 shadow-2xl" role="menu" onClick={(e) => e.stopPropagation()}>
             {MORE.map(({ href, label, icon: Icon, hint }) => (
@@ -42,7 +42,7 @@ export function MobileNav() {
           </div>
         </div>
       )}
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Main">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
         {MAIN.map(({ href, label, icon: Icon }) => {
           const active = path.startsWith(href) || (href === "/dashboard" && path.startsWith("/trade"));
           return (
