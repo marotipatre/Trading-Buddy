@@ -14,7 +14,7 @@ export function ThemeToggle() {
   }, []);
   const dark = resolvedTheme === "dark";
   return (
-    <Button variant="ghost" size="icon" aria-label={dark ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme(dark ? "light" : "dark")}>
+    <Button variant="ghost" size="icon" aria-label="Toggle light and dark theme" onClick={() => setTheme(dark ? "light" : "dark")}>
       {mounted ? dark ? <Sun /> : <Moon /> : <span className="size-4" />}
     </Button>
   );

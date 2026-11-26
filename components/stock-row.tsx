@@ -28,8 +28,8 @@ export function StockRow({ symbol, name, quote, onToggleWatch, watched, onRemove
       </Link>
       <div className="flex w-[7.5rem] items-center justify-end gap-1">
         <div className="hidden items-center gap-1 group-hover:flex">
-          <Button size="xs" className="bg-up text-background hover:bg-up/85" render={<Link href={`${href}&side=buy`} />}>Buy</Button>
-          <Button size="xs" variant="outline" className="border-down/50 text-down hover:bg-down/10" render={<Link href={`${href}&side=sell`} />}>Sell</Button>
+          <Button size="xs" nativeButton={false} className="bg-up text-background hover:bg-up/85" render={<Link href={`${href}&side=buy`} />}>Buy</Button>
+          <Button size="xs" variant="outline" nativeButton={false} className="border-down/50 text-down hover:bg-down/10" render={<Link href={`${href}&side=sell`} />}>Sell</Button>
         </div>
         {onToggleWatch && (
           <Button variant="ghost" size="icon-sm" aria-label={watched ? "Remove from watchlist" : "Add to watchlist"} onClick={onToggleWatch}>
