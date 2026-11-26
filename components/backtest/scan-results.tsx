@@ -111,7 +111,7 @@ export function ScanResults({ summary: s, rows, failed, label }: { summary: Scan
         </Card>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 2xl:grid-cols-2">
         <GroupTable title="By sector" rows={s.bySector} />
         <GroupTable title="By size class" rows={s.byCap.map((g) => ({ ...g, key: g.key[0].toUpperCase() + g.key.slice(1) + " cap" }))} />
       </div>
