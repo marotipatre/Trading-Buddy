@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Play, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ import { BacktestResults } from "./results";
 import { RuleGroupEditor } from "./rule-group-editor";
 import { SimpleSelect } from "./simple-select";
 import { aggregateWeekly } from "@/lib/chart-timeframes";
+import { BacktestChart } from "./backtest-chart";
+import { displaySymbol } from "@/lib/symbols";
 import { EmaBuilderForm } from "./ema-builder-form";
 import { buildEmaStrategy, DEFAULT_EMA_SPEC, type EmaSpec } from "@/lib/engine/ema-builder";
 
@@ -50,6 +52,7 @@ export function Workbench() {
   const [emaSpec, setEmaSpec] = useState<EmaSpec>(DEFAULT_EMA_SPEC);
   const [slippageBps, setSlippageBps] = useState(DEFAULT_COSTS.slippageBps);
   const [zeroBrokerage, setZeroBrokerage] = useState(true);
+  const [preview, setPreview] = useState<{ key: string; candles: Candle[] } | null>(null);
   const [running, setRunning] = useState(false);
   const [out, setOut] = useState<Output | null>(null);
   const [csv, setCsv] = useState<{ name: string; candles: Candle[] } | null>(null);
@@ -83,6 +86,21 @@ export function Workbench() {
     setCsv({ name: file.name.replace(/\.[^.]+$/, ""), candles: r.candles });
     toast.success(`Loaded ${r.candles.length} candles from ${file.name}`);
   }
+
+  // A chart of the chosen stock with the strategy's averages, before you run anything.
+  const previewKey = `${symbol}|${years}|${frame}`;
+  useEffect(() => {
+    if (mode !== "one" || csv) return;
+    const ctl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&days=${Number(years) * 365}&fast=1`, { signal: ctl.signal });
+        const j = await res.json();
+        if (res.ok) setPreview({ key: previewKey, candles: frame === "weekly" ? aggregateWeekly(j.candles) : j.candles });
+      } catch { /* the preview is optional */ }
+    }, 250);
+    return () => { clearTimeout(t); ctl.abort(); };
+  }, [mode, csv, symbol, years, frame, previewKey]);
 
   const edit = (s: StrategyDef) => {
     setStrategy(s);
@@ -329,7 +347,7 @@ export function Workbench() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-mono text-lg font-semibold">{symbol}</div>
+                <div className="font-mono text-lg font-semibold">{displaySymbol(symbol)}</div>
                 <div className="text-xs text-muted-foreground">selected</div>
               </div>
               <SymbolSearch onPick={(h) => setSymbol(h.symbol)} placeholder="Change symbol…" />
@@ -470,6 +488,11 @@ export function Workbench() {
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">{out.label}</h2>
             <BacktestResults analysis={out.analysis} candles={out.candles} strategy={out.strategy} />
+          </div>
+        ) : mode === "one" && preview?.key === previewKey && !csv ? (
+          <div className="space-y-3">
+            <BacktestChart candles={preview.candles} trades={[]} strategy={strategy} />
+            <p className="text-center text-sm text-muted-foreground">This is the chart your strategy will run on, with its averages. Press <b>Run backtest</b> to see every buy and exit marked on it.</p>
           </div>
         ) : (
           <Card className="grid min-h-96 place-items-center text-center">
