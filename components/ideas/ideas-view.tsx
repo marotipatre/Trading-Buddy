@@ -110,7 +110,7 @@ export function IdeasView() {
         <div className="min-w-0 flex-1 text-sm text-muted-foreground" role="status">
           {scan.running ? (
             <span className="inline-flex items-center gap-2"><Loader2 className="size-4 animate-spin text-primary" />{p?.phase === "news" ? "Reading headlines and broker calls…" : p ? `Scanning the market: ${p.done} of ${p.total} stocks · ${p.note}` : "Starting the scan…"}</span>
-          ) : scan.asOf ? <>Scanned {scan.bases.length} stocks · updated {ago(scan.asOf)}{scan.restored ? " (saved scan)" : ""}</> : "Waiting for the stock list…"}
+          ) : scan.asOf ? <>{scan.restored ? `Showing the strongest ${scan.bases.length} stocks from your last scan` : `Scanned ${scan.bases.length} stocks`} · updated {ago(scan.asOf)}</> : "Waiting for the stock list…"}
         </div>
         {scan.running ? <Button variant="outline" size="sm" onClick={scan.stop}>Stop</Button> : <Button variant="outline" size="sm" onClick={() => void scan.scan()} disabled={!scan.universeReady}><RefreshCw /> Rescan market</Button>}
       </div>
