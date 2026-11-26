@@ -19,3 +19,12 @@ describe("supertrend", () => {
     expect(s.direction.at(-1)).toBe(-1);
   });
 });
+
+describe("supertrend warmup", () => {
+  it("direction is NaN before ATR exists and never flips on warmup", () => {
+    const c = mk(Array.from({ length: 40 }, (_, i) => 100 + i * 2));
+    const s = supertrend(c, 10, 3);
+    expect(s.direction.slice(0, 9).every(Number.isNaN)).toBe(true);
+    expect(s.direction.slice(9).every((d) => d === 1)).toBe(true);
+  });
+});

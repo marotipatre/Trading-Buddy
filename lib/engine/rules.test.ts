@@ -63,3 +63,12 @@ describe("rules", () => {
     expect(full.slice(0, 40)).toEqual(cut);
   });
 });
+
+describe("supertrend flip preset logic", () => {
+  it("does not signal a bullish flip at the end of warmup in a steady uptrend", () => {
+    const cache = new SeriesCache(mk(Array.from({ length: 60 }, (_, i) => 100 + i * 2)));
+    const dir = { kind: "indicator", name: "supertrend_dir", period: 10, mult: 3, shift: 0 } as const;
+    const sig = buildSignals(cache, { logic: "all", conditions: [{ left: dir, op: "crosses_above", right: num(0) }] });
+    expect(sig.some(Boolean)).toBe(false);
+  });
+});
