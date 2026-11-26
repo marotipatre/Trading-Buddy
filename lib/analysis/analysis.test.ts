@@ -115,3 +115,13 @@ describe("applyTarget", () => {
     expect(tiny.verdict).toBe("watch"); // 3% for a 4% risk is not worth it
   });
 });
+
+describe("moodFromScores", () => {
+  it("weights newer headlines more and counts tones", async () => {
+    const { moodFromScores } = await import("./sentiment");
+    const now = 2_000_000_000;
+    const m = moodFromScores([{ time: now - 3600 }, { time: now - 40 * 86400 }, { time: now - 7200 }], [0.9, -0.9, 0.05], now);
+    expect(m.score).toBeGreaterThan(0.3);
+    expect(m).toMatchObject({ positive: 1, negative: 1, neutral: 1, count: 3 });
+  });
+});

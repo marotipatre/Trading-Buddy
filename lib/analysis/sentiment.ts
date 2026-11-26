@@ -28,3 +28,15 @@ export function newsMood(items: { title: string; time: number }[], now = Date.no
   }
   return { score: wsum ? sum / wsum : 0, positive, negative, neutral, count: items.length };
 }
+
+/** Same recency weighting as `newsMood`, but with a score for each headline from a model instead of the word list. */
+export function moodFromScores(items: { time: number }[], scores: number[], now = Date.now() / 1000): NewsMood {
+  let sum = 0, wsum = 0, positive = 0, negative = 0, neutral = 0;
+  items.forEach((it, i) => {
+    const s = Math.max(-1, Math.min(1, scores[i] ?? 0));
+    const w = Math.pow(0.5, Math.max(0, now - it.time) / (7 * 86400));
+    sum += s * w; wsum += w;
+    if (s > 0.2) positive++; else if (s < -0.2) negative++; else neutral++;
+  });
+  return { score: wsum ? sum / wsum : 0, positive, negative, neutral, count: items.length };
+}

@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AiSentimentToggle, useAi } from "@/components/ai-sentiment";
+import { moodOf } from "@/lib/analysis/mood";
+import { scoreHeadlines } from "@/lib/analysis/finbert";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AnalystCall, Consensus, NewsItem } from "@/lib/data/news";
 import { cn } from "@/lib/utils";
@@ -20,6 +23,8 @@ const LABEL = { buy: "Buy", sell: "Sell", hold: "Hold", unrated: "Target" } as c
 export function NewsPanel({ name, price }: { name: string; price?: number }) {
   const [data, setData] = useState<{ name: string; p?: Payload; error?: string } | null>(null);
   const [tab, setTab] = useState<"calls" | "news">("calls");
+  const ai = useAi();
+  const [tones, setTones] = useState<{ key: string; scores: number[]; mood: number } | null>(null);
   const rounded = price ? Math.round(price) : undefined;
 
   useEffect(() => {
@@ -34,6 +39,18 @@ export function NewsPanel({ name, price }: { name: string; price?: number }) {
   }, [name, rounded]);
 
   const d = data?.name === name ? data : null;
+  const newsKey = `${name}|${d?.p?.news.length ?? 0}|${ai.status}`;
+  useEffect(() => {
+    const items = d?.p?.news;
+    if (ai.status !== "ready" || !items?.length) return;
+    let live = true;
+    (async () => {
+      const [scores, mood] = await Promise.all([scoreHeadlines(items.map((n) => n.title)), moodOf(items)]);
+      if (live && scores) setTones({ key: newsKey, scores, mood: mood.score });
+    })();
+    return () => { live = false; };
+  }, [d, ai.status, newsKey]);
+  const aiTone = tones?.key === newsKey ? tones : null;
   const s = d?.p?.summary;
   return (
     <Card>
@@ -42,6 +59,8 @@ export function NewsPanel({ name, price }: { name: string; price?: number }) {
         <CardDescription>Headlines from the last two weeks. Broker calls are read from published headlines (Jefferies, ICICI Securities, HDFC Securities, Motilal Oswal and others): open the article to confirm before relying on one.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <AiSentimentToggle />
+        {aiTone && <p className="text-xs">AI reading of recent headlines: <b className={aiTone.mood > 0.15 ? "text-up" : aiTone.mood < -0.15 ? "text-down" : ""}>{aiTone.mood > 0.15 ? "positive" : aiTone.mood < -0.15 ? "negative" : "mixed"}</b> ({aiTone.mood >= 0 ? "+" : ""}{aiTone.mood.toFixed(2)})</p>}
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist">
           {([["calls", `Broker calls${s ? ` (${s.brokers})` : ""}`], ["news", `News${d?.p ? ` (${d.p.news.length})` : ""}`]] as const).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
@@ -75,8 +94,9 @@ export function NewsPanel({ name, price }: { name: string; price?: number }) {
         {d?.p && tab === "news" && (
           <ul className="divide-y">
             {d.p.news.length === 0 && <li className="py-3 text-sm text-muted-foreground">No recent headlines found.</li>}
-            {d.p.news.map((n) => (
+            {d.p.news.map((n, i) => (
               <li key={n.link} className="py-2.5">
+                {aiTone && <span className={cn("mr-1.5 inline-block size-2 rounded-full", aiTone.scores[i] > 0.2 ? "bg-up" : aiTone.scores[i] < -0.2 ? "bg-down" : "bg-muted-foreground/40")} title={`AI tone ${aiTone.scores[i]?.toFixed(2)}`} />}
                 <a href={n.link} target="_blank" rel="noreferrer noopener" className="text-sm hover:underline">{n.title}</a>
                 <div className="text-xs text-muted-foreground">{n.source} · {ago(n.time)}</div>
               </li>

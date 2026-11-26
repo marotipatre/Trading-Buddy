@@ -11,7 +11,8 @@ import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { NewsPanel } from "@/components/news/news-panel";
 import { useUniverse } from "@/components/use-universe";
-import { newsMood } from "@/lib/analysis/sentiment";
+import { moodOf } from "@/lib/analysis/mood";
+import { AiSentimentToggle } from "@/components/ai-sentiment";
 import { rankSectors, type SectorRow } from "@/lib/analysis/sectors";
 import { assessMethod, METHODS, type Method } from "@/lib/analysis/methods";
 import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
@@ -145,7 +146,7 @@ export function IdeasView() {
           const j = await res.json();
           if (res.ok) {
             f.news = { items: j.news, calls: j.calls, summary: j.summary };
-            f.view = applyTarget(withOverlay(f.view, newsMood(j.news), j.summary), target);
+            f.view = applyTarget(withOverlay(f.view, await moodOf(j.news), j.summary), target);
             setIdeas([...found].sort(byEdge));
           }
         } catch { /* news is optional */ }
@@ -223,6 +224,7 @@ export function IdeasView() {
       {restoredAt && !running && (
         <p className="rounded-lg border bg-muted/40 p-2.5 text-xs text-muted-foreground">Showing your last scan from {new Date(restoredAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Press Scan now to refresh prices and signals.</p>
       )}
+      <AiSentimentToggle className="block" />
       <RealityCheck />
 
       {sectors.length > 0 && (

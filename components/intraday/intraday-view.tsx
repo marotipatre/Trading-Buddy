@@ -11,7 +11,8 @@ import { NumberField } from "@/components/backtest/number-field";
 import { useNow } from "@/components/use-now";
 import { useUniverse } from "@/components/use-universe";
 import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
-import { newsMood } from "@/lib/analysis/sentiment";
+import { moodOf } from "@/lib/analysis/mood";
+import { AiSentimentToggle } from "@/components/ai-sentiment";
 import { pnlByDay } from "@/lib/intraday/account";
 import { dayStatus, DEFAULT_LIMITS, type Limits } from "@/lib/intraday/limits";
 import { cleanShare, MISTAKE_TAGS, mistakeCounts, pickDateOf, userNote, withUserNote } from "@/lib/intraday/journal";
@@ -135,7 +136,7 @@ function Picks({ lock }: { lock: string | null }) {
         let mood = 0;
         try {
           const j = await (await fetch(`/api/news?name=${encodeURIComponent(p.name)}`)).json();
-          if (j.news) mood = newsMood(j.news).score;
+          if (j.news) mood = (await moodOf(j.news)).score;
         } catch { /* headlines are optional */ }
         const c = await fetchCandles(p.symbol, 400);
         const again = scoreIntraday(p.symbol, p.name, p.sector, c, mood);
@@ -160,6 +161,7 @@ function Picks({ lock }: { lock: string | null }) {
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-32 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (% of pot)</Label><NumberField min={0.25} max={3} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
+          <AiSentimentToggle className="w-full" />
           <Button onClick={generate} disabled={running}>{running ? <Loader2 className="animate-spin" /> : <Play />}{running ? "Scanning…" : "Find picks"}</Button>
           {running && <Button variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
           {progress && <span className="font-mono text-xs text-muted-foreground">{progress.done}/{progress.total}</span>}
