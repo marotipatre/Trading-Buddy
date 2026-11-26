@@ -34,3 +34,20 @@ describe("deriveIdeas", () => {
     expect(conviction({ bull: [], bear: [], balance: 9, lean: "favours buying", provenance: [] }, { ...r[0].v, verdict: "watch" })).toBe("low");
   });
 });
+
+describe("sector tailwind", () => {
+  it("raises the score in a leading sector and lowers it in a lagging one", async () => {
+    const { withSectorView } = await import("./ideas-engine");
+    const v = assessStock("UP.NS", up)!;
+    expect(withSectorView(v, "leading", "IT").score).toBe(Math.min(100, v.score + 6));
+    expect(withSectorView(v, "lagging", "IT").score).toBe(Math.max(0, v.score - 7));
+    expect(withSectorView(v, "lagging", "IT").reasons.at(-1)!.text).toContain("headwind");
+  });
+  it("is applied by deriveIdeas through the sector map", () => {
+    const b = [{ ...base("UP.NS", up), sector: "IT" }];
+    const plain = deriveIdeas(b, { days: 15, target: 6 }, () => undefined)[0];
+    const lag = deriveIdeas(b, { days: 15, target: 6 }, () => undefined, undefined, undefined, { IT: { quadrant: "lagging", label: "IT" } })[0];
+    expect(lag.v.score).toBeLessThanOrEqual(plain.v.score);
+    expect(lag.v.reasons.some((r) => r.text.includes("headwind"))).toBe(true);
+  });
+});

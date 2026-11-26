@@ -21,12 +21,15 @@ import { DEFAULT_PLAN, PlanBar, type PlanState } from "./plan-bar";
 import { PortfolioPlan, type Expectation } from "./portfolio-plan";
 import { RealityCheck } from "./reality-check";
 import { SectorMap } from "./sector-map";
+import { SectorOutlook } from "./sector-outlook";
+import { useSectors } from "./use-sectors";
+import { SECTOR_INDICES } from "@/lib/sectors/outlook";
 import { daysFor, useIdeasScan } from "./use-ideas-scan";
 
 const PLAN_KEY = "tb.ideas.plan.v2";
 const PRESET_OF: Partial<Record<Method, string>> = { minervini: "minervini-template", momentum: "momentum-filter", pullback: "pullback-uptrend" };
 type Tab = "stocks" | "sectors" | "portfolio" | "method";
-const TABS: { id: Tab; label: string }[] = [{ id: "stocks", label: "All stocks" }, { id: "sectors", label: "Sectors" }, { id: "portfolio", label: "Portfolio plan" }, { id: "method", label: "How it works" }];
+const TABS: { id: Tab; label: string }[] = [{ id: "stocks", label: "All stocks" }, { id: "sectors", label: "Sector outlook" }, { id: "portfolio", label: "Portfolio plan" }, { id: "method", label: "How it works" }];
 
 function ago(t: number) {
   const m = Math.max(0, Math.round((Date.now() - t) / 60000));
@@ -43,6 +46,7 @@ export function IdeasView() {
   const [openSymbol, setOpenSymbol] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const scan = useIdeasScan(method, frame);
+  const nse = useSectors();
 
   useEffect(() => {
     let saved: PlanState | null = null;
@@ -67,10 +71,19 @@ export function IdeasView() {
   // While a scan is running, refresh the odds as candles arrive.
   useEffect(() => { if (scan.running) { const id = setInterval(() => setVersion((v) => v + 1), 2500); return () => clearInterval(id); } }, [scan.running]);
 
+  // Each stock's sector, judged from NSE's own sector index for it: leading and improving sectors help, lagging ones hurt.
+  const sectorView = useMemo(() => {
+    const m: Record<string, { quadrant: "leading" | "improving" | "weakening" | "lagging"; label: string; score: number }> = {};
+    for (const s of nse.data?.sectors ?? []) {
+      const u = SECTOR_INDICES.find((x) => x.index === s.index)?.sector;
+      if (u && (!m[u] || s.score > m[u].score)) m[u] = { quadrant: s.quadrant, label: s.label, score: s.score };
+    }
+    return m;
+  }, [nse.data]);
   const ideas = useMemo<Idea[]>(
-    () => deriveIdeas(scan.bases, { days: plan.days, target: plan.target }, (s) => peekCandles(s, win), scan.regime?.regime, scan.asOf ?? undefined),
+    () => deriveIdeas(scan.bases, { days: plan.days, target: plan.target }, (s) => peekCandles(s, win), scan.regime?.regime, scan.asOf ?? undefined, sectorView),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `version` stands for newly loaded candles
-    [scan.bases, plan.days, plan.target, scan.regime, scan.asOf, win, version],
+    [scan.bases, plan.days, plan.target, scan.regime, scan.asOf, win, version, sectorView],
   );
   const sectors = useMemo(() => rankSectors(ideas.map((i) => ({ sector: i.sector, view: i.v })), scan.bench ?? 0), [ideas, scan.bench]);
   const sectorNames = useMemo(() => [...new Set(ideas.map((i) => i.sector))].sort(), [ideas]);
@@ -143,7 +156,12 @@ export function IdeasView() {
           {TABS.map((t) => <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={cn("-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors", tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>{t.label}{t.id === "stocks" && ideas.length ? <span className="ml-1.5 text-xs text-muted-foreground">{ideas.length}</span> : null}</button>)}
         </div>
         {tab === "stocks" && <IdeaTable ideas={ideas} sectorFilter={sectorFilter} onSector={setSectorFilter} sectors={sectorNames} onOpen={(i) => setOpenSymbol(i.symbol)} days={plan.days} target={plan.target} />}
-        {tab === "sectors" && <SectorMap sectors={sectors} selected={sectorFilter} onSelect={(s) => { setSectorFilter(s); if (s) setTab("stocks"); }} />}
+        {tab === "sectors" && (
+          <div className="space-y-8">
+            <SectorOutlook data={nse.data} loading={nse.loading} error={nse.error} onShowStocks={(u) => { setSectorFilter(u); setTab("stocks"); }} />
+            <div className="space-y-2"><h3 className="text-base font-semibold">Inside the sectors: what our scan of individual stocks shows</h3><SectorMap sectors={sectors} selected={sectorFilter} onSelect={(s) => { setSectorFilter(s); if (s) setTab("stocks"); }} /></div>
+          </div>
+        )}
         {tab === "portfolio" && <PortfolioPlan mix={mix} expectation={expectation} ideas={ideas} plan={{ days: plan.days, target: plan.target }} amount={plan.amount} riskNote={scan.regime && scan.regime.sizeFactor < 1 ? `Position sizes use ${Math.round(scan.regime.sizeFactor * 100)}% of your normal risk because the market is ${scan.regime.label.toLowerCase()}.` : undefined} onOpen={(i) => setOpenSymbol(i.symbol)} />}
         {tab === "method" && (
           <div className="space-y-4">
