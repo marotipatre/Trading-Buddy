@@ -165,3 +165,24 @@ describe("intraday square-off", () => {
     expect(isSquareOffTime(15 * 60 + 15)).toBe(true);
   });
 });
+
+import { intradayDue, istMinutes, istStartOfDay } from "./broker";
+
+describe("IST helpers and intraday due", () => {
+  // 2026-03-10 09:30 IST = 04:00 UTC
+  const t = (h: number, m: number, d = 10) => Date.UTC(2026, 2, d, h, m) / 1000 - 5.5 * 3600;
+  it("computes IST minutes and day start", () => {
+    expect(istMinutes(t(9, 30))).toBe(9 * 60 + 30);
+    expect(istStartOfDay(t(23, 59))).toBe(t(0, 0));
+    expect(istStartOfDay(t(0, 1))).toBe(t(0, 0));
+  });
+  it("intraday positions are due after 15:15 or on a later day, delivery never", () => {
+    const base = must(placeOrder(acct(), buy({ product: "intraday" }), 100, t(10, 0)));
+    expect(intradayDue(base, t(12, 0))).toBe(false);
+    expect(intradayDue(base, t(15, 15))).toBe(true);
+    expect(intradayDue(base, t(9, 20, 11))).toBe(true);
+    const del = must(placeOrder(acct(), buy({ product: "delivery" }), 100, t(10, 0)));
+    expect(intradayDue(del, t(15, 20))).toBe(false);
+    expect(intradayDue(del, t(9, 20, 12))).toBe(false);
+  });
+});
