@@ -29,9 +29,9 @@ export function IdeaCard({ idea, plan, rank, onOpen }: { idea: Idea; plan: Plan;
       {p && <PlanMeter stop={p.stop} entry={p.entry} target={p.target1} price={v.price} />}
 
       <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-lg bg-muted/50 p-2"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">Reward : risk</div><div className="font-mono text-sm font-semibold">{p ? `${p.rr1.toFixed(1)} : 1` : "—"}</div></div>
-        <div className="rounded-lg bg-muted/50 p-2"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">Reached +{plan.target}%</div><div className="font-mono text-sm font-semibold">{idea.hz ? `${(idea.hz.hitRate * 100).toFixed(0)}%` : "…"}</div></div>
-        <div className="rounded-lg bg-muted/50 p-2"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">Avg per trade</div><div className={cn("font-mono text-sm font-semibold", idea.hz && (idea.hz.expectancyPct >= 0 ? "text-up" : "text-down"))}>{idea.hz ? pct(idea.hz.expectancyPct) : "…"}</div></div>
+        <div className="rounded-lg bg-muted/50 p-2"><div className="text-[10px] text-muted-foreground">Reward : risk</div><div className="font-mono text-sm font-semibold">{p ? `${p.rr1.toFixed(1)} : 1` : "—"}</div></div>
+        <div className="rounded-lg bg-muted/50 p-2"><div className="text-[10px] text-muted-foreground">Reached +{plan.target}%</div><div className="font-mono text-sm font-semibold">{idea.hz ? `${(idea.hz.hitRate * 100).toFixed(0)}%` : "…"}</div></div>
+        <div className="rounded-lg bg-muted/50 p-2"><div className="text-[10px] text-muted-foreground">Avg per trade</div><div className={cn("font-mono text-sm font-semibold", idea.hz && (idea.hz.expectancyPct >= 0 ? "text-up" : "text-down"))}>{idea.hz ? pct(idea.hz.expectancyPct) : "…"}</div></div>
       </div>
 
       {why.length > 0 && <ul className="space-y-1 text-xs text-muted-foreground">{why.map((w) => <li key={w} className="flex gap-1.5"><span className="mt-0.5 text-up">✓</span><span>{w}</span></li>)}</ul>}

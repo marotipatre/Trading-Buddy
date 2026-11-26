@@ -88,7 +88,7 @@ function BookView({ book }: { book: Book }) {
           </select>
         </label>
         <nav aria-label="On this page" className="hidden max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 lg:block">
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">On this page</div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">On this page</div>
           <ul className="space-y-0.5 border-l">
             {nav.map((n) => (
               <li key={n.id}>

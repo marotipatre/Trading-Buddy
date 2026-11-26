@@ -6,7 +6,7 @@ import { pct } from "./shared";
 
 function Cell({ label, children, sub, wide }: { label: string; children: React.ReactNode; sub?: React.ReactNode; wide?: boolean }) {
   return (
-    <div className={`min-w-0 space-y-0.5 rounded-xl border bg-card p-3.5 ${wide ? "col-span-2 lg:col-span-1" : ""}`}><div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div><div className="truncate text-lg font-semibold leading-tight">{children}</div>{sub && <div className="text-xs text-muted-foreground">{sub}</div>}</div>
+    <div className={`min-w-0 space-y-0.5 rounded-xl border bg-card p-3.5 ${wide ? "col-span-2 lg:col-span-1" : ""}`}><div className="text-xs font-medium text-muted-foreground">{label}</div><div className="truncate text-lg font-semibold leading-tight">{children}</div>{sub && <div className="text-xs text-muted-foreground">{sub}</div>}</div>
   );
 }
 

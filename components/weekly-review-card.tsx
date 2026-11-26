@@ -31,7 +31,7 @@ export function WeeklyReviewCard({ trades, title = "This week" }: { trades: Clos
             {(r.best && r.worst) && <p className="text-xs text-muted-foreground">Best: <b className="font-mono text-foreground">{displaySymbol(r.best.symbol)}</b> {fmtInr(r.best.netPnl, { sign: true })} · Worst: <b className="font-mono text-foreground">{displaySymbol(r.worst.symbol)}</b> {fmtInr(r.worst.netPnl, { sign: true })}{r.avgR !== undefined && <> · Average {r.avgR >= 0 ? "+" : ""}{r.avgR.toFixed(2)}R</>}</p>}
             {r.focus ? (
               <div className="rounded-lg border border-warn/40 bg-warn/5 p-3">
-                <div className="text-xs font-medium uppercase tracking-wide text-warn">One thing to fix next week</div>
+                <div className="text-xs font-medium text-warn">One thing to fix next week</div>
                 <p className="mt-1"><b>{r.focus.tag}</b> ({r.mistakes[0].count}×). {r.focus.advice}</p>
                 <Link className="mt-1 inline-block text-xs text-primary underline" href={`/playbook?book=${r.focus.book}#${r.focus.anchor}`}>Read the rule</Link>
               </div>
