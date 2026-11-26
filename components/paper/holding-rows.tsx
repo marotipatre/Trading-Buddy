@@ -4,6 +4,8 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Briefcase, Zap } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
 import { Card } from "@/components/ui/card";
 import { ChangePill } from "@/components/change-pill";
 import { SymbolLabel } from "@/components/symbol-label";
@@ -20,7 +22,10 @@ export function HoldingRows({ product, empty }: { product: "delivery" | "intrada
   const rows = state.positions.filter((p) => p.product === product);
   const [editing, setEditing] = useState<number | null>(null);
   const now = useNow();
-  if (!rows.length) return <Card><p className="px-6 py-10 text-center text-sm text-muted-foreground">{empty}</p></Card>;
+  if (!rows.length) return (
+    <EmptyState icon={product === "delivery" ? Briefcase : Zap} title={product === "delivery" ? "No holdings yet" : "No open intraday positions"} text={empty}
+      actions={product === "delivery" ? [{ label: "Find swing ideas", href: "/ideas", primary: true }, { label: "Browse stocks", href: "/stocks" }] : [{ label: "Today's intraday picks", href: "/intraday", primary: true }, { label: "Read the intraday rules", href: "/playbook?book=intraday" }]} />
+  );
   return (
     <Card className="py-0">
       {rows.map((p) => {

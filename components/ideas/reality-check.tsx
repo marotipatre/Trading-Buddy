@@ -1,15 +1,16 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 /** What well-known systematic approaches have actually delivered, so a monthly goal can be set against real numbers. */
 export function RealityCheck() {
   const monthly = (pct: number) => (Math.pow(1 + pct / 100, 12) - 1) * 100;
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Reality check: what a monthly target means</CardTitle>
-        <CardDescription>Open-source and published methods are built into the Method list above. Here is what they have achieved, so you can judge your 10% a month goal.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-1 [&::-webkit-details-marker]:hidden">
+          <span><span className="block text-base font-medium leading-snug">Reality check: what a monthly target means</span><span className="block text-sm text-muted-foreground">What published methods have actually achieved, to judge a 10% a month goal. Tap to read.</span></span>
+          <span className="text-xs text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+        </summary>
+      <CardContent className="space-y-3 pt-3 text-sm">
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
             <b>Momentum investing in India.</b> The NSE&apos;s Nifty200 Momentum 30 index (the 30 strongest-trending stocks, rebuilt twice a year) has returned roughly 19–20% a year since 2005 against about 15% for the broad Nifty 200, per{" "}
@@ -24,6 +25,7 @@ export function RealityCheck() {
         </ul>
         <p className="rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">What improves your odds is risk control: small, fixed risk per trade (this page sizes each trade to 1% of capital by default), cutting losers at the stop, a mix of sectors, and checking a method on many stocks over many years on the Backtest page before trusting it.</p>
       </CardContent>
+      </details>
     </Card>
   );
 }

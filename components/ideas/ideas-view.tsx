@@ -244,6 +244,7 @@ export function IdeasView() {
               <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>
             </div>
           )}
+          <div className="w-full"><AiSentimentToggle /></div>
           <p className="w-full text-xs text-muted-foreground"><b>{METHODS.find((m) => m.id === method)!.label}:</b> {METHODS.find((m) => m.id === method)!.blurb} <i>({METHODS.find((m) => m.id === method)!.source})</i>{method !== "trend" && " Uses daily candles."} {METHODS.find((m) => m.id === method)?.evidence && <span className="mt-1 block rounded bg-muted/60 p-1.5"><b>Backtest evidence:</b> {METHODS.find((m) => m.id === method)!.evidence}</span>} {PRESET_OF[method] && <Link className="underline" href={`/strategies?preset=${PRESET_OF[method]}&mode=group`}>Backtest this method on a group of stocks</Link>}</p>
         </CardContent>
       </Card>
@@ -251,8 +252,7 @@ export function IdeasView() {
       {restoredAt && !running && (
         <p className="rounded-lg border bg-muted/40 p-2.5 text-xs text-muted-foreground">Showing your last scan from {new Date(restoredAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Press Scan now to refresh prices and signals.</p>
       )}
-      <AiSentimentToggle className="block" />
-      {regime && (
+            {regime && (
         <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border p-3 text-sm", regime.regime === "bull" ? "border-up/40 bg-up/5" : regime.regime === "bear" ? "border-down/40 bg-down/5" : "border-warn/40 bg-warn/5")}>
           <b>Market: {regime.label.toLowerCase()}</b>
           <span className="font-mono text-xs text-muted-foreground">Nifty {regime.vs200 >= 0 ? "+" : ""}{regime.vs200.toFixed(1)}% vs its 200-day average</span>
