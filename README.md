@@ -45,7 +45,7 @@ In Supabase, turn off *Confirm email* for local use, and turn off *Allow new use
 ## Layout
 
 ```
-app/(app)/            dashboard, chart + order ticket, backtest workbench, portfolio
+app/(app)/            dashboard, trade (live quote + order ticket), backtest workbench, portfolio
 app/api/              candles, quotes, symbols route handlers (proxy to data providers)
 components/backtest/  rule builder, risk form, charts, result panels
 components/paper/     provider, order ticket, positions, journal, portfolio view

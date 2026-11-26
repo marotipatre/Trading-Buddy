@@ -16,7 +16,7 @@ export function PositionsPanel() {
       <Card className="py-0">
         <CardHeader className="pt-4"><CardTitle>Open positions ({state.positions.length})</CardTitle></CardHeader>
         {state.positions.length === 0 ? (
-          <p className="px-4 pb-4 text-sm text-muted-foreground">No open positions. Place an order from the Chart page.</p>
+          <p className="px-4 pb-4 text-sm text-muted-foreground">No open positions. Place an order from the Trade page.</p>
         ) : (
           <Table>
             <TableHeader>
