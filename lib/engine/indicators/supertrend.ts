@@ -11,7 +11,8 @@ export function supertrend(c: Candle[], period = 10, mult = 3): SupertrendResult
   const a = atr(c, period);
   const n = c.length;
   const line = new Array<number>(n).fill(NaN);
-  const direction = new Array<number>(n).fill(0);
+  // NaN (not 0) before ATR exists, so a 0 -> 1 "cross" can never be mistaken for a trend flip.
+  const direction = new Array<number>(n).fill(NaN);
   let finalUpper = NaN;
   let finalLower = NaN;
   let dir = 1;
