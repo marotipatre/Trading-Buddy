@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { OrderTicket } from "@/components/paper/order-ticket";
+import { StockChart } from "@/components/chart/stock-chart";
 import { PositionsPanel } from "@/components/paper/positions-panel";
 import { SymbolSearch } from "@/components/symbol-search";
 import type { Quote } from "@/lib/data/types";
@@ -101,6 +102,7 @@ export function TradeView() {
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-4">
         <Card>
           <CardContent className="space-y-5">
             <div className="flex items-start justify-between gap-3">
@@ -145,6 +147,8 @@ export function TradeView() {
             {error && !q && <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{error}</p>}
           </CardContent>
         </Card>
+          <StockChart symbol={symbol} />
+        </div>
         <div className="space-y-4">
           {held.length > 0 && (
             <Card>
