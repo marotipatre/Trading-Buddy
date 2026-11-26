@@ -18,15 +18,15 @@ export function TodayCard() {
     return () => { live = false; };
   }, []);
   return (
-    <Card>
-      <CardContent className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
+    <Card className="rounded-2xl">
+      <CardContent className="grid gap-5 md:grid-cols-[1.4fr_1fr]">
         <div className="space-y-1.5">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Market condition</div>
+          <div className="text-sm text-muted-foreground">How the market looks</div>
           {r === undefined ? <><Skeleton className="h-6 w-40" /><Skeleton className="h-4 w-full" /></> : r === null ? <p className="text-sm text-muted-foreground">Could not read the Nifty right now.</p> : (
             <>
               <div className="flex items-center gap-2">
                 <span className={cn("size-2.5 rounded-full", r.regime === "bull" ? "bg-up" : r.regime === "bear" ? "bg-down" : "bg-warn")} />
-                <span className="text-lg font-semibold">{r.label}</span>
+                <span className="font-heading text-2xl font-semibold tracking-tight">{r.label}</span>
                 <span className="font-mono text-xs text-muted-foreground">Nifty {r.vs200 >= 0 ? "+" : ""}{r.vs200.toFixed(1)}% vs 200-day average</span>
               </div>
               <p className="text-sm text-muted-foreground">{r.advice}</p>
