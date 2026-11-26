@@ -104,3 +104,28 @@ describe("fetchUpstoxCandles", () => {
     await expect(fetchUpstoxCandles("RELIANCE.NS", "1d", 0, 1, f)).rejects.toThrow();
   });
 });
+
+import { quoteFromToday } from "./upstox";
+
+describe("quoteFromToday (one-request live quote)", () => {
+  const IST = 19800;
+  const nowOpen = Date.UTC(2026, 10, 26, 6, 0) / 1000; // 11:30 IST
+  const nowClosed = Date.UTC(2026, 10, 26, 12, 30) / 1000; // 18:00 IST
+  const dayStart = Math.floor((nowOpen + IST) / 86400) * 86400 - IST;
+  const today: Candle = { time: dayStart + 9 * 3600 + 15 * 60, open: 1371.1, high: 1401.7, low: 1361.8, close: 1396.2, volume: 20028816 };
+
+  it("uses the candle's open range and latest close with the cached previous close", () => {
+    const q = quoteFromToday("R.NS", today, 1373.9, true, nowOpen);
+    expect(q).toMatchObject({ price: 1396.2, prevClose: 1373.9, dayHigh: 1401.7, dayLow: 1361.8, source: "upstox" });
+    expect(q.changePct).toBeCloseTo(1.623, 2);
+  });
+  it("is stamped 'now' while the market is open so the paper broker treats it as a fresh tick", () => {
+    expect(quoteFromToday("R.NS", today, 1373.9, true, nowOpen).time).toBe(nowOpen);
+  });
+  it("is stamped at the session close once the market is shut", () => {
+    expect(quoteFromToday("R.NS", today, 1373.9, false, nowClosed).time).toBe(dayStart + 15 * 3600 + 30 * 60);
+  });
+  it("handles a zero previous close without dividing by zero", () => {
+    expect(quoteFromToday("R.NS", today, 0, true, nowOpen).changePct).toBe(0);
+  });
+});

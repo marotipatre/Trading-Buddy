@@ -2,6 +2,7 @@ import { gunzipSync } from "node:zlib";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isMarketOpen } from "@/lib/market-hours";
 import { normalizeDailyTime } from "./moneycontrol";
 import { createSpacer, dedupe } from "./spacer";
 import type { Candle, Interval, Quote } from "./types";
@@ -116,7 +117,7 @@ export function planChunks(interval: Interval, fromSec: number, toSec: number): 
   return out;
 }
 
-const spaced = createSpacer({ minGapMs: 250 });
+const spaced = createSpacer({ minGapMs: 120 });
 
 async function getJson(url: string, fetchImpl: typeof fetch): Promise<unknown> {
   return spaced(async () => {
@@ -182,16 +183,59 @@ export function quoteFromCandles(symbol: string, todayMinutes: Candle[], daily: 
   return null;
 }
 
+const istDayOf = (sec: number) => Math.floor((sec + IST) / 86400);
+const sessionClose = (sec: number) => Math.floor((sec + IST) / 86400) * 86400 - IST + 15 * 3600 + 30 * 60;
+
+/** Pure: a live quote from today's daily candle (open/high/low/latest close) and the cached previous close. */
+export function quoteFromToday(symbol: string, today: Candle, prevClose: number, marketOpenNow: boolean, nowSec: number): Quote {
+  const price = today.close;
+  return {
+    symbol, price, prevClose, change: price - prevClose, changePct: prevClose ? ((price - prevClose) / prevClose) * 100 : 0,
+    dayHigh: today.high, dayLow: today.low, marketState: "",
+    // While the market is open this is "now" so the paper broker evaluates it as a fresh tick; after the close it is the session end.
+    time: marketOpenNow ? nowSec : Math.min(nowSec, sessionClose(today.time)), source: "upstox",
+  };
+}
+
+/** Previous session's close per instrument. It cannot change during the day, so it is fetched once per IST day. */
+const prevCache = new Map<string, { day: number; close: number }>();
+const prevLoading = dedupe<number | null>();
+
+async function previousClose(key: string, nowSec: number, fetchImpl: typeof fetch): Promise<number | null> {
+  const day = istDayOf(nowSec);
+  const hit = prevCache.get(key);
+  if (hit && hit.day === day) return hit.close;
+  return prevLoading(`${key}|${day}`, async () => {
+    const json = await getJson(`${BASE}/${enc(key)}/days/1/${istDate(nowSec)}/${istDate(nowSec - 10 * 86400)}`, fetchImpl);
+    const bars = parseUpstoxCandles(json, "1d");
+    // the last bar strictly before today's session (history normally excludes today, but be safe)
+    const prev = bars.filter((b) => istDayOf(b.time) < day).at(-1);
+    if (!prev) return null;
+    prevCache.set(key, { day, close: prev.close });
+    return prev.close;
+  });
+}
+
+/**
+ * Live quote in ONE request per refresh: today's daily candle carries open, high, low and the latest
+ * price. The previous close is cached for the day. Before the open, or on weekends and holidays,
+ * there is no candle for today, so it falls back to the last two sessions.
+ */
 export async function fetchUpstoxQuote(yahooSymbol: string, fetchImpl: typeof fetch = fetch): Promise<Quote> {
   const map = await getInstrumentMap(fetchImpl);
   const key = toUpstoxKey(yahooSymbol, map);
   if (!key) throw new Error(`${yahooSymbol}: not found in the Upstox instrument list`);
   const now = Math.floor(Date.now() / 1000);
-  const [mins, dailyJson] = await Promise.all([
-    getJson(`${BASE}/intraday/${enc(key)}/minutes/1`, fetchImpl).catch(() => null),
-    getJson(`${BASE}/${enc(key)}/days/1/${istDate(now)}/${istDate(now - 10 * 86400)}`, fetchImpl),
-  ]);
-  const q = quoteFromCandles(yahooSymbol, mins ? parseUpstoxCandles(mins, "1m") : [], parseUpstoxCandles(dailyJson, "1d"), now);
+
+  const todayJson = await getJson(`${BASE}/intraday/${enc(key)}/days/1`, fetchImpl).catch(() => null);
+  const today = todayJson ? parseUpstoxCandles(todayJson, "1d").at(-1) : undefined;
+  if (today && istDayOf(today.time) === istDayOf(now)) {
+    const prev = await previousClose(key, now, fetchImpl);
+    if (prev !== null) return quoteFromToday(yahooSymbol, today, prev, isMarketOpen(), now);
+  }
+  // No live candle: use the last two completed sessions.
+  const dailyJson = await getJson(`${BASE}/${enc(key)}/days/1/${istDate(now)}/${istDate(now - 10 * 86400)}`, fetchImpl);
+  const q = quoteFromCandles(yahooSymbol, [], parseUpstoxCandles(dailyJson, "1d"), now);
   if (!q) throw new Error(`${yahooSymbol}: could not build a quote from Upstox data`);
   return q;
 }
