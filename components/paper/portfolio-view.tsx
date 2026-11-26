@@ -9,6 +9,8 @@ import { MetricCard } from "@/components/backtest/metric-card";
 import { NumberField } from "@/components/backtest/number-field";
 import { fmtInr, fmtNum, fmtPct } from "@/lib/format";
 import { paperMetrics } from "@/lib/paper/analytics";
+import { AccountEquityChart } from "./account-equity-chart";
+import { InsightsPanel } from "./insights-panel";
 import { JournalTable } from "./journal-table";
 import { usePaper } from "./paper-provider";
 import { PositionsPanel } from "./positions-panel";
@@ -54,7 +56,17 @@ export function PortfolioView() {
           <MetricCard label="Charges paid" value={fmtInr(m.totalCharges)} />
         </div>
       )}
+      {(state.equityHistory?.length ?? 0) >= 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Account value</CardTitle>
+            <CardDescription>Sampled while the app is open and after every closed trade. Dashed line is your starting capital.</CardDescription>
+          </CardHeader>
+          <CardContent><AccountEquityChart history={state.equityHistory!} initial={state.initialCapital} /></CardContent>
+        </Card>
+      )}
       <PositionsPanel />
+      <InsightsPanel />
       <JournalTable />
       <Card>
         <CardHeader>
