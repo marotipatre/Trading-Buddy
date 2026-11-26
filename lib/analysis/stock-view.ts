@@ -60,7 +60,7 @@ export function assessStock(symbol: string, candles: Candle[]): StockView | null
   const dFrame: "up" | "down" | "flat" = e20 > e50 && price > e50 ? "up" : e20 < e50 && price < e50 ? "down" : "flat";
 
   const reasons: Reason[] = [];
-  let score = 40;
+  let score = 30;
   const add = (points: number, text: string) => { score += points; reasons.push({ text, points }); };
 
   if (price > e50) add(8, "Price is above its 50-day average"); else add(-10, "Price is below its 50-day average");
@@ -130,6 +130,24 @@ export function withOverlay(v: StockView, mood?: { score: number; count: number 
   }
   score = Math.max(0, Math.min(100, Math.round(score)));
   return { ...v, score, reasons, verdict: verdictOf(score, v.plan) };
+}
+
+/**
+ * Rank the scanned stocks by 3-month return and move each score by up to ±10: in a rising market nearly everything
+ * looks good on trend alone, so a buy must also be among the stronger names. Returns new views; scores re-sorted by caller.
+ */
+export function withRelativeStrength(views: StockView[]): StockView[] {
+  const valid = views.filter((v) => Number.isFinite(v.ret.m3)).sort((a, b) => a.ret.m3 - b.ret.m3);
+  const rank = new Map(valid.map((v, i) => [v.symbol, valid.length > 1 ? i / (valid.length - 1) : 0.5]));
+  return views.map((v) => {
+    const r = rank.get(v.symbol);
+    if (r === undefined) return v;
+    const p = Math.round((r - 0.5) * 20);
+    if (p === 0) return v;
+    const score = Math.max(0, Math.min(100, v.technical + p));
+    const text = r >= 0.8 ? "Among the strongest 20% of scanned stocks over 3 months" : r <= 0.2 ? "Among the weakest 20% of scanned stocks over 3 months" : r > 0.5 ? "Stronger than the typical scanned stock over 3 months" : "Weaker than the typical scanned stock over 3 months";
+    return { ...v, technical: score, score, reasons: [...v.reasons, { text, points: p }], verdict: verdictOf(score, v.plan) };
+  });
 }
 
 /** How many shares to buy so that being stopped out costs `riskPct` of capital, capped at `maxPositionPct` of capital. */

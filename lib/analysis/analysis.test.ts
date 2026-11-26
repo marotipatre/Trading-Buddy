@@ -75,3 +75,15 @@ describe("sector ranking", () => {
     expect(r[1].stance).toBe("avoid");
   });
 });
+
+describe("relative strength", () => {
+  it("lifts the strongest stocks and lowers the weakest, within ±10", async () => {
+    const { withRelativeStrength } = await import("./stock-view");
+    const base = assessStock("A", mk((i) => 100 + i * 0.5 + Math.sin(i / 5) * 2))!;
+    const views = [0, 1, 2, 3, 4].map((k) => ({ ...base, symbol: "S" + k, technical: 60, score: 60, ret: { ...base.ret, m3: k * 5 } }));
+    const out = withRelativeStrength(views);
+    expect(out[4].score).toBe(70);
+    expect(out[0].score).toBe(50);
+    expect(out[2].score).toBe(60);
+  });
+});

@@ -14,7 +14,7 @@ import { useUniverse } from "@/components/use-universe";
 import type { Candle } from "@/lib/data/types";
 import { newsMood } from "@/lib/analysis/sentiment";
 import { rankSectors, type SectorRow } from "@/lib/analysis/sectors";
-import { assessStock, positionSize, withOverlay, type StockView } from "@/lib/analysis/stock-view";
+import { assessStock, positionSize, withOverlay, withRelativeStrength, type StockView } from "@/lib/analysis/stock-view";
 import type { AnalystCall, Consensus, NewsItem } from "@/lib/data/news";
 import { fmtInr } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
@@ -83,6 +83,8 @@ export function IdeasView() {
       };
       await Promise.all([worker(), worker(), worker(), worker()]);
       if (!found.length) throw new Error("No stock could be analysed. Check your connection and try again.");
+      const ranked = withRelativeStrength(found.map((f) => f.view));
+      found.forEach((f, i) => { f.view = ranked[i]; });
       found.sort((a, b) => b.view.technical - a.view.technical);
       setIdeas([...found]);
       setSectors(rankSectors(found.map((f) => ({ sector: f.stock.sector, view: f.view })), benchM1));
