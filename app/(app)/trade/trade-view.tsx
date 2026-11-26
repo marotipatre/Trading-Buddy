@@ -87,7 +87,7 @@ export function TradeView() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardContent className="space-y-5">
             <div className="flex items-start justify-between gap-3">
