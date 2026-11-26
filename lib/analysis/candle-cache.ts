@@ -1,4 +1,6 @@
 import type { Candle } from "@/lib/data/types";
+import { isMarketOpen } from "@/lib/market-hours";
+import { fresh, readSeries, writeSeries } from "./candle-store";
 
 const TTL = 30 * 60_000;
 const cache = new Map<string, { at: number; candles: Candle[] }>();
@@ -15,11 +17,17 @@ export function fetchCandles(symbol: string, days: number, interval = "1d"): Pro
   const pending = inflight.get(key);
   if (pending) return pending;
   const p = (async () => {
+    // A copy saved in this browser (IndexedDB) is used when it is fresh enough: no download at all.
+    if (typeof window !== "undefined") {
+      const saved = await readSeries(key);
+      if (saved && saved.candles.length && fresh(saved.at, Date.now(), isMarketOpen())) { cache.set(key, { at: saved.at, candles: saved.candles }); return saved.candles; }
+    }
     const res = await fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&days=${days}&fast=1`);
     const j = await res.json();
     if (!res.ok) throw new Error(j.error ?? "no data");
     const candles = j.candles as Candle[];
     cache.set(key, { at: Date.now(), candles });
+    if (typeof window !== "undefined" && candles.length) void writeSeries(key, candles);
     return candles;
   })().finally(() => inflight.delete(key));
   inflight.set(key, p);
@@ -32,4 +40,9 @@ export async function pool<T>(items: T[], n: number, worker: (item: T) => Promis
   await Promise.all(Array.from({ length: Math.min(n, queue.length) }, async () => {
     for (let it = queue.shift(); it !== undefined && !stop(); it = queue.shift()) await worker(it);
   }));
+}
+
+/** Candles already in memory for a symbol and window, if any (never starts a download). */
+export function peekCandles(symbol: string, days: number, interval = "1d"): Candle[] | undefined {
+  return cache.get(`${symbol}|${interval}|${days}`)?.candles;
 }
