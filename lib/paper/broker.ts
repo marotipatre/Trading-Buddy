@@ -86,7 +86,12 @@ export function validateRequest(state: PaperState, req: OrderRequest): string | 
 }
 
 /** Place an order at the current price `ltp`. Market orders fill now; limits fill if marketable, else rest. */
-export function placeOrder(state: PaperState, req: OrderRequest, ltp: number, time: number): Result {
+export interface PlaceOptions {
+  /** Wall-clock unix seconds. When set, OPENING an intraday position is refused outside the session. */
+  intradayClock?: number;
+}
+
+export function placeOrder(state: PaperState, req: OrderRequest, ltp: number, time: number, opts: PlaceOptions = {}): Result {
   const bad = validateRequest(state, req);
   if (bad) return { state, error: bad };
   if (!(ltp > 0)) return { state, error: "No live price available" };
@@ -94,6 +99,9 @@ export function placeOrder(state: PaperState, req: OrderRequest, ltp: number, ti
   const marketable = req.type === "market" || (req.side === "buy" ? req.limitPrice! >= ltp : req.limitPrice! <= ltp);
   const closeDirection: Direction = req.side === "sell" ? "long" : "short";
   const held = state.positions.find((p) => p.symbol === req.symbol && p.direction === closeDirection && p.product === req.product);
+  if (!held && req.product === "intraday" && opts.intradayClock !== undefined && !intradayWindowOpen(opts.intradayClock)) {
+    return { state, error: "Intraday (MIS) positions can only be opened Mon–Fri, 09:15–15:15 IST. Use Delivery, or try during the session." };
+  }
 
   if (!marketable) {
     if (!held && req.side === "sell" && req.product === "delivery") return { state, error: "You do not hold this stock; delivery shorts are not allowed on NSE cash" };
@@ -207,4 +215,16 @@ export function intradayDue(state: PaperState, nowSec: number): boolean {
     || state.orders.some((o) => o.product === "intraday" && o.createdAt < today);
   const hasIntraday = state.positions.some((p) => p.product === "intraday") || state.orders.some((o) => o.product === "intraday");
   return stale || (hasIntraday && isSquareOffTime(istMinutes(nowSec)));
+}
+
+/** Day of week in IST, 0 = Sunday. (1970-01-01 was a Thursday.) */
+export function istWeekday(sec: number): number {
+  return (Math.floor((sec + IST_OFFSET_SEC) / 86400) + 4) % 7;
+}
+
+/** Can a new intraday position be opened at this instant? Mon-Fri 09:15 <= t < 15:15 IST (holidays not modelled). */
+export function intradayWindowOpen(sec: number): boolean {
+  const dow = istWeekday(sec);
+  const m = istMinutes(sec);
+  return dow >= 1 && dow <= 5 && m >= 9 * 60 + 15 && m < INTRADAY_SQUAREOFF_MINUTES;
 }
