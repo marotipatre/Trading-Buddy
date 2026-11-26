@@ -13,7 +13,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { href: "/trade", label: "Chart", icon: CandlestickChart, ready: true },
   { href: "/strategies", label: "Backtest", icon: FlaskConical, ready: true },
-  { href: "/portfolio", label: "Portfolio", icon: Wallet, ready: false },
+  { href: "/portfolio", label: "Portfolio", icon: Wallet, ready: true },
 ];
 
 export function Sidebar() {
