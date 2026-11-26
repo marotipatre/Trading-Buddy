@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/backtest/number-field";
+import { useNow } from "@/components/use-now";
 import { useUniverse } from "@/components/use-universe";
 import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
 import { newsMood } from "@/lib/analysis/sentiment";
 import { pnlByDay } from "@/lib/intraday/account";
+import { dayStatus, DEFAULT_LIMITS, type Limits } from "@/lib/intraday/limits";
 import { loadBatches, saveBatch, type PickBatch } from "@/lib/intraday/log";
 import { intradaySize, scoreIntraday, topPicks, type IntradayPick } from "@/lib/intraday/picks";
 import { evaluatePick, summarize, type PickResult } from "@/lib/intraday/scorecard";
@@ -31,6 +33,8 @@ function Inner() {
   const { acc, ready, view, create, topUp, reset } = useIntraday();
   const [potInput, setPotInput] = useState(100000);
   const [add, setAdd] = useState(25000);
+  const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
+  const now = useNow();
   if (!ready) return null;
   if (!acc || !view) {
     return (
@@ -48,7 +52,8 @@ function Inner() {
     );
   }
   const days = pnlByDay(acc.state);
-  const today = days.find((d) => d.date === istToday());
+  const status = dayStatus(acc.state, acc.pot, now, limits);
+  const today = days.find((d) => d.date === new Date((now + 19800) * 1000).toISOString().slice(0, 10));
   return (
     <div className="space-y-6">
       <Card>
@@ -66,7 +71,16 @@ function Inner() {
           {view.broke && <span className="text-sm text-down">Your pot is used up.</span>}
         </CardContent>
       </Card>
-      <Picks />
+      <Card className={status.locked ? "border-down/50" : undefined}>
+        <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <span className="font-medium">Today&apos;s limits</span>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">Max loss %<NumberField className="h-8 w-16" min={0.5} max={5} step={0.5} value={limits.maxLossPct} onChange={(v) => setLimits({ ...limits, maxLossPct: v })} /></label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">Max trades<NumberField className="h-8 w-16" min={1} max={10} value={limits.maxTrades} onChange={(v) => setLimits({ ...limits, maxTrades: Math.round(v) })} /></label>
+          <span className="font-mono text-xs text-muted-foreground">{status.tradesToday} trades · {fmtInr(status.pnlToday, { sign: true })} · {status.lossStreak} losses in a row</span>
+          {status.locked ? <span className="w-full font-medium text-down">{status.reason} New orders are switched off. <Link className="underline" href="/playbook?book=intraday">Read the rule book</Link>.</span> : <span className="text-xs text-up">Within limits</span>}
+        </CardContent>
+      </Card>
+      <Picks lock={status.reason ?? null} />
       <Open />
       <Results />
       <Scorecard />
@@ -85,7 +99,7 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
   );
 }
 
-function Picks() {
+function Picks({ lock }: { lock: string | null }) {
   const { acc, place } = useIntraday();
   const { stocks } = useUniverse();
   const [running, setRunning] = useState(false);
@@ -164,7 +178,7 @@ function Picks() {
                     <p className="text-xs text-muted-foreground">Risk {p.plan.riskPct.toFixed(2)}% · reward 1.5R · {size.qty} shares = {fmtInr(size.notional)} using {fmtInr(size.margin)} of your money. Risking {fmtInr(size.riskAmt)} to make {fmtInr(size.rewardAmt)}.</p>
                     <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">{p.reasons.slice(0, 4).map((r) => <li key={r}>{r}</li>)}</ul>
                     <p className="text-xs text-muted-foreground"><b>Skip it if</b> it opens above {(p.plan.entry * 1.01).toFixed(2)} or below {p.plan.stop.toFixed(2)}. Exit by 3:15 pm if neither level is hit.</p>
-                    <Button size="sm" disabled={size.qty < 1} onClick={async () => {
+                    <Button size="sm" disabled={size.qty < 1 || !!lock} title={lock ?? undefined} onClick={async () => {
                       const r = await place({ symbol: p.symbol, side: "buy", qty: size.qty, type: "stop", triggerPrice: p.plan.entry, validity: "day", stop: p.plan.stop, target: p.plan.target1 });
                       if (r.error) toast.error(r.error); else toast.success(`Order placed: buys ${size.qty} ${displaySymbol(p.symbol)} if it trades up to ${p.plan.entry.toFixed(2)}`);
                     }}>Place order (buy-stop, SL and TP attached)</Button>
