@@ -1,0 +1,66 @@
+import type { Quote } from "./types";
+
+export interface QuoteProvider {
+  name: "yahoo" | "google";
+  fetch: (symbol: string) => Promise<Quote>;
+}
+
+export interface QuoteServiceOptions {
+  providers: QuoteProvider[];
+  /** Serve a cached quote without asking any provider while it is this fresh. */
+  ttlMs?: number;
+  /** After a failure a provider is tried last for this long. */
+  cooldownMs?: number;
+  /** How many symbols are fetched at once. */
+  concurrency?: number;
+  now?: () => number;
+}
+
+/**
+ * Live quotes from several sources with caching and a simple circuit breaker.
+ * Healthy providers are tried first; a failing one is moved to the back for `cooldownMs`
+ * so a throttled source does not slow every request. If every source fails the last known
+ * quote is returned (marked by its original `time`) rather than a blank row.
+ */
+export function createQuoteService({ providers, ttlMs = 8000, cooldownMs = 60_000, concurrency = 3, now = Date.now }: QuoteServiceOptions) {
+  const cache = new Map<string, { q: Quote; at: number }>();
+  const downUntil = new Map<string, number>();
+
+  const order = () => {
+    const t = now();
+    const healthy = providers.filter((p) => (downUntil.get(p.name) ?? 0) <= t);
+    const parked = providers.filter((p) => (downUntil.get(p.name) ?? 0) > t);
+    return [...healthy, ...parked];
+  };
+
+  async function one(symbol: string): Promise<Quote | null> {
+    const hit = cache.get(symbol);
+    if (hit && now() - hit.at < ttlMs) return hit.q;
+    for (const p of order()) {
+      try {
+        const q = await p.fetch(symbol);
+        downUntil.delete(p.name);
+        const tagged = { ...q, source: q.source ?? p.name };
+        cache.set(symbol, { q: tagged, at: now() });
+        return tagged;
+      } catch {
+        downUntil.set(p.name, now() + cooldownMs);
+      }
+    }
+    return hit?.q ?? null;
+  }
+
+  return {
+    async getQuotes(symbols: string[]): Promise<Quote[]> {
+      const out = new Map<string, Quote>();
+      for (let i = 0; i < symbols.length; i += concurrency) {
+        const batch = symbols.slice(i, i + concurrency);
+        const res = await Promise.all(batch.map(one));
+        res.forEach((q, k) => q && out.set(batch[k], q));
+      }
+      return symbols.flatMap((s) => (out.has(s) ? [out.get(s)!] : []));
+    },
+    /** For diagnostics/tests. */
+    status: () => Object.fromEntries(providers.map((p) => [p.name, (downUntil.get(p.name) ?? 0) > now() ? "cooling-down" : "ok"])),
+  };
+}
