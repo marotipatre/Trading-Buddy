@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { ExplainButton } from "@/components/coach/explain-button";
 import { AiSentimentToggle } from "@/components/ai-sentiment";
 import { pnlByDay } from "@/lib/intraday/account";
 import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
+import { INTRADAY } from "@/lib/playbook/content";
 import { dayStatus, DEFAULT_LIMITS, type Limits } from "@/lib/intraday/limits";
 import { cleanShare, MISTAKE_TAGS, mistakeCounts, pickDateOf, userNote, withUserNote } from "@/lib/intraday/journal";
 import { loadBatches, saveBatch, type PickBatch } from "@/lib/intraday/log";
@@ -42,6 +43,13 @@ function Inner() {
   const [potInput, setPotInput] = useState(100000);
   const [add, setAdd] = useState(25000);
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
+  const [pledgeDate, setPledgeDate] = useState<string | null>(null);
+  useEffect(() => {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem("tb.intraday.pledge"); } catch { /* storage unavailable */ }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read the saved pledge date after mount
+    setPledgeDate(saved);
+  }, []);
   const now = useNow();
   if (!ready) return null;
   if (!acc || !view) {
@@ -61,6 +69,9 @@ function Inner() {
   }
   const days = pnlByDay(acc.state);
   const status = dayStatus(acc.state, acc.pot, now, limits);
+  const dateKey = new Date((now + 19800) * 1000).toISOString().slice(0, 10);
+  const pledged = pledgeDate === dateKey;
+  const lockReason = status.reason ?? (pledged ? null : "Read and tick today's pledge below to switch on orders.");
   const today = days.find((d) => d.date === new Date((now + 19800) * 1000).toISOString().slice(0, 10));
   return (
     <div className="space-y-6">
@@ -91,7 +102,19 @@ function Inner() {
       {localOnly && (
         <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">Your intraday account is saved only in this browser. Run <code>supabase/migrations/0004_intraday_account.sql</code> in the Supabase SQL editor to back it up and keep it across devices.</p>
       )}
-      <Picks lock={status.reason ?? null} />
+      {!status.locked && !pledged && (
+        <Card className="border-primary/40">
+          <CardHeader><CardTitle>Today&apos;s pledge</CardTitle><CardDescription>Read it, then tick the box. Orders stay off until you do, once each day.</CardDescription></CardHeader>
+          <CardContent className="space-y-3">
+            <ol className="list-decimal space-y-1 pl-5 text-sm">{INTRADAY.constitution.map((c) => <li key={c}>{c}</li>)}</ol>
+            <label className="flex cursor-pointer items-start gap-2.5 text-sm font-medium">
+              <input type="checkbox" className="mt-1" onChange={(e) => { if (e.target.checked) { try { localStorage.setItem("tb.intraday.pledge", dateKey); } catch { /* ignore */ } setPledgeDate(dateKey); } }} />
+              <span>I have read today&apos;s limits and the pledge, and I will trade only the plan.</span>
+            </label>
+          </CardContent>
+        </Card>
+      )}
+      <Picks lock={lockReason} />
       <Open />
       <EquityCard />
       <WeeklyReviewCard trades={acc.state.trades} title="Intraday" />
