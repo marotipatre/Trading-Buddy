@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, CandlestickChart, FlaskConical, Wallet, LogOut, TrendingUp } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, FlaskConical, Wallet, LogOut, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -11,7 +11,7 @@ import { MarketStatus } from "./market-status";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
-  { href: "/trade", label: "Chart", icon: CandlestickChart, ready: true },
+  { href: "/trade", label: "Trade", icon: ArrowLeftRight, ready: true },
   { href: "/strategies", label: "Backtest", icon: FlaskConical, ready: true },
   { href: "/portfolio", label: "Portfolio", icon: Wallet, ready: true },
 ];
