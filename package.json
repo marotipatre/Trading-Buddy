@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "watch": "node --env-file=.env.local scripts/watch.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
