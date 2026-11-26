@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { isMarketOpen, istParts } from "@/lib/market-hours";
 
 export function MarketStatus() {
@@ -14,10 +15,12 @@ export function MarketStatus() {
   if (!now) return <div className="h-6" />;
   const open = isMarketOpen(now);
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className={`h-2 w-2 rounded-full ${open ? "bg-up" : "bg-down"}`} />
-      <span className="text-muted">NSE {open ? "open" : "closed"}</span>
-      <span className="font-mono text-muted">{istParts(now).text} IST</span>
+    <div className="flex items-center justify-between gap-2">
+      <Badge variant="outline" className="gap-1.5">
+        <span className={`size-1.5 rounded-full ${open ? "bg-up" : "bg-down"}`} />
+        NSE {open ? "open" : "closed"}
+      </Badge>
+      <span className="font-mono text-xs text-muted-foreground">{istParts(now).text} IST</span>
     </div>
   );
 }
