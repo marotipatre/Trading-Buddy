@@ -22,7 +22,7 @@ export function GroupPicker({ cap, setCap, sector, setSector, count, setCount, s
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Size class</Label>
           <SimpleSelect className="w-full" value={cap} onChange={setCap}
-            options={[{ value: "all", label: "All sizes" }, ...(["large", "mid", "small"] as Cap[]).map((c) => ({ value: c, label: CAP_LABEL[c] }))]} />
+            options={[{ value: "all", label: "All sizes" }, ...(["large", "mid", "small", "micro"] as Cap[]).map((c) => ({ value: c, label: CAP_LABEL[c] }))]} />
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Sector</Label>

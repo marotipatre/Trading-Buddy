@@ -11,7 +11,7 @@ export interface BaseIdea {
   symbol: string;
   name: string;
   sector: string;
-  cap: "large" | "mid" | "small";
+  cap: "large" | "mid" | "small" | "micro";
   /** Scored on price alone, with relative strength folded in. No target applied yet, so the plan can change without a rescan. */
   view: StockView;
   patterns: { name: string; bias: "bullish" | "bearish" | "neutral" }[];

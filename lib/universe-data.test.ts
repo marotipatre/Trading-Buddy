@@ -76,10 +76,17 @@ describe("getUniverse", () => {
   it("downloads, builds and returns the three lists when the network works", async () => {
     const mk = (n: number, ind: string) => csv(Array.from({ length: n }, (_, i) => `Co ${ind}${i} Ltd,${ind},${ind.slice(0, 2).toUpperCase()}${i}X,EQ,INE${i}`));
     const f = vi.fn().mockImplementation(async (url: string) =>
-      new Response(url.includes("nifty100") ? mk(100, "Power") : url.includes("midcap150") ? mk(150, "Healthcare") : mk(251, "Textiles"), { status: 200 }));
+      new Response(url.includes("nifty100") ? mk(100, "Power") : url.includes("midcap150") ? mk(150, "Healthcare") : url.includes("microcap") ? mk(250, "Realty") : mk(251, "Textiles"), { status: 200 }));
+    const u = await getUniverse(f, { cacheFile: null });
+    expect(u.stocks).toHaveLength(751);
+    expect(u.stocks.filter((s) => s.cap === "micro")).toHaveLength(250);
+    expect(u.stocks.filter((s) => s.cap === "large")).toHaveLength(100);
+    expect(f).toHaveBeenCalledTimes(4);
+  });
+  it("still works when the microcap list cannot be fetched", async () => {
+    const mk = (n: number, ind: string) => csv(Array.from({ length: n }, (_, i) => `Co ${ind}${i} Ltd,${ind},${ind.slice(0, 2).toUpperCase()}${i}X,EQ,INE${i}`));
+    const f = vi.fn().mockImplementation(async (url: string) => url.includes("microcap") ? new Response("", { status: 404 }) : new Response(url.includes("nifty100") ? mk(100, "Power") : url.includes("midcap150") ? mk(150, "Healthcare") : mk(251, "Textiles"), { status: 200 }));
     const u = await getUniverse(f, { cacheFile: null });
     expect(u.stocks).toHaveLength(501);
-    expect(u.stocks.filter((s) => s.cap === "large")).toHaveLength(100);
-    expect(f).toHaveBeenCalledTimes(3);
   });
 });

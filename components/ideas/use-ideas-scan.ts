@@ -19,14 +19,14 @@ export interface Progress { done: number; total: number; phase: "prices" | "news
 interface Saved { at: number; bases: BaseIdea[]; regime: MarketRegime | null; bench: number | null; method: Method; frame: Frame }
 
 export const daysFor = (method: Method, frame: Frame) => (method === "trend" ? HISTORY_DAYS[frame] : 800);
-const ORDER: Record<UniverseStock["cap"], number> = { large: 0, mid: 1, small: 2 };
+const ORDER: Record<UniverseStock["cap"], number> = { large: 0, mid: 1, small: 2, micro: 3 };
 
 function load(): Saved | null {
   try { const v = JSON.parse(localStorage.getItem(LAST_KEY) ?? "null") as Saved | null; return v && Array.isArray(v.bases) && v.bases.length ? v : null; } catch { return null; }
 }
 
 /**
- * Scans the whole listed market (about 500 stocks, large caps first so useful results appear within seconds) and keeps
+ * Scans the whole listed market (about 750 stocks: Nifty 500 plus the Nifty Microcap 250, large caps first so useful results appear within seconds) and keeps
  * the base results. Your plan (days, target, amount) is applied afterwards, so changing it never needs a rescan.
  * The last scan is shown at once; a stale one is refreshed in the background.
  */

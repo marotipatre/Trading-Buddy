@@ -10,8 +10,8 @@ export * from "./universe-lists";
 // ---------- fetching ----------
 
 const BASE = "https://www.niftyindices.com/IndexConstituent";
-const FILES = { large: "ind_nifty100list.csv", mid: "ind_niftymidcap150list.csv", small: "ind_niftysmallcap250list.csv" } as const;
-const CACHE_FILE = join(tmpdir(), "trading-buddy-universe.json");
+const FILES = { large: "ind_nifty100list.csv", mid: "ind_niftymidcap150list.csv", small: "ind_niftysmallcap250list.csv", micro: "ind_niftymicrocap250_list.csv" } as const;
+const CACHE_FILE = join(tmpdir(), "trading-buddy-universe-v2.json");
 const WEEK_MS = 7 * 86_400_000;
 let memo: Universe | null = null;
 const loading = dedupe<Universe>();
@@ -42,8 +42,8 @@ export async function getUniverse(fetchImpl: typeof fetch = fetch, opts: { cache
       }
     } catch {}
     try {
-      const [large, mid, small] = await Promise.all([download(FILES.large, fetchImpl), download(FILES.mid, fetchImpl), download(FILES.small, fetchImpl)]);
-      const stocks = buildUniverse(large, mid, small);
+      const [large, mid, small, micro] = await Promise.all([download(FILES.large, fetchImpl), download(FILES.mid, fetchImpl), download(FILES.small, fetchImpl), download(FILES.micro, fetchImpl).catch(() => [] as Constituent[])]); // micro is a bonus: its failure must not break the core list
+      const stocks = buildUniverse(large, mid, small, micro);
       if (stocks.length < 300) throw new Error("NSE constituent lists looked wrong");
       const u = { stocks, asOf: Date.now() };
       try { if (cacheFile) writeFileSync(cacheFile, JSON.stringify(u)); } catch {}

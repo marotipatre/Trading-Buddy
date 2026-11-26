@@ -6,7 +6,7 @@ export const ARROW = { up: "▲", down: "▼", flat: "▬" } as const;
 export const TONE = { up: "text-up", down: "text-down", flat: "text-muted-foreground" } as const;
 export const VERDICT_LABEL = { buy: "Buy setup", watch: "Watch", avoid: "Avoid" } as const;
 export const VERDICT_BG = { buy: "bg-up/15 text-up", watch: "bg-warn/15 text-warn", avoid: "bg-down/15 text-down" } as const;
-export const CAP_SHORT = { large: "Large", mid: "Mid", small: "Small" } as const;
+export const CAP_SHORT = { large: "Large", mid: "Mid", small: "Small", micro: "Micro" } as const;
 
 /** A small ring showing a 0-100 score, coloured by the verdict. */
 export function ScoreRing({ score, verdict, size = 44 }: { score: number; verdict: Idea["v"]["verdict"]; size?: number }) {

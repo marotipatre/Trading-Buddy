@@ -2,12 +2,12 @@
 /**
  * Pure helpers for the stock universe (safe to import from browser code; no Node APIs).
  * Market-cap class and sector come from NSE Indices' official constituent lists:
- *   Large = Nifty 100, Mid = Nifty Midcap 150, Small = Nifty Smallcap 250 (together the Nifty 500).
+ *   Large = Nifty 100, Mid = Nifty Midcap 150, Small = Nifty Smallcap 250 (together the Nifty 500), Micro = Nifty Microcap 250 (thinly traded, the riskiest).
  * A stock in more than one list takes the larger class. Sector is NSE's industry classification.
  */
 
-export type Cap = "large" | "mid" | "small";
-export const CAP_LABEL: Record<Cap, string> = { large: "Large cap", mid: "Mid cap", small: "Small cap" };
+export type Cap = "large" | "mid" | "small" | "micro";
+export const CAP_LABEL: Record<Cap, string> = { large: "Large cap", mid: "Mid cap", small: "Small cap", micro: "Micro cap" };
 
 export interface UniverseStock { symbol: string; name: string; sector: string; cap: Cap; isin: string }
 export interface Universe { stocks: UniverseStock[]; asOf: number }
@@ -77,10 +77,10 @@ export function parseConstituents(csv: string): Constituent[] {
 const tidyName = (n: string) => n.replace(/\s+/g, " ").replace(/\s*(Ltd|Limited)\.?$/i, "").trim();
 
 /** Pure: merge the three lists. A stock keeps the largest class it appears in. */
-export function buildUniverse(large: Constituent[], mid: Constituent[], small: Constituent[]): UniverseStock[] {
+export function buildUniverse(large: Constituent[], mid: Constituent[], small: Constituent[], micro: Constituent[] = []): UniverseStock[] {
   const seen = new Set<string>();
   const out: UniverseStock[] = [];
-  for (const [cap, list] of [["large", large], ["mid", mid], ["small", small]] as const) {
+  for (const [cap, list] of [["large", large], ["mid", mid], ["small", small], ["micro", micro]] as const) {
     for (const c of list) {
       if (seen.has(c.ticker)) continue;
       seen.add(c.ticker);
