@@ -11,6 +11,8 @@ export interface Loaded {
   id?: string;
   /** True when the paper_accounts table is missing, so state lives in this browser only. */
   localOnly: boolean;
+  /** The row's `updated_at` as the database returned it; saves are only accepted if it still matches. */
+  updatedAt?: string;
 }
 
 function readLocal(): PaperState | null {
@@ -36,21 +38,36 @@ export function isMissingTable(err: { code?: string; message?: string } | null):
 }
 
 export async function loadAccount(supabase: SupabaseClient): Promise<Loaded> {
-  const { data, error } = await supabase.from("paper_accounts").select("id,state").limit(1).maybeSingle();
+  const { data, error } = await supabase.from("paper_accounts").select("id,state,updated_at").limit(1).maybeSingle();
   if (error) {
     if (isMissingTable(error)) return { state: normalizeState(readLocal() ?? newAccount()), localOnly: true };
     throw new Error(error.message);
   }
-  if (data) return { id: data.id as string, state: normalizeState(data.state as PaperState), localOnly: false };
+  if (data) return { id: data.id as string, state: normalizeState(data.state as PaperState), localOnly: false, updatedAt: data.updated_at as string };
   const fresh = normalizeState(readLocal() ?? newAccount());
-  const ins = await supabase.from("paper_accounts").insert({ state: fresh }).select("id").single();
+  const ins = await supabase.from("paper_accounts").insert({ state: fresh }).select("id,updated_at").single();
   if (ins.error) throw new Error(ins.error.message);
-  return { id: ins.data.id as string, state: fresh, localOnly: false };
+  return { id: ins.data.id as string, state: fresh, localOnly: false, updatedAt: ins.data.updated_at as string };
 }
 
-export async function saveAccount(supabase: SupabaseClient, loaded: Pick<Loaded, "id" | "localOnly">, state: PaperState): Promise<void> {
+export interface SaveResult {
+  /** True when the row was changed by someone else (for example the order watcher) since we loaded it. Nothing was written. */
+  conflict: boolean;
+  updatedAt?: string;
+}
+
+/**
+ * Save the account. When we know the row's last `updated_at`, the write is conditional on it still matching, so an
+ * update made elsewhere is never silently overwritten: the caller gets `conflict: true` and should reload.
+ */
+export async function saveAccount(supabase: SupabaseClient, loaded: Pick<Loaded, "id" | "localOnly" | "updatedAt">, state: PaperState): Promise<SaveResult> {
   writeLocal(state); // always keep a local copy as a safety net
-  if (loaded.localOnly || !loaded.id) return;
-  const { error } = await supabase.from("paper_accounts").update({ state, updated_at: new Date().toISOString() }).eq("id", loaded.id);
+  if (loaded.localOnly || !loaded.id) return { conflict: false };
+  const now = new Date().toISOString();
+  let q = supabase.from("paper_accounts").update({ state, updated_at: now }).eq("id", loaded.id);
+  if (loaded.updatedAt) q = q.eq("updated_at", loaded.updatedAt);
+  const { data, error } = await q.select("updated_at");
   if (error) throw new Error(error.message);
+  if (!data || data.length === 0) return { conflict: Boolean(loaded.updatedAt) };
+  return { conflict: false, updatedAt: data[0].updated_at as string };
 }

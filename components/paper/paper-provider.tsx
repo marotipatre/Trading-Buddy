@@ -59,16 +59,9 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const stateRef = useRef(state);
   const priceRef = useRef<Record<string, number>>({}); // latest known price per symbol
-  const loadedRef = useRef<Pick<Loaded, "id" | "localOnly">>({ localOnly: true });
+  const loadedRef = useRef<Pick<Loaded, "id" | "localOnly" | "updatedAt">>({ localOnly: true });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supabase = useMemo(() => createClient(), []);
-
-  const scheduleSave = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveAccount(supabase, loadedRef.current, stateRef.current).catch((e: Error) => setError(`Could not save: ${e.message}`));
-    }, 600);
-  }, [supabase]);
 
   const seenEvent = useRef(0); // highest order-event id already shown to the user
 
@@ -82,6 +75,26 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
       else if (e.kind === "cancelled" && e.text.includes("no longer hold")) toast.info(prefix + e.text);
     }
   }, []);
+
+  const scheduleSave = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveAccount(supabase, loadedRef.current, stateRef.current)
+        .then(async (r) => {
+          if (r.updatedAt) loadedRef.current = { ...loadedRef.current, updatedAt: r.updatedAt };
+          if (!r.conflict) return;
+          // Someone else (e.g. the order watcher) changed the account since we loaded it: show theirs, do not overwrite it.
+          const remote = await loadAccount(supabase);
+          loadedRef.current = { id: remote.id, localOnly: remote.localOnly, updatedAt: remote.updatedAt };
+          const st = expireOrders(remote.state, Math.floor(Date.now() / 1000));
+          stateRef.current = st;
+          setState(st);
+          toast.warning("Your account was updated elsewhere (for example by the order watcher), so the latest version is shown.");
+          announce(st.events, "While you were away: ");
+        })
+        .catch((e: Error) => setError(`Could not save: ${e.message}`));
+    }, 600);
+  }, [supabase, announce]);
 
   const commit = useCallback((next: PaperState) => {
     stateRef.current = next;
@@ -97,7 +110,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
       try {
         const loaded = await loadAccount(supabase);
         if (cancelled) return;
-        loadedRef.current = { id: loaded.id, localOnly: loaded.localOnly };
+        loadedRef.current = { id: loaded.id, localOnly: loaded.localOnly, updatedAt: loaded.updatedAt };
         setLocalOnly(loaded.localOnly);
         let st = normalizeState(loaded.state);
         seenEvent.current = Math.max(0, ...(st.events ?? []).map((e) => e.id));
@@ -130,6 +143,14 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [supabase, scheduleSave, announce]);
+
+  // Heartbeat: save once a minute while the app is open, so the background order watcher knows the app is
+  // looking after the account and leaves it alone.
+  useEffect(() => {
+    if (!ready || localOnly) return;
+    const id = setInterval(scheduleSave, 60_000);
+    return () => clearInterval(id);
+  }, [ready, localOnly, scheduleSave]);
 
   // Live ticks for anything we hold or have working orders on.
   const symbolsKey = useMemo(
