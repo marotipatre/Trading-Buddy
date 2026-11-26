@@ -19,7 +19,7 @@ import { SymbolLabel } from "@/components/symbol-label";
 import { useNow } from "@/components/use-now";
 import { useWatchlist } from "@/components/use-watchlist";
 import { positionStats } from "@/lib/paper/portfolio";
-import { companyName } from "@/lib/symbols";
+import { companyName, displaySymbol } from "@/lib/symbols";
 
 export function TradeView() {
   const router = useRouter();
@@ -94,7 +94,7 @@ export function TradeView() {
         <div className="flex flex-wrap gap-1.5">
           {recent.map((s) => (
             <Button key={s} size="xs" variant={s === symbol ? "default" : "outline"} onClick={() => router.push(`/trade?symbol=${encodeURIComponent(s)}`)}>
-              {s.replace(/\.NS$/, "")}
+              {displaySymbol(s)}
             </Button>
           ))}
         </div>

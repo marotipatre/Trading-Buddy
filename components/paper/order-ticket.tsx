@@ -141,7 +141,7 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
           <p className="rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">
             {type === "limit"
               ? `Waits until the price ${side === "buy" ? "falls to" : "rises to"} ${limit ? limit.toFixed(2) : "your limit"}, then fills at that price or better.`
-              : `Waits until the price ${side === "buy" ? "rises to" : "falls to"} ${limit ? limit.toFixed(2) : "your trigger"}, then sells${side === "buy" ? "/buys" : ""} at market.`}
+              : `Waits until the price ${side === "buy" ? "rises to" : "falls to"} ${limit ? limit.toFixed(2) : "your trigger"}, then ${side === "buy" ? "buys" : "sells"} at market.`}
             {" "}It runs while this app is open; anything that triggered while you were away is applied when you next open it.
           </p>
         )}
