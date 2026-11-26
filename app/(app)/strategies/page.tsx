@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { Workbench } from "@/components/backtest/workbench";
 
@@ -8,7 +9,7 @@ export default function StrategiesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Backtest</h1>
-        <p className="text-sm text-muted-foreground">Find out if a strategy would have worked, and whether its stop-loss really helps</p>
+        <p className="text-sm text-muted-foreground">Find out if a strategy would have worked, and whether its stop-loss really helps. <Link className="text-primary underline" href="/strategies/lab">Compare all strategies in the lab</Link></p>
       </div>
       <ol className="grid gap-2 text-sm sm:grid-cols-4">
         {[
