@@ -41,7 +41,24 @@ export function IdeaTable({ ideas, sectorFilter, onSector, sectors, onOpen, days
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort" className="ml-auto h-8 rounded-lg border bg-background px-2 text-xs">{SORTS.map((s) => <option key={s.id} value={s.id}>Sort: {s.label}</option>)}</select>
       </div>
       <p className="text-xs text-muted-foreground">{rows.length} stock{rows.length === 1 ? "" : "s"}. &ldquo;Past odds&rdquo; = how often this stock reached +{target}% within {days} days in its own last 3 years, before hitting its stop.</p>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      {/* Phones: a compact list instead of a wide table. */}
+      <ul className="divide-y overflow-hidden rounded-xl border bg-card md:hidden">
+        {rows.slice(0, limit).map((i) => (
+          <li key={i.symbol}>
+            <button type="button" onClick={() => onOpen(i)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-accent/50">
+              <ScoreRing score={i.v.score} verdict={i.v.verdict} size={38} />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2"><span className="font-mono font-semibold">{displaySymbol(i.symbol)}</span><span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold", VERDICT_BG[i.v.verdict])}>{VERDICT_LABEL[i.v.verdict]}</span></span>
+                <span className="block truncate text-xs text-muted-foreground">{i.sector} · {CAP_SHORT[i.cap]}{i.hz ? ` · ${(i.hz.hitRate * 100).toFixed(0)}% reached target` : ""}</span>
+                {i.v.plan && <span className="tabular block font-mono text-[11px] text-muted-foreground">{i.v.plan.entry.toFixed(2)} · <span className="text-down">{i.v.plan.stop.toFixed(2)}</span> · <span className="text-up">{i.v.plan.target1.toFixed(2)}</span></span>}
+              </span>
+              <span className="text-right"><span className="tabular block font-mono text-sm">{i.v.price.toFixed(2)}</span><span className={cn("tabular block font-mono text-xs", i.v.ret.m1 >= 0 ? "text-up" : "text-down")}>{pct(i.v.ret.m1)}</span></span>
+            </button>
+          </li>
+        ))}
+        {rows.length === 0 && <li className="px-3 py-8 text-center text-sm text-muted-foreground">No stock matches these filters.</li>}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
         <table className="w-full min-w-[860px] text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Stock</th><th className="font-medium">Verdict</th><th className="font-medium">Score</th><th className="font-medium">Trend</th><th className="text-right font-medium">Price</th><th className="text-right font-medium">1 month</th><th className="text-right font-medium">Past odds</th><th className="text-right font-medium">R : R</th><th className="px-3 text-right font-medium">Buy / stop / target</th></tr></thead>
           <tbody className="divide-y">
