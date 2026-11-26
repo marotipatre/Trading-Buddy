@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  CandlestickSeries, ColorType, CrosshairMode, HistogramSeries, LineSeries, LineStyle, createChart, createSeriesMarkers,
+  CandlestickSeries, ColorType, CrosshairMode, HistogramSeries, LineSeries, LineStyle, PriceScaleMode, createChart, createSeriesMarkers,
   type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type SeriesMarker, type Time, type UTCTimestamp,
 } from "lightweight-charts";
 import { toChartTime } from "@/lib/chart-ranges";
+import type { Drawing } from "@/lib/drawings";
+import { DrawingLayer, type Tool } from "./drawing-layer";
 import type { Candle } from "@/lib/data/types";
 
 export interface ChartLine { price: number; label: string; tone: "primary" | "up" | "down" | "muted"; dashed?: boolean }
@@ -18,7 +20,10 @@ const PALETTE = {
   dark: { text: "#9aa3b2", grid: "rgba(255,255,255,0.07)", up: "#3ecf8e", down: "#f2555a", primary: "#3ecf8e", muted: "#7b8494", volUp: "rgba(62,207,142,0.28)", volDown: "rgba(242,85,90,0.28)" },
 } as const;
 
-export function PriceChart({ candles, intraday, mode, dark, lines, markers, resetKey, onHover }: {
+export type ScaleMode = "price" | "percent" | "log";
+const SCALE: Record<ScaleMode, PriceScaleMode> = { price: PriceScaleMode.Normal, percent: PriceScaleMode.Percentage, log: PriceScaleMode.Logarithmic };
+
+export function PriceChart({ candles, intraday, mode, dark, lines, markers, resetKey, onHover, scale, tool, onToolChange, drawings, onDrawingsChange }: {
   candles: Candle[];
   intraday: boolean;
   mode: "candles" | "line";
@@ -28,6 +33,12 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
   /** Changes when the symbol or timeframe changes, so the view refits; live updates keep your zoom. */
   resetKey: string;
   onHover?: (h: Hover | null) => void;
+  /** Price scale: actual price, percentage change from the first visible bar, or logarithmic. */
+  scale: ScaleMode;
+  tool: Tool;
+  onToolChange: (t: Tool) => void;
+  drawings: Drawing[];
+  onDrawingsChange: (d: Drawing[]) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -37,6 +48,7 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
   const lineRefs = useRef<IPriceLine[]>([]);
   const fitted = useRef("");
   const [version, setVersion] = useState(0);
+  const [handles, setHandles] = useState<{ chart: IChartApi; main: ISeriesApi<"Candlestick" | "Line"> } | null>(null);
   const pal = dark ? PALETTE.dark : PALETTE.light;
 
   // 1. Build the chart (again if the style changes).
@@ -65,7 +77,9 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
     });
     chartRef.current = chart; mainRef.current = main; volRef.current = vol; lineRefs.current = []; fitted.current = "";
     setVersion((v) => v + 1);
-    return () => { chart.remove(); chartRef.current = null; mainRef.current = null; volRef.current = null; markerApi.current = null; lineRefs.current = []; };
+    setHandles({ chart, main });
+    return () => {
+      setHandles(null); chart.remove(); chartRef.current = null; mainRef.current = null; volRef.current = null; markerApi.current = null; lineRefs.current = []; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pal is derived from `dark`; onHover is stable enough
   }, [mode, dark, intraday]);
 
@@ -78,9 +92,10 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
       ? candles.map((c) => ({ time: t(c.time), open: c.open, high: c.high, low: c.low, close: c.close }))
       : candles.map((c) => ({ time: t(c.time), value: c.close })));
     vol.setData(candles.map((c) => ({ time: t(c.time), value: c.volume, color: c.close >= c.open ? pal.volUp : pal.volDown })));
+    chart.priceScale("right").applyOptions({ mode: SCALE[scale] });
     if (candles.length && fitted.current !== resetKey) { chart.timeScale().fitContent(); fitted.current = resetKey; }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, version, resetKey, intraday, mode]);
+  }, [candles, version, resetKey, intraday, mode, scale]);
 
   // 3. Overlays: your orders as price lines, your past trades as markers.
   useEffect(() => {
@@ -98,5 +113,13 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, markers, version, candles]);
 
-  return <div ref={box} className="h-[360px] w-full sm:h-[420px]" />;
+  return (
+    <div className="relative h-[360px] w-full sm:h-[420px]">
+      <div ref={box} className="absolute inset-0" />
+      {handles && (
+        <DrawingLayer chart={handles.chart} series={handles.main} candles={candles} drawings={drawings} onChange={onDrawingsChange}
+          tool={tool} onToolChange={onToolChange} colors={{ up: pal.up, down: pal.down }} />
+      )}
+    </div>
+  );
 }
