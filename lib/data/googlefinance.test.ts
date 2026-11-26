@@ -56,3 +56,29 @@ describe("fetchGoogleQuote", () => {
     await expect(fetchGoogleQuote("AAPL", ok(html))).rejects.toThrow("not supported");
   });
 });
+
+describe("parseGoogleQuote verifies it is reading the requested symbol", () => {
+  // Index pages open with a market ribbon of OTHER instruments. Reading the first block there
+  // once produced a wrong price (E-mini Dow shown as Nifty 50).
+  const ribbon =
+    '["YMW00","CBOT"],"E-mini Dow ($5)",0,"INR",[50425,197,0.39221153,2,2,2],null,50228,"#fff",' +
+    '["GCW00","COMEX"],"Gold",0,"INR",[3572,36.19995,1.0238122,2,2,2],null,3535,"#fff",' +
+    '["INFY","NSE"],"Infosys Ltd",0,"INR",[1183,53,4.6902657,2,2,2],null,1130,"#fff",[1795688990],"Asia/Calcutta"';
+
+  it("refuses to use another instrument's price for an index", () => {
+    expect(parseGoogleQuote(ribbon, "^NSEI")).toBeNull();
+    expect(parseGoogleQuote(ribbon, "^NSEBANK")).toBeNull();
+  });
+  it("picks the block that matches the symbol even when it is not the first", () => {
+    const q = parseGoogleQuote(ribbon, "INFY.NS")!;
+    expect(q.price).toBe(1183);
+    expect(q.prevClose).toBe(1130);
+  });
+  it("does not return a different stock's block for an unlisted symbol", () => {
+    expect(parseGoogleQuote(ribbon, "TCS.NS")).toBeNull();
+  });
+  it("still reads the real Reliance page by symbol", () => {
+    expect(parseGoogleQuote(html, "RELIANCE.NS")!.price).toBe(1396.2);
+    expect(parseGoogleQuote(html, "TCS.NS")).toBeNull();
+  });
+});
