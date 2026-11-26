@@ -2,10 +2,13 @@
 
 Paper trading and strategy backtesting for the Indian stock market (NSE), built with Next.js 16, Supabase and shadcn/ui.
 
-It answers two questions honestly:
+It answers three questions honestly:
 
 1. **What is my probability of winning?** Win rate with a 95% Wilson confidence interval, expectancy, profit factor, a Monte Carlo of your trades (chance of profit, chance of a 50% drawdown), and an in-sample vs out-of-sample split to expose overfitting.
 2. **Is my stop-loss really helping?** The same entries are replayed with no stop, your stop and a grid of stops. You get total P&L, drawdown and worst trade for each, how many stopped trades would have recovered, how much loss the stop saved versus profit it gave up, and a max-adverse-excursion chart.
+3. **What could I trade, how much, and how do I stay disciplined?** Daily ideas with entry, stop, target and the stock's own past odds; five intraday picks for the next session with a scorecard that measures whether they work; a separate 5x intraday pot with hard daily limits; and two rule books (swing and intraday) with checklists, calculators and a weekly review that turns your tagged mistakes into one habit to fix.
+
+It is built to be honest rather than flattering: nearly every ready-made strategy it tests loses its edge in recent history, and the app says so (see the strategy lab).
 
 ## Features
 
