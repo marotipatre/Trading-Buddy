@@ -2,58 +2,58 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { OrderTicket } from "@/components/paper/order-ticket";
 import { PositionsPanel } from "@/components/paper/positions-panel";
-import { PriceChart } from "@/components/price-chart";
 import { SymbolSearch } from "@/components/symbol-search";
-import type { Candle, Interval, Quote } from "@/lib/data/types";
+import type { Quote } from "@/lib/data/types";
+import { fmtPct } from "@/lib/format";
 import { isMarketOpen } from "@/lib/market-hours";
-
-const RANGES: { label: string; interval: Interval; days: number }[] = [
-  { label: "1Y daily", interval: "1d", days: 365 },
-  { label: "3Y daily", interval: "1d", days: 365 * 3 },
-  { label: "10Y daily", interval: "1d", days: 365 * 10 },
-  { label: "15m (59d)", interval: "15m", days: 59 },
-  { label: "5m (59d)", interval: "5m", days: 59 },
-];
+import { loadRecent, pushRecent } from "@/lib/recent-symbols";
 
 export function TradeView() {
   const router = useRouter();
   const params = useSearchParams();
   const symbol = params.get("symbol") ?? "RELIANCE.NS";
-  const [rangeIdx, setRangeIdx] = useState(0);
-  const [candles, setCandles] = useState<Candle[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const range = RANGES[rangeIdx];
+  const [loading, setLoading] = useState(true);
+  const [recent, setRecent] = useState<string[]>([]);
 
+  // Remember the symbols you trade so switching between them is one click.
   useEffect(() => {
-    const ctl = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset UI before fetching
-    setLoading(true);
-    setError(null);
-    fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${range.interval}&days=${range.days}`, { signal: ctl.signal })
-      .then(async (r) => {
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error ?? "Failed to load");
-        setCandles(j.candles);
-      })
-      .catch((e) => e.name !== "AbortError" && setError(e.message))
-      .finally(() => !ctl.signal.aborted && setLoading(false));
-    return () => ctl.abort();
-  }, [symbol, range.interval, range.days]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from localStorage after mount
+    setRecent(pushRecent(symbol));
+  }, [symbol]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial read after mount
+    setRecent((r) => (r.length ? r : loadRecent()));
+  }, []);
 
-  // Live price for the header and the order ticket.
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     let stop = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset while a new symbol loads
+    setLoading(true);
     const tick = async () => {
       try {
         const r = await fetch(`/api/quotes?symbols=${encodeURIComponent(symbol)}`);
         const j = await r.json();
-        if (!stop && j.quotes?.[0]) setQuote(j.quotes[0]);
-      } catch {}
+        if (stop) return;
+        if (j.quotes?.[0]) {
+          setQuote(j.quotes[0]);
+          setError(null);
+        } else {
+          setError("No live price for this symbol right now. Check the symbol, or retry in a moment.");
+        }
+      } catch {
+        if (!stop) setError("Could not reach the price service.");
+      } finally {
+        if (!stop) setLoading(false);
+      }
     };
     tick();
     const id = setInterval(tick, isMarketOpen() ? 10_000 : 60_000);
@@ -61,51 +61,77 @@ export function TradeView() {
       stop = true;
       clearInterval(id);
     };
-  }, [symbol]);
+  }, [symbol, nonce]);
 
-  const last = candles.at(-1);
-  const ltp = quote?.symbol === symbol ? quote.price : last?.close;
-  const changePct = quote?.symbol === symbol ? quote.changePct : 0;
+  const q = quote?.symbol === symbol ? quote : null;
+  const up = (q?.change ?? 0) >= 0;
+  const rangePos = q && q.dayHigh > q.dayLow ? ((q.price - q.dayLow) / (q.dayHigh - q.dayLow)) * 100 : 50;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{symbol}</h1>
-          {ltp !== undefined && (
-            <div className="font-mono text-sm">
-              {ltp.toFixed(2)}{" "}
-              <span className={changePct >= 0 ? "text-up" : "text-down"}>
-                {changePct >= 0 ? "+" : ""}
-                {changePct.toFixed(2)}%
-              </span>
-            </div>
-          )}
+          <h1 className="text-xl font-semibold">Trade</h1>
+          <p className="text-sm text-muted-foreground">Paper trade at live prices</p>
         </div>
         <SymbolSearch onPick={(h) => router.push(`/trade?symbol=${encodeURIComponent(h.symbol)}`)} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {RANGES.map((r, i) => (
-              <Button key={r.label} size="sm" variant={i === rangeIdx ? "default" : "outline"} onClick={() => setRangeIdx(i)}>
-                {r.label}
-              </Button>
-            ))}
-          </div>
-          {error && <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{error}</p>}
-          <div className={loading ? "opacity-50 transition-opacity" : "transition-opacity"}>
-            <PriceChart candles={candles} intraday={range.interval !== "1d"} />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {candles.length} candles · intraday history is limited to ~59 days by the free data source.
-          </p>
+      {recent.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {recent.map((s) => (
+            <Button key={s} size="xs" variant={s === symbol ? "default" : "outline"} onClick={() => router.push(`/trade?symbol=${encodeURIComponent(s)}`)}>
+              {s.replace(/\.NS$/, "")}
+            </Button>
+          ))}
         </div>
-        <div className="space-y-4">
-          <OrderTicket symbol={symbol} ltp={ltp} />
-        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardContent className="space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-mono text-sm text-muted-foreground">{symbol}</div>
+                <div className="mt-1 flex items-baseline gap-3">
+                  <span className="font-mono text-5xl font-semibold tracking-tight">{q ? q.price.toFixed(2) : loading ? "…" : "—"}</span>
+                  {q && (
+                    <span className={`font-mono text-lg ${up ? "text-up" : "text-down"}`}>
+                      {up ? "+" : ""}{q.change.toFixed(2)} ({fmtPct(q.changePct, 2, { sign: true })})
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {q?.source && <Badge variant="outline">via {q.source === "google" ? "Google Finance" : "Yahoo"}</Badge>}
+                <Button variant="ghost" size="icon-sm" aria-label="Refresh price" onClick={() => setNonce((n) => n + 1)}>
+                  <RefreshCw />
+                </Button>
+              </div>
+            </div>
+
+            {q && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between font-mono text-xs text-muted-foreground">
+                  <span>Low {q.dayLow.toFixed(2)}</span>
+                  <span>Day range</span>
+                  <span>High {q.dayHigh.toFixed(2)}</span>
+                </div>
+                <div className="relative h-1.5 rounded-full bg-muted">
+                  <span className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-primary" style={{ left: `${Math.min(100, Math.max(0, rangePos))}%` }} />
+                </div>
+                <div className="flex justify-between pt-1 text-xs text-muted-foreground">
+                  <span>Previous close <span className="font-mono text-foreground">{q.prevClose.toFixed(2)}</span></span>
+                  <span>{isMarketOpen() ? "Market open" : "Market closed — showing the last traded price"}</span>
+                </div>
+              </div>
+            )}
+            {error && !q && <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{error}</p>}
+          </CardContent>
+        </Card>
+        <OrderTicket symbol={symbol} ltp={q?.price} />
       </div>
+
       <PositionsPanel />
     </div>
   );
