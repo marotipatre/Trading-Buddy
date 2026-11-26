@@ -14,6 +14,7 @@ import { fmtInr, fmtNum, fmtPct } from "@/lib/format";
 import { paperMetrics } from "@/lib/paper/analytics";
 import { bankOf, capitalOf, tradingPnl } from "@/lib/paper/funds";
 import { summarizePositions } from "@/lib/paper/portfolio";
+import { ReviewPanel } from "./review-panel";
 import { AlertsPanel } from "@/components/alerts/alerts-panel";
 import { AccountEquityChart } from "./account-equity-chart";
 import { FundsCard } from "./funds-card";
@@ -24,7 +25,7 @@ import { OrdersPanel } from "./orders-panel";
 import { usePaper } from "./paper-provider";
 import { useNow } from "@/components/use-now";
 
-const TABS = ["holdings", "positions", "orders", "alerts", "funds", "analysis"] as const;
+const TABS = ["holdings", "positions", "orders", "alerts", "funds", "analysis", "review"] as const;
 type Tab = (typeof TABS)[number];
 
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" }) {
@@ -89,6 +90,7 @@ export function PortfolioView() {
           <TabsTrigger value="alerts">Alerts</TabsTrigger>
           <TabsTrigger value="funds">Funds</TabsTrigger>
           <TabsTrigger value="analysis">Analysis</TabsTrigger>
+          <TabsTrigger value="review">My portfolio review</TabsTrigger>
         </TabsList>
 
         <TabsContent value="holdings" className="space-y-3">
@@ -123,6 +125,7 @@ export function PortfolioView() {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="review"><ReviewPanel /></TabsContent>
         <TabsContent value="analysis" className="space-y-6">
           {m.trades > 0 && (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
