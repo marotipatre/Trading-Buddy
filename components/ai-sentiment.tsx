@@ -21,6 +21,11 @@ export function useAi(): AiState {
 
 export function AiSentimentToggle({ className }: { className?: string }) {
   const s = useAi();
+  // Rendered only in the browser: its content depends on a model that exists only there.
+  const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- flips once after hydration
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
   if (s.status === "ready") {
     return <span className={className}><span className="inline-flex items-center gap-1 text-xs text-up"><Sparkles className="size-3" /> AI sentiment on (FinBERT, runs in your browser)</span> <button type="button" className="text-xs text-muted-foreground underline" onClick={disableAi}>turn off</button></span>;
   }
