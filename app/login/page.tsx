@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,43 +37,34 @@ export default function LoginPage() {
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-line bg-panel p-6">
-        <div>
-          <h1 className="text-xl font-semibold">PaperDesk</h1>
-          <p className="text-sm text-muted">Paper trading &amp; strategy backtesting for NSE</p>
-        </div>
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-md border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-        />
-        <input
-          type="password"
-          required
-          minLength={6}
-          placeholder="Password (min 6 chars)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-md border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-        />
-        {msg && <p className="text-sm text-amber-400">{msg}</p>}
-        <button
-          disabled={busy}
-          className="w-full rounded-md bg-accent py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {busy ? "…" : mode === "in" ? "Sign in" : "Create account"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode(mode === "in" ? "up" : "in")}
-          className="w-full text-center text-xs text-muted hover:text-foreground"
-        >
-          {mode === "in" ? "No account? Create one" : "Have an account? Sign in"}
-        </button>
-      </form>
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <div className="mb-2 grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground">
+            <TrendingUp size={20} />
+          </div>
+          <CardTitle className="text-lg">Trading Buddy</CardTitle>
+          <CardDescription>Paper trading &amp; strategy backtesting for NSE</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            {msg && <p className="text-sm text-warn">{msg}</p>}
+            <Button disabled={busy} className="w-full">
+              {busy ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => setMode(mode === "in" ? "up" : "in")}>
+              {mode === "in" ? "No account? Create one" : "Have an account? Sign in"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }
