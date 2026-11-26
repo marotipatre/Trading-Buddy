@@ -74,3 +74,19 @@ describe("quote service", () => {
     expect(r.map((x) => x.symbol)).toEqual(["AA.NS", "C.NS"]);
   });
 });
+
+describe("quote service with a time-dependent TTL", () => {
+  it("keeps quotes much longer when the TTL function says the market is closed", async () => {
+    let t = 0;
+    let open = false;
+    const y = provider("yahoo", async (s) => q(s, 1));
+    const svc = createQuoteService({ providers: [y], ttlMs: () => (open ? 8_000 : 600_000), now: () => t });
+    await svc.getQuotes(["A.NS"]);
+    t = 120_000;
+    await svc.getQuotes(["A.NS"]);
+    expect(y.fetch).toHaveBeenCalledTimes(1); // closed: still cached after 2 minutes
+    open = true;
+    await svc.getQuotes(["A.NS"]);
+    expect(y.fetch).toHaveBeenCalledTimes(2); // open: 2 minutes is stale
+  });
+});

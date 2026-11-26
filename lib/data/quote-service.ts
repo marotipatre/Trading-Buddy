@@ -7,8 +7,8 @@ export interface QuoteProvider {
 
 export interface QuoteServiceOptions {
   providers: QuoteProvider[];
-  /** Serve a cached quote without asking any provider while it is this fresh. */
-  ttlMs?: number;
+  /** Serve a cached quote without asking any provider while it is this fresh. May depend on the time (e.g. longer when the market is closed). */
+  ttlMs?: number | (() => number);
   /** After a failure a provider is tried last for this long. */
   cooldownMs?: number;
   /** How many symbols are fetched at once. */
@@ -35,7 +35,7 @@ export function createQuoteService({ providers, ttlMs = 8000, cooldownMs = 60_00
 
   async function one(symbol: string): Promise<Quote | null> {
     const hit = cache.get(symbol);
-    if (hit && now() - hit.at < ttlMs) return hit.q;
+    if (hit && now() - hit.at < (typeof ttlMs === "function" ? ttlMs() : ttlMs)) return hit.q;
     for (const p of order()) {
       try {
         const q = await p.fetch(symbol);
