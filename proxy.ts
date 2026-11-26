@@ -29,6 +29,8 @@ export async function proxy(request: NextRequest) {
   const signedIn = !!data?.claims;
   const { pathname } = request.nextUrl;
   const isPublic = pathname.startsWith("/login");
+  // Install assets must load before anyone signs in.
+  if (pathname === "/manifest.webmanifest" || pathname.startsWith("/pwa-icon/")) return response;
 
   if (!signedIn && pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
