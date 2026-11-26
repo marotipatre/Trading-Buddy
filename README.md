@@ -86,6 +86,16 @@ How it stays safe: the watcher only touches an account the open app has not save
 
 Its scores are fixed, visible rules on price trends, headline wording and published broker calls. They are screens, not predictions, and not investment advice. The "what to expect" figures come from each stock's own past windows, which overlap and mostly come from a rising market, so they flatter results. No rule here can promise a monthly return; published momentum approaches have returned roughly 1.5% a month on average, with losing stretches.
 
+## Sharing it with friends
+
+Everyone who signs in gets their own private paper account (Supabase row-level security keeps accounts apart). To host it for a few people:
+
+1. Create a free Supabase project and run the SQL files in `supabase/migrations/` in order (0001 to 0004) in the SQL editor.
+2. Deploy to Vercel (or any Node host): import the repository, set the variables listed in `.env.example` (`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). Do not put `SUPABASE_SERVICE_ROLE_KEY` anywhere that is not a private server environment.
+3. Share the link. On a phone, "Add to Home screen" installs it like an app.
+
+Things to keep in mind when sharing: prices come from free, unofficial sources whose terms and limits can change, so keep the number of users small; the news, coach and forecast routes are rate-limited per user; the optional local AI helpers (Ollama, Kronos) only work on the machine that runs them; and the app is for learning, not advice. Set a license of your choice before inviting contributors.
+
 ## Layout
 
 ```
