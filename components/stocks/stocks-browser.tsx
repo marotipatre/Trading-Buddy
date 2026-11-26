@@ -129,7 +129,7 @@ export function StocksBrowser() {
         ))}
       </Card>
       {more && <div className="text-center"><Button variant="outline" onClick={() => set({ pages: String(pages + 1) })}>Show more</Button></div>}
-      <p className="text-xs text-muted-foreground">Size classes follow NSE&apos;s Nifty 100 (large), Midcap 150 and Smallcap 250 lists; sectors are NSE&apos;s industry classification.</p>
+      <p className="text-xs text-muted-foreground">Size classes follow NSE&apos;s Nifty 100 (large), Midcap 150, Smallcap 250 and Microcap 250 lists (about 750 stocks). NSE lists about 3,000 in all: the <a className="underline" href="/multibagger">Multibagger tab</a> screens every one of them, including penny stocks; sectors are NSE&apos;s industry classification.</p>
     </div>
   );
 }

@@ -138,9 +138,9 @@ export function IdeasView() {
       <MarketStrip regime={scan.regime} bench={scan.bench} ideas={ideas} sectors={sectors} scanned={scan.total} />
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="space-y-0.5">
           <h2 className="text-lg font-semibold">Best ideas for your plan</h2>
-          <span className="text-xs text-muted-foreground">Buy setups with a positive record over {plan.days}-day windows. At most two per sector and two small caps (they move more but are thinner and riskier)</span>
+          <p className="text-sm text-muted-foreground">Buy setups with a positive record over {plan.days}-day windows. At most two per sector and two small caps (they move more but are thinner and riskier)</p>
         </div>
         {firstLoad ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}</div>

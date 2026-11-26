@@ -115,3 +115,15 @@ describe("picks while the session is running", () => {
     if (a) expect(a.forDate).toBe(nextSession(lastIst)); // built from the previous finished day, for the same next session
   });
 });
+
+describe("evaluatePick with the VWAP confirmation", () => {
+  it("skips a trigger candle that closes under the day's VWAP", async () => {
+    const { evaluatePick } = await import("./scorecard");
+    const t0 = Date.UTC(2025, 2, 3, 3, 45) / 1000;
+    const mk = (i: number, o: number, h: number, l: number, c: number) => ({ time: t0 + i * 300, open: o, high: h, low: l, close: c, volume: 1000 });
+    const bars = [mk(0, 100, 103, 99.8, 102.8), mk(1, 102.8, 103, 102.5, 102.9), mk(2, 102.9, 103, 102.4, 102.6), mk(3, 101, 101.2, 100.8, 100.9)];
+    const pick = { forDate: "2025-03-03", plan: { entry: 101.2, stop: 99, target1: 108, target2: 110, risk: 2.2, riskPct: 2, rr1: 3 } };
+    expect(evaluatePick(pick, bars, { confirm: true })!.outcome).not.toBe("target");
+    expect(evaluatePick(pick, bars)).not.toBeNull();
+  });
+});

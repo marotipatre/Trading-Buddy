@@ -1,4 +1,5 @@
 import type { IntradayPick } from "./picks";
+import { vwap } from "./live";
 
 export interface Bar { time: number; open: number; high: number; low: number; close: number }
 export type Outcome = "target" | "stop" | "eod" | "no-entry" | "skipped-gap";
@@ -13,7 +14,7 @@ const istMinutes = (t: number) => { const d = new Date((t + 19800) * 1000); retu
  * 1% above entry or at or below the stop); if one bar touches both stop and target, the stop counts first.
  * Costs are not included.
  */
-export function evaluatePick(pick: Pick<IntradayPick, "plan" | "forDate">, bars: Bar[]): PickResult | null {
+export function evaluatePick(pick: Pick<IntradayPick, "plan" | "forDate">, bars: Bar[], opts: { confirm?: boolean } = {}): PickResult | null {
   const day = bars.filter((b) => istDate(b.time) === pick.forDate && istMinutes(b.time) >= 9 * 60 + 15 && istMinutes(b.time) < 15 * 60 + 15).sort((a, b) => a.time - b.time);
   if (day.length < 3) return null; // the session has not happened, or there is no data
   const { entry, stop, target1, risk } = pick.plan;
@@ -21,7 +22,13 @@ export function evaluatePick(pick: Pick<IntradayPick, "plan" | "forDate">, bars:
   if (first.open > entry * 1.01 || first.open <= stop) return { outcome: "skipped-gap", pnlPct: 0, r: 0 };
   let filled: number | null = null;
   let start = 0;
-  if (first.open >= entry) { filled = first.open; start = 0; }
+  // With `confirm`, a trigger only counts when that candle also closes at or above the day's VWAP so far (buyers in control).
+  const confirmed = (i: number) => !opts.confirm || day[i].close >= (vwap(day.slice(0, i + 1).map((b) => ({ ...b, volume: (b as { volume?: number }).volume ?? 1 }))) ?? 0);
+  if (opts.confirm) {
+    const i = day.findIndex((b, k) => b.high >= entry && confirmed(k));
+    if (i < 0) return { outcome: "no-entry", pnlPct: 0, r: 0 };
+    filled = Math.max(entry, day[i].open <= entry ? entry : day[i].open); start = i;
+  } else if (first.open >= entry) { filled = first.open; start = 0; }
   else {
     const i = day.findIndex((b) => b.high >= entry);
     if (i < 0) return { outcome: "no-entry", pnlPct: 0, r: 0 };

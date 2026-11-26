@@ -13,8 +13,8 @@ export interface PickBacktest { days: BacktestDay[]; card: Scorecard; sessions: 
  * top picks are chosen exactly as the app does, and each one is judged on that day's 5-minute candles. No peeking ahead.
  * Free intraday history is short (about 40 sessions), so treat the result as a sanity check, not proof.
  */
-export function backtestPicks(inputs: BacktestInput[], opts: { perDay?: number; perSector?: number; minScore?: number } = {}): PickBacktest {
-  const { perDay = 5, perSector = 2, minScore = 0 } = opts;
+export function backtestPicks(inputs: BacktestInput[], opts: { perDay?: number; perSector?: number; minScore?: number; confirm?: boolean } = {}): PickBacktest {
+  const { perDay = 5, perSector = 2, minScore = 0, confirm = false } = opts;
   const dates = [...new Set(inputs.flatMap((i) => i.bars5.map((b) => istDate(b.time))))].sort();
   const days: BacktestDay[] = [];
   for (const date of dates) {
@@ -28,7 +28,7 @@ export function backtestPicks(inputs: BacktestInput[], opts: { perDay?: number; 
     const picks: BacktestDay["picks"] = [];
     for (const p of chosen) {
       const bars = inputs.find((i) => i.symbol === p.symbol)!.bars5;
-      const res = evaluatePick(p, bars);
+      const res = evaluatePick(p, bars, { confirm });
       if (res) picks.push({ symbol: p.symbol, score: p.score, res });
     }
     if (picks.length) days.push({ date, picks });

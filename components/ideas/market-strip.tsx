@@ -23,7 +23,7 @@ export function MarketStrip({ regime, bench, ideas, sectors, scanned }: { regime
       </Cell>
       <Cell label="Buy setups" sub={`of ${ideas.length || scanned} stocks scanned`}>{buys}</Cell>
       <Cell label="In an uptrend" sub={bench !== null ? `Nifty ${pct(bench)} over a month` : undefined}>{ideas.length ? `${uptrend.toFixed(0)}%` : "…"}</Cell>
-      <Cell wide label="Strongest sectors" sub={top.length ? top.map((s) => `${pct(s.relM1, 0)} vs Nifty`).join(" · ") : undefined}>{top.length ? top.map((s) => s.sector).join(", ") : "…"}</Cell>
+      <Cell wide label="Strongest sectors" sub={top.length ? `${top.slice(0, 3).map((s) => `${s.sector} ${pct(s.relM1, 0)}`).join(" · ")} vs Nifty (1 month)` : undefined}>{top.length ? `${top[0].sector} leads` : "…"}</Cell>
     </div>
   );
 }

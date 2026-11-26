@@ -465,6 +465,7 @@ function PickBacktestCard() {
   const [busy, setBusy] = useState(false);
   const [prog, setProg] = useState(0);
   const [r, setR] = useState<PickBacktest | null>(null);
+  const [rc, setRc] = useState<PickBacktest | null>(null);
   async function run() {
     const list = (stocks ?? []).filter((x) => x.cap === "large").slice(0, 30);
     if (!list.length) { toast.error("Stock list is still loading"); return; }
@@ -479,7 +480,7 @@ function PickBacktestCard() {
         } catch { /* skip stocks with no intraday history */ }
         setProg(++n / list.length);
       });
-      setR(backtestPicks(inputs));
+      setR(backtestPicks(inputs)); setRc(backtestPicks(inputs, { confirm: true }));
     } finally { setBusy(false); }
   }
   const c = r?.card;
@@ -503,6 +504,11 @@ function PickBacktestCard() {
               <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1 font-medium">Pick score</th><th className="font-medium">Trades</th><th className="font-medium">Winners</th><th className="font-medium">Per trade</th></tr></thead>
               <tbody className="divide-y">{r!.byScore.map((b) => <tr key={b.band}><td className="py-1">{b.band}</td><td>{b.card.taken}</td><td>{b.card.taken ? `${(b.card.winRate * 100).toFixed(0)}%` : "-"}</td><td className={b.card.avgR >= 0 ? "text-up" : "text-down"}>{b.card.taken ? `${b.card.avgR >= 0 ? "+" : ""}${b.card.avgR.toFixed(2)}R` : "-"}</td></tr>)}</tbody>
             </table>
+            {rc && (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                <b>With the live VWAP check.</b> Taking a trigger only when that 5-minute candle closes at or above the day&apos;s VWAP: {rc.card.taken} trades, {(rc.card.winRate * 100).toFixed(0)}% winners, <b className={rc.card.avgR >= 0 ? "text-up" : "text-down"}>{rc.card.avgR >= 0 ? "+" : ""}{rc.card.avgR.toFixed(2)}R per trade</b>{rc.card.avgR > c.avgR ? " (better than taking every trigger)." : " (no better than taking every trigger)."} This is what the live Go / Weak call on each pick is based on.
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">{c.avgR <= 0 ? "On this window the picks did not beat the costs of trading them. Treat them as ideas to study, not a system to follow blindly. " : "Positive on this short window, but intraday charges (about 0.1% to 0.2% a round trip) and slippage are not included. "}{c.taken < 30 ? `Only ${c.taken} trades: too few to judge.` : "Forty sessions is still a small sample."}</p>
           </>
         ))}
