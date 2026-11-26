@@ -186,3 +186,35 @@ describe("IST helpers and intraday due", () => {
     expect(intradayDue(del, t(9, 20, 12))).toBe(false);
   });
 });
+
+import { intradayWindowOpen, istWeekday } from "./broker";
+
+describe("intraday session window", () => {
+  const at = (y: number, mo: number, d: number, h: number, mi: number) => Date.UTC(y, mo, d, h, mi) / 1000 - 5.5 * 3600;
+  // 2026-03-09 is a Monday, 2026-03-14 a Saturday
+  it("knows the IST weekday", () => {
+    expect(istWeekday(at(2026, 2, 9, 12, 0))).toBe(1);
+    expect(istWeekday(at(2026, 2, 14, 12, 0))).toBe(6);
+    expect(istWeekday(0)).toBe(4); // 1970-01-01 Thursday (05:30 IST)
+  });
+  it("is open Mon-Fri 09:15 to 15:15 only", () => {
+    expect(intradayWindowOpen(at(2026, 2, 9, 9, 14))).toBe(false);
+    expect(intradayWindowOpen(at(2026, 2, 9, 9, 15))).toBe(true);
+    expect(intradayWindowOpen(at(2026, 2, 9, 15, 14))).toBe(true);
+    expect(intradayWindowOpen(at(2026, 2, 9, 15, 15))).toBe(false);
+    expect(intradayWindowOpen(at(2026, 2, 14, 11, 0))).toBe(false);
+  });
+  it("refuses to OPEN intraday after hours when the clock is supplied, but allows closing", () => {
+    const night = at(2026, 2, 9, 21, 0);
+    const day = at(2026, 2, 9, 11, 0);
+    expect(placeOrder(acct(), buy({ product: "intraday" }), 100, night, { intradayClock: night }).error).toMatch(/09:15–15:15/);
+    expect(placeOrder(acct(), buy({ product: "delivery" }), 100, night, { intradayClock: night }).error).toBeUndefined();
+    const s = must(placeOrder(acct(), buy({ product: "intraday" }), 100, day, { intradayClock: day }));
+    const closed = placeOrder(s, buy({ side: "sell", product: "intraday" }), 101, night, { intradayClock: night });
+    expect(closed.error).toBeUndefined();
+    expect(closed.state.positions).toHaveLength(0);
+  });
+  it("does not enforce the window when no clock is passed (backtests, tests)", () => {
+    expect(placeOrder(acct(), buy({ product: "intraday" }), 100, 1).error).toBeUndefined();
+  });
+});
