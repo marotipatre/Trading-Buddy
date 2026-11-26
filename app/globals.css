@@ -151,3 +151,35 @@
   /* Prices and quantities line up in columns like a trading terminal. */
   .tabular { font-variant-numeric: tabular-nums; }
 }
+
+/* ---- Polish: calm motion, soft depth, tidy details ---- */
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    background-image: radial-gradient(60rem 28rem at 50% -8rem, color-mix(in oklab, var(--primary) 7%, transparent), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  ::selection { background: color-mix(in oklab, var(--primary) 28%, transparent); }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent; }
+  /* Cards get a whisper of depth so sections read as separate surfaces. */
+  [data-slot="card"] { box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent); }
+  /* Pages ease in instead of snapping. */
+  main > * { animation: page-in 0.22s ease-out both; }
+  details > summary { list-style-position: inside; }
+}
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+[data-slot="skeleton"] {
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--foreground) 6%, transparent) 50%, transparent 100%);
+  background-size: 220% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  main > *, [data-slot="skeleton"] { animation: none !important; }
+}
+@media print {
+  header, nav, [aria-label="Main"] { display: none !important; }
+  body { background: none; }
+}
