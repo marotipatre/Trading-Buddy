@@ -10,11 +10,12 @@ import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { fmtInr, fmtPct } from "@/lib/format";
 import { isMarketOpen } from "@/lib/market-hours";
+import { bankOf } from "@/lib/paper/funds";
 import { usePaper } from "./paper-provider";
 import { displaySymbol } from "@/lib/symbols";
 
 export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
-  const { state, place, ready } = usePaper();
+  const { state, place, ready, transfer } = usePaper();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [product, setProduct] = useState<"delivery" | "intraday">("delivery");
   const [type, setType] = useState<"market" | "limit">("market");
@@ -115,6 +116,17 @@ export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
           )}
           <div className="flex justify-between"><dt className="text-muted-foreground">Available cash</dt><dd className="font-mono">{fmtInr(state.cash)}</dd></div>
         </dl>
+        {!closing && side === "buy" && est.value > state.cash && (
+          <div className="space-y-1.5 rounded-lg border border-warn/40 bg-warn/10 p-2.5 text-xs text-warn">
+            <p>Order value is {fmtInr(est.value - state.cash)} more than your available trading balance.</p>
+            {bankOf(state) >= est.value - state.cash && (
+              <Button size="xs" variant="outline" onClick={() => {
+                const r = transfer("bank", Math.ceil((est.value - state.cash) * 1.01));
+                if (r.error) toast.error(r.error); else toast.success("Moved money from your Bank balance");
+              }}>Move {fmtInr(Math.ceil((est.value - state.cash) * 1.01))} from Bank</Button>
+            )}
+          </div>
+        )}
         {closing && <p className="text-xs text-muted-foreground">This closes your existing {held!.qty}-share {held!.direction} position.</p>}
         <Button className="w-full" disabled={!ready || busy || !ltp} onClick={submit}>
           {busy ? "Placing…" : `${closing ? "Close" : side === "buy" ? "Buy" : "Sell"} ${qty} × ${displaySymbol(symbol)}`}
