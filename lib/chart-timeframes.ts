@@ -76,3 +76,19 @@ export function aggregateWeekly(bars: Candle[]): Candle[] {
 export function toTimeframe(bars: Candle[], tf: Timeframe): Candle[] {
   return tf.aggregate === "4h" ? aggregate4h(bars) : tf.aggregate === "1w" ? aggregateWeekly(bars) : bars;
 }
+
+/** Monthly candles (IST calendar months), each stamped with its first trading day. */
+export function aggregateMonthly(bars: Candle[]): Candle[] {
+  const out: Candle[] = [];
+  let group: Candle[] = [];
+  let key = "";
+  for (const b of [...bars].sort((a, c) => a.time - c.time)) {
+    const d = new Date((b.time + 19800) * 1000);
+    const k = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+    if (k !== key && group.length) { out.push(merge(group)); group = []; }
+    key = k;
+    group.push(b);
+  }
+  if (group.length) out.push(merge(group));
+  return out;
+}

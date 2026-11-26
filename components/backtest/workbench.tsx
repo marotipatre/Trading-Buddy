@@ -30,6 +30,7 @@ import { RiskForm } from "./risk-form";
 import { BacktestResults } from "./results";
 import { RuleGroupEditor } from "./rule-group-editor";
 import { SimpleSelect } from "./simple-select";
+import { aggregateWeekly } from "@/lib/chart-timeframes";
 import { EmaBuilderForm } from "./ema-builder-form";
 import { buildEmaStrategy, DEFAULT_EMA_SPEC, type EmaSpec } from "@/lib/engine/ema-builder";
 
@@ -42,6 +43,7 @@ interface ScanOutput { summary: ScanSummary; rows: ScanRow[]; failed: { symbol: 
 export function Workbench() {
   const [symbol, setSymbol] = useState("RELIANCE.NS");
   const [years, setYears] = useState("5");
+  const [frame, setFrame] = useState<"daily" | "weekly">("daily");
   const [presetId, setPresetId] = useState(PRESETS[0].id);
   const [strategy, setStrategy] = useState<StrategyDef>(() => buildEmaStrategy(DEFAULT_EMA_SPEC));
   const [builder, setBuilder] = useState<"simple" | "advanced">("simple");
@@ -268,14 +270,15 @@ export function Workbench() {
         if (!res.ok) throw new Error(json.error ?? "Could not load price history");
         candles = json.candles;
       }
-      if (candles.length < 60) throw new Error(`Only ${candles.length} candles available for ${symbol}`);
+      if (frame === "weekly") candles = aggregateWeekly(candles);
+      if (candles.length < 60) throw new Error(`Only ${candles.length} ${frame} candles available for ${symbol}. Pick a longer history${frame === "weekly" ? " (3+ years)" : ""}.`);
       await new Promise((r) => setTimeout(r, 30)); // let the spinner paint before the CPU-heavy part
       const costs = {
         ...DEFAULT_COSTS,
         ...(zeroBrokerage && parsed.data.product === "delivery" ? DELIVERY_ZERO_BROKERAGE : {}),
         slippageBps,
       };
-      const name = csv ? csv.name : symbol;
+      const name = (csv ? csv.name : symbol) + (frame === "weekly" ? " (weekly)" : "");
       const analysis = analyze(name, candles, parsed.data, costs);
       setOut({ analysis, candles, label: `${parsed.data.name} on ${name}`, strategy: parsed.data });
       toast.success(`${analysis.result.trades.length} trades simulated`);
@@ -334,6 +337,11 @@ export function Workbench() {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">History</Label>
               <SimpleSelect className="w-full" value={years} options={YEARS} onChange={setYears} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Candle size the strategy trades on</Label>
+              <SimpleSelect className="w-full" value={frame} onChange={setFrame} options={[{ value: "daily", label: "Daily candles (swing, days to weeks)" }, { value: "weekly", label: "Weekly candles (slower, weeks to months)" }]} />
+              {frame === "weekly" && <p className="text-xs text-muted-foreground">Signals, EMAs and the hold limit now count in weeks. Use 5+ years so there are enough trades.</p>}
             </div>
             <div className="rounded-lg border border-dashed p-3">
               <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />

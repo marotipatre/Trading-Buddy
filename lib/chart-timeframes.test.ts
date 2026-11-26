@@ -74,3 +74,14 @@ describe("aggregateWeekly", () => {
     expect(toTimeframe(days.slice(0, 5), getTimeframe("1w"))).toHaveLength(1);
   });
 });
+
+import { aggregateMonthly } from "./chart-timeframes";
+describe("aggregateMonthly", () => {
+  it("merges days into calendar months with correct OHLC", () => {
+    const day = (iso: string, o: number, h: number, l: number, c: number) => ({ time: Date.parse(iso + "T04:00:00Z") / 1000, open: o, high: h, low: l, close: c, volume: 10 });
+    const m = aggregateMonthly([day("2026-01-02", 10, 12, 9, 11), day("2026-01-30", 11, 15, 10, 14), day("2026-02-02", 14, 16, 13, 15)]);
+    expect(m).toHaveLength(2);
+    expect(m[0]).toMatchObject({ open: 10, high: 15, low: 9, close: 14, volume: 20 });
+    expect(m[1].open).toBe(14);
+  });
+});
