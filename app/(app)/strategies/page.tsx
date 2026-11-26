@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Workbench } from "@/components/backtest/workbench";
 
 export const metadata = { title: "Backtest — Trading Buddy" };
@@ -22,7 +23,7 @@ export default function StrategiesPage() {
           </li>
         ))}
       </ol>
-      <Workbench />
+      <Suspense><Workbench /></Suspense>
     </div>
   );
 }

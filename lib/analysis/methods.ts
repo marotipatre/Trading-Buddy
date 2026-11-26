@@ -8,9 +8,9 @@ import { assessStock, verdictOf, type Frame, type Reason, type StockView } from 
  * methods (value, quality, earnings growth) need data this app does not have and are not included.
  */
 export type Method = "trend" | "minervini" | "momentum" | "pullback";
-export const METHODS: { id: Method; label: string; blurb: string; source: string }[] = [
+export const METHODS: { id: Method; label: string; blurb: string; source: string; evidence?: string }[] = [
   { id: "trend", label: "Trend + strength (default)", blurb: "Averages, Supertrend, RSI and how the stock ranks against the others scanned.", source: "Classic trend following" },
-  { id: "minervini", label: "Minervini trend template", blurb: "Eight checks for a stock in a confirmed stage-2 uptrend, near its 52-week high with strong relative performance.", source: "Mark Minervini, Trade Like a Stock Market Wizard" },
+  { id: "minervini", label: "Minervini trend template", blurb: "Eight checks for a stock in a confirmed stage-2 uptrend, near its 52-week high with strong relative performance.", source: "Mark Minervini, Trade Like a Stock Market Wizard", evidence: "Our own test (27 Nov 2026): 20 large-cap stocks, 5 years, 7% stop and 3R target: 280 trades, 43% winners, profit factor 1.23, profitable in the earlier 70% of history but losing in the later 30%, and it lagged simply holding the stocks. A screen for candidates, not a system on its own." },
   { id: "momentum", label: "Momentum (12-1 month)", blurb: "Ranks by the last 12 months' return, skipping the most recent month, per unit of volatility. The idea behind the NSE's Nifty200 Momentum 30 index.", source: "Jegadeesh & Titman momentum; NSE strategy index" },
   { id: "pullback", label: "Pullback in an uptrend", blurb: "A long-term uptrend that has dipped (RSI cooled) to its 20-day or 50-day average: a cheaper entry in a strong stock.", source: "Connors-style RSI pullback" },
 ];

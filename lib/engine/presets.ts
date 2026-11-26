@@ -92,4 +92,44 @@ PRESETS.push(
   }),
 );
 
+PRESETS.push(
+  preset("minervini-template", "Minervini trend template", "Buy a stock in a confirmed uptrend: above rising 150/200-day averages, 50-day above both, 25%+ above its 52-week low and within 25% of its high. 7% stop, 3R target. The same checks the Ideas page uses.", {
+    entry: { conditions: [
+      { left: price("close"), op: ">", right: ind("sma", { period: 150 }) },
+      { left: price("close"), op: ">", right: ind("sma", { period: 200 }) },
+      { left: ind("sma", { period: 150 }), op: ">", right: ind("sma", { period: 200 }) },
+      { left: ind("sma", { period: 200 }), op: ">", right: ind("sma", { period: 200 }, 21) },
+      { left: ind("sma", { period: 50 }), op: ">", right: ind("sma", { period: 150 }) },
+      { left: price("close"), op: ">", right: ind("sma", { period: 50 }) },
+      { left: price("close"), op: ">", right: { ...ind("donchian_lower", { period: 252 }), pct: 25 } },
+      { left: price("close"), op: ">", right: { ...ind("donchian_upper", { period: 252 }), pct: -25 } },
+    ] },
+    stopLoss: { type: "percent", value: 7 },
+    target: { type: "rr", value: 3 },
+    maxHoldBars: 40,
+  }),
+  preset("pullback-uptrend", "Pullback in an uptrend", "Buy a dip in a long-term uptrend: above the 200-day with the 50-day above it, RSI cooled under 48, price back at its 20-day average but still above the 50-day. 5% stop, 2R target.", {
+    entry: { conditions: [
+      { left: price("close"), op: ">", right: ind("sma", { period: 200 }) },
+      { left: ind("sma", { period: 50 }), op: ">", right: ind("sma", { period: 200 }) },
+      { left: ind("rsi", { period: 14 }), op: "<", right: num(48) },
+      { left: price("close"), op: "<=", right: { ...ind("ema", { period: 20 }), pct: 0.5 } },
+      { left: price("close"), op: ">", right: { ...ind("ema", { period: 50 }), pct: -3 } },
+    ] },
+    stopLoss: { type: "percent", value: 5 },
+    target: { type: "rr", value: 2 },
+    maxHoldBars: 15,
+  }),
+  preset("momentum-filter", "Momentum (12-1) filter", "Buy a stock that has risen over the last year excluding the latest month, and is in an uptrend. Trailing 3-ATR stop, no fixed target. A one-stock version of the idea behind momentum indices.", {
+    entry: { conditions: [
+      { left: price("close", 21), op: ">", right: price("close", 250) },
+      { left: price("close"), op: ">", right: ind("sma", { period: 200 }) },
+      { left: ind("sma", { period: 50 }), op: ">", right: ind("sma", { period: 200 }) },
+    ] },
+    exit: { conditions: [{ left: price("close"), op: "<", right: ind("sma", { period: 100 }) }] },
+    stopLoss: { type: "atr", value: 3, trailing: true },
+    maxHoldBars: 60,
+  }),
+);
+
 export const getPreset = (id: string) => PRESETS.find((p) => p.id === id);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Play, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,12 +44,14 @@ interface Output { analysis: Analysis; candles: Candle[]; label: string; strateg
 interface ScanOutput { summary: ScanSummary; rows: ScanRow[]; failed: { symbol: string; error: string }[]; label: string }
 
 export function Workbench() {
-  const [symbol, setSymbol] = useState("RELIANCE.NS");
+  const params = useSearchParams();
+  const deepPreset = getPreset(params.get("preset") ?? "");
+  const [symbol, setSymbol] = useState(params.get("symbol") ?? "RELIANCE.NS");
   const [years, setYears] = useState("5");
   const [frame, setFrame] = useState<"daily" | "weekly">("daily");
-  const [presetId, setPresetId] = useState(PRESETS[0].id);
-  const [strategy, setStrategy] = useState<StrategyDef>(() => buildEmaStrategy(DEFAULT_EMA_SPEC));
-  const [builder, setBuilder] = useState<"simple" | "advanced">("simple");
+  const [presetId, setPresetId] = useState(deepPreset?.id ?? PRESETS[0].id);
+  const [strategy, setStrategy] = useState<StrategyDef>(() => deepPreset?.strategy ?? buildEmaStrategy(DEFAULT_EMA_SPEC));
+  const [builder, setBuilder] = useState<"simple" | "advanced">(deepPreset ? "advanced" : "simple");
   const [emaSpec, setEmaSpec] = useState<EmaSpec>(DEFAULT_EMA_SPEC);
   const [slippageBps, setSlippageBps] = useState(DEFAULT_COSTS.slippageBps);
   const [zeroBrokerage, setZeroBrokerage] = useState(true);
@@ -59,7 +62,7 @@ export function Workbench() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // "Group of stocks" mode: run the same strategy over many stocks and pool the results.
-  const [mode, setMode] = useState<"one" | "group" | "optimize">("one");
+  const [mode, setMode] = useState<"one" | "group" | "optimize">(params.get("mode") === "group" ? "group" : "one");
   const [optScope, setOptScope] = useState<"one" | "group">("one");
   const [optParam, setOptParam] = useState<ParamKey>("stopPct");
   const [optObjective, setOptObjective] = useState<Objective>("expectancy");

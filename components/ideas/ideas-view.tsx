@@ -55,6 +55,7 @@ const pct = (n: number) => (Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixe
 
 const candlesOf = (symbol: string, days: number) => fetchCandles(symbol, days);
 
+const PRESET_OF: Partial<Record<Method, string>> = { minervini: "minervini-template", momentum: "momentum-filter", pullback: "pullback-uptrend" };
 const LAST_KEY = "tb.ideas.last.v1";
 interface LastScan { at: number; ideas: Idea[]; sectors: SectorRow[]; bench: number | null; regime?: MarketRegime | null; days: number; target: number; method: Method; frame: Frame }
 function loadLast(): LastScan | null {
@@ -239,7 +240,7 @@ export function IdeasView() {
               <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>
             </div>
           )}
-          <p className="w-full text-xs text-muted-foreground"><b>{METHODS.find((m) => m.id === method)!.label}:</b> {METHODS.find((m) => m.id === method)!.blurb} <i>({METHODS.find((m) => m.id === method)!.source})</i>{method !== "trend" && " Uses daily candles."}</p>
+          <p className="w-full text-xs text-muted-foreground"><b>{METHODS.find((m) => m.id === method)!.label}:</b> {METHODS.find((m) => m.id === method)!.blurb} <i>({METHODS.find((m) => m.id === method)!.source})</i>{method !== "trend" && " Uses daily candles."} {METHODS.find((m) => m.id === method)?.evidence && <span className="mt-1 block rounded bg-muted/60 p-1.5"><b>Backtest evidence:</b> {METHODS.find((m) => m.id === method)!.evidence}</span>} {PRESET_OF[method] && <Link className="underline" href={`/strategies?preset=${PRESET_OF[method]}&mode=group`}>Backtest this method on a group of stocks</Link>}</p>
         </CardContent>
       </Card>
 
