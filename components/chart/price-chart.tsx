@@ -12,6 +12,7 @@ import type { Candle } from "@/lib/data/types";
 
 export interface ChartLine { price: number; label: string; tone: "primary" | "up" | "down" | "muted"; dashed?: boolean }
 export interface ChartMarker { time: number; position: "aboveBar" | "belowBar"; shape: "arrowUp" | "arrowDown" | "circle"; tone: "up" | "down" | "primary"; text: string }
+export interface ChartOverlay { label: string; color: string; points: { time: number; value: number }[] }
 export interface Hover { time: number; open: number; high: number; low: number; close: number; volume?: number }
 
 // The chart library cannot parse the app's oklch theme colours, so it gets explicit values per theme.
@@ -23,7 +24,7 @@ const PALETTE = {
 export type ScaleMode = "price" | "percent" | "log";
 const SCALE: Record<ScaleMode, PriceScaleMode> = { price: PriceScaleMode.Normal, percent: PriceScaleMode.Percentage, log: PriceScaleMode.Logarithmic };
 
-export function PriceChart({ candles, intraday, mode, dark, lines, markers, resetKey, onHover, scale, tool, onToolChange, drawings, onDrawingsChange }: {
+export function PriceChart({ candles, intraday, mode, dark, lines, markers, resetKey, onHover, scale, tool, onToolChange, drawings, onDrawingsChange, overlays }: {
   candles: Candle[];
   intraday: boolean;
   mode: "candles" | "line";
@@ -35,10 +36,13 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
   onHover?: (h: Hover | null) => void;
   /** Price scale: actual price, percentage change from the first visible bar, or logarithmic. */
   scale: ScaleMode;
-  tool: Tool;
-  onToolChange: (t: Tool) => void;
-  drawings: Drawing[];
-  onDrawingsChange: (d: Drawing[]) => void;
+  /** Drawing tools are off when these are omitted (used on the backtest chart). */
+  tool?: Tool;
+  onToolChange?: (t: Tool) => void;
+  drawings?: Drawing[];
+  onDrawingsChange?: (d: Drawing[]) => void;
+  /** Extra lines drawn over the candles, such as moving averages. */
+  overlays?: ChartOverlay[];
 }) {
   const box = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -113,10 +117,23 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, markers, version, candles]);
 
+  // 4. Overlay lines (moving averages). Rebuilt whenever they change.
+  useEffect(() => {
+    const chart = handles?.chart;
+    if (!chart || !overlays?.length) return;
+    const t = (s: number) => toChartTime(s, intraday) as UTCTimestamp;
+    const made = overlays.map((o) => {
+      const s = chart.addSeries(LineSeries, { color: o.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: o.label });
+      s.setData(o.points.map((p) => ({ time: t(p.time), value: p.value })));
+      return s;
+    });
+    return () => { for (const s of made) { try { chart.removeSeries(s); } catch { /* chart already disposed */ } } };
+  }, [handles, overlays, intraday]);
+
   return (
     <div className="relative h-[360px] w-full sm:h-[420px]">
       <div ref={box} className="absolute inset-0" />
-      {handles && (
+      {handles && tool && onToolChange && drawings && onDrawingsChange && (
         <DrawingLayer chart={handles.chart} series={handles.main} candles={candles} drawings={drawings} onChange={onDrawingsChange}
           tool={tool} onToolChange={onToolChange} colors={{ up: pal.up, down: pal.down }} />
       )}
