@@ -27,6 +27,9 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
   const [size, setSize] = useState({ w: 0, h: 0, tick: 0 });
   const [pending, setPending] = useState<DrawPoint | null>(null);
   const [cursor, setCursor] = useState<DrawPoint | null>(null);
+  /** The drawing being dragged. It is shown live and only saved when you let go. */
+  const [dragInfo, setDragInfo] = useState<{ part: "move" | 0 | 1; x0: number; y0: number; orig: Drawing } | null>(null);
+  const [draft, setDraft] = useState<Drawing | null>(null);
   const times = useMemo(() => candles.map((c) => c.time), [candles]);
   const lastClose = candles.at(-1)?.close ?? 0;
   /** Bar counts are only meaningful when both points lie inside the loaded candles; otherwise they are extrapolated. */
@@ -65,7 +68,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
   const xy = (p: DrawPoint): { x: number; y: number } | null => { const x = X(p.time), y = Y(p.price); return x === null || y === null ? null : { x, y }; };
 
   /** Pointer position to a chart point, snapping to the nearest candle high/low/open/close within a few pixels. */
-  function pointFrom(e: React.PointerEvent): DrawPoint | null {
+  function pointFrom(e: { clientX: number; clientY: number }, snap = true): DrawPoint | null {
     const el = svg.current;
     if (!el || !candles.length) return null;
     const r = el.getBoundingClientRect();
@@ -75,7 +78,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
     if (logical === null || price === null) return null;
     let idx: number = logical;
     const bar = candles[Math.round(logical)];
-    if (bar) {
+    if (bar && snap) {
       for (const cand of [bar.high, bar.low, bar.close, bar.open]) {
         const cy = series.priceToCoordinate(cand);
         if (cy !== null && Math.abs(cy - y) < 10) { price = cand; idx = Math.round(logical); break; }
@@ -83,6 +86,57 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
     }
     return { time: logicalToTime(times, idx), price: price as number };
   }
+
+  /** Start dragging a whole drawing, or one of its end handles. */
+  function startDrag(e: React.PointerEvent, d: Drawing, part: "move" | 0 | 1) {
+    e.preventDefault();
+    e.stopPropagation();
+    const r = (e.currentTarget as SVGElement).ownerSVGElement?.getBoundingClientRect();
+    if (!r) return;
+    setDragInfo({ part, x0: e.clientX - r.left, y0: e.clientY - r.top, orig: d });
+    setDraft(d);
+  }
+
+  useEffect(() => {
+    if (!dragInfo) return;
+    const g = dragInfo;
+    const move = (e: PointerEvent) => {
+      const el = svg.current;
+      if (!g || !el) return;
+      const r = el.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      const ts = chart.timeScale();
+      if (g.part !== "move") {
+        const p = pointFrom(e, true);
+        if (!p) return;
+        const pts = g.orig.points.map((q, i) => (i === g.part ? p : q));
+        setDraft({ ...g.orig, points: pts });
+        return;
+      }
+      const l0 = ts.coordinateToLogical(g.x0), l1 = ts.coordinateToLogical(x);
+      const p0 = series.coordinateToPrice(g.y0), p1 = series.coordinateToPrice(y);
+      if (l0 === null || l1 === null || p0 === null || p1 === null) return;
+      const dP = (p1 as number) - (p0 as number), dL = l1 - l0;
+      setDraft({
+        ...g.orig,
+        points: g.orig.points.map((q) => ({
+          price: q.price + dP,
+          time: g.orig.kind === "hline" ? q.time : logicalToTime(times, (timeToLogical(times, q.time) as number) + dL),
+        })),
+      });
+    };
+    const up = () => {
+      setDraft((d) => {
+        if (d) onChange(drawings.map((x) => (x.id === d.id ? d : x)));
+        return null;
+      });
+      setDragInfo(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers read the latest props through closures on each drag start
+  }, [dragInfo]);
 
   function onPointerDown(e: React.PointerEvent) {
     if (tool === "cursor") return;
@@ -132,6 +186,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
       return (
         <g key={d.id} opacity={op}>
           <line x1={0} x2={w} y1={y} y2={y} stroke="#d99a1c" strokeWidth={1.5} strokeDasharray={preview ? "4 4" : undefined} />
+          {!preview && <line x1={0} x2={w} y1={y} y2={y} stroke="transparent" strokeWidth={14} style={{ pointerEvents: "stroke", cursor: "ns-resize" }} onPointerDown={(e) => startDrag(e, d, "move")} />}
           {chip(w - 240, y - 12, `${d.points[0].price.toFixed(2)}  ${pct(p)}`, "#d99a1c", preview ? undefined : () => remove(d.id))}
         </g>
       );
@@ -149,6 +204,10 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
         <g key={d.id} opacity={op}>
           <line x1={a.x} y1={a.y} x2={ex} y2={ey} stroke="#3b82f6" strokeWidth={1.75} strokeDasharray={preview ? "4 4" : undefined} />
           <circle cx={a.x} cy={a.y} r={3.5} fill="#3b82f6" /><circle cx={b.x} cy={b.y} r={3.5} fill="#3b82f6" />
+          {!preview && <>
+            <line x1={a.x} y1={a.y} x2={ex} y2={ey} stroke="transparent" strokeWidth={12} style={{ pointerEvents: "stroke", cursor: "move" }} onPointerDown={(e) => startDrag(e, d, "move")} />
+            {([a, b] as const).map((q, i) => <circle key={i} cx={q.x} cy={q.y} r={8} fill="transparent" style={{ pointerEvents: "all", cursor: "grab" }} onPointerDown={(e) => startDrag(e, d, i as 0 | 1)} />)}
+          </>}
           {chip(Math.min(a.x, b.x), Math.max(a.y, b.y) + 24, label, "#3b82f6", preview ? undefined : () => remove(d.id))}
         </g>
       );
@@ -160,6 +219,10 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
         <rect x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} fill={col} fillOpacity={0.12} stroke={col} strokeWidth={1} strokeDasharray="3 3" />
         <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={col} strokeWidth={1.5} />
         <circle cx={a.x} cy={a.y} r={3} fill={col} /><circle cx={b.x} cy={b.y} r={3} fill={col} />
+        {!preview && <>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} style={{ pointerEvents: "stroke", cursor: "move" }} onPointerDown={(e) => startDrag(e, d, "move")} />
+          {([a, b] as const).map((q, i) => <circle key={i} cx={q.x} cy={q.y} r={8} fill="transparent" style={{ pointerEvents: "all", cursor: "grab" }} onPointerDown={(e) => startDrag(e, d, i as 0 | 1)} />)}
+        </>}
         {chip((a.x + b.x) / 2 - 90, (a.y + b.y) / 2, `${sign(m.dPrice)}${Math.abs(m.dPrice).toFixed(2)} (${pct(m.dPct)}) · ${inData(d.points) ? `${Math.round(m.bars)} bars · ` : ""}${formatSpan(m.seconds)}`, col, preview ? undefined : () => remove(d.id))}
       </g>
     );
@@ -177,7 +240,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
       role="img"
       aria-label="Chart drawings"
     >
-      {drawings.map((d) => renderOne(d))}
+      {drawings.map((d) => renderOne(draft?.id === d.id ? draft : d))}
       {previewShape}
       {tool !== "cursor" && (
         <text x={10} y={18} fontSize={11} fill="var(--muted-foreground)">
