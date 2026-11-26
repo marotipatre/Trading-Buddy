@@ -14,6 +14,7 @@ import { fmtInr, fmtNum, fmtPct } from "@/lib/format";
 import { paperMetrics } from "@/lib/paper/analytics";
 import { bankOf, capitalOf, tradingPnl } from "@/lib/paper/funds";
 import { summarizePositions } from "@/lib/paper/portfolio";
+import { AlertsPanel } from "@/components/alerts/alerts-panel";
 import { AccountEquityChart } from "./account-equity-chart";
 import { FundsCard } from "./funds-card";
 import { HoldingRows } from "./holding-rows";
@@ -23,7 +24,7 @@ import { OrdersPanel } from "./orders-panel";
 import { usePaper } from "./paper-provider";
 import { useNow } from "@/components/use-now";
 
-const TABS = ["holdings", "positions", "orders", "funds", "analysis"] as const;
+const TABS = ["holdings", "positions", "orders", "alerts", "funds", "analysis"] as const;
 type Tab = (typeof TABS)[number];
 
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" }) {
@@ -85,6 +86,7 @@ export function PortfolioView() {
           <TabsTrigger value="holdings">Holdings{counts.delivery ? ` (${counts.delivery})` : ""}</TabsTrigger>
           <TabsTrigger value="positions">Positions{counts.intraday ? ` (${counts.intraday})` : ""}</TabsTrigger>
           <TabsTrigger value="orders">Orders{state.orders.length ? ` (${state.orders.length})` : ""}</TabsTrigger>
+          <TabsTrigger value="alerts">Alerts</TabsTrigger>
           <TabsTrigger value="funds">Funds</TabsTrigger>
           <TabsTrigger value="analysis">Analysis</TabsTrigger>
         </TabsList>
@@ -99,6 +101,7 @@ export function PortfolioView() {
         </TabsContent>
         <TabsContent value="positions"><HoldingRows product="intraday" empty="No open intraday positions. Intraday (MIS) trades close automatically at 3:15 pm." /></TabsContent>
         <TabsContent value="orders"><OrdersPanel /></TabsContent>
+        <TabsContent value="alerts"><AlertsPanel /></TabsContent>
         <TabsContent value="funds" className="space-y-4">
           <FundsCard />
           <Card>
