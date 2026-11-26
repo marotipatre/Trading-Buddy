@@ -15,7 +15,8 @@ It answers two questions honestly:
 - **Analysis**: win rate with a 95% confidence interval, expectancy in R, stop usage, winners given back, MAE/MFE, tags and notes per trade, and plain-language findings about your own behaviour.
 - **Backtester** (`lib/engine`): visual rule builder plus six swing presets. Signals are read at the close and filled at the next open, with pessimistic stop/target ordering, gap handling, trailing and time stops, slippage and Indian transaction charges. Reports win probability, Monte Carlo, in/out-of-sample and a stop-loss study that holds the target fixed so only the stop changes.
 - **Paper broker** (`lib/paper`): shares the backtester's cost model. Stops and targets that triggered while the app was closed are replayed, and intraday positions square off at 15:15 IST.
-- **Data** (`lib/data`): live quotes from Yahoo with the Google Finance page as a verified fallback; price history from Moneycontrol (adjusted, up to ~12 years in one request) with Yahoo as the fallback; CSV import. Requests are spaced, deduplicated, cached in Supabase and served stale-while-revalidate.
+- **Orders**: market, limit, and stop (trigger) orders. Take-profit and stop-loss exits can be placed on any holding (or edited later with Exits); they are linked, so when one executes the other cancels. Orders are day or GTT (good till triggered, up to a year), execute when the price hits them, fill gaps at the open, and expire on their own. Activity and executions are announced as toasts, including anything that triggered while the app was closed.
+- **Data** (`lib/data`): price history and live quotes come from Upstox's open candle endpoints (no login or key needed; NSE stocks and indices, 10 years of daily and years of 5m/15m, plus today's bars), with Moneycontrol, Yahoo and a verified Google Finance page as fallbacks. Every source is cross-checked, previous close is derived from daily bars, and a price is only shown if it can be tied to the requested symbol. Requests are spaced, deduplicated, cached in Supabase and served stale-while-revalidate. CSV import is the last resort.
 - Light and dark themes, a mobile bottom tab bar, loading, error and 404 screens.
 
 ## Setup
@@ -39,8 +40,9 @@ In Supabase, turn off *Confirm email* for local use, and turn off *Allow new use
 
 ## Limits to keep in mind
 
-- All free market data here is unofficial (Yahoo, Google Finance page, Moneycontrol). Any of them can throttle, delay, change or block without notice, and scraping may be against a site's terms; keep usage personal and low-volume. Upload a CSV on the Backtest page if every feed is down.
-- The Google Finance fallback prices stocks only. Index quotes depend on Yahoo, and the app shows "Unavailable" rather than a wrong number.
+- All free market data here is unofficial (Upstox open endpoints, Yahoo, Moneycontrol, a Google Finance page). Any of them can throttle, delay, change or block without notice, and scraping may be against a site's terms; keep usage personal and low-volume. Upload a CSV on the Backtest page if every feed is down.
+- Resting orders only run while the app is open. When you open it again, anything that triggered meanwhile is replayed from intraday candles (and logged). There is no always-on server watching prices.
+- Broker logins: nothing here uses your broker account. Upstox's candle endpoints need no login. A real broker sandbox or API token would only be needed for live tick streaming or placing real orders.
 - Free intraday history is short (about 59 days for 5m/15m, 7 days for 1m), so swing backtests use daily candles.
 - No free historical option data exists, so F&O is not backtested.
 - Backtests ignore survivorship bias (today's index members only), liquidity and circuit limits. A small number of trades is statistical noise; the app warns below 30.
