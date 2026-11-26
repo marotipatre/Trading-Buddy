@@ -160,13 +160,17 @@ export function StockChart({ symbol }: { symbol: string }) {
 
         {specs.length > 0 && (
           <div className="flex flex-wrap gap-1.5 text-xs" aria-label="Active indicators">
-            {indicatorLines.filter((l) => !/ (upper|lower)$/.test(l.label)).map((l) => (
-              <span key={l.label} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono">
-                <span className="size-2 rounded-full" style={{ background: l.color }} />{l.label.replace(/ mid$/, "")}
-                <b className="text-foreground">{l.points.at(-1)?.value.toFixed(2) ?? "—"}</b>
-              </span>
-            ))}
-            {specs.map((sp) => <button key={sp.id} type="button" aria-label={`Remove ${specLabel(sp)}`} title={`Remove ${specLabel(sp)}`} onClick={() => toggleSpec(sp)} className="inline-flex items-center rounded-md px-1 text-muted-foreground hover:text-foreground"><X className="size-3" />{sp.kind === "bb" ? "BB" : sp.kind.toUpperCase()}{sp.period}</button>)}
+            {specs.map((sp) => {
+              const lines = indicatorLines.filter((l) => l.label.startsWith(specLabel(sp)) && !/ (upper|lower)$/.test(l.label));
+              const l = lines[0];
+              return (
+                <span key={sp.id} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono">
+                  <span className="size-2 rounded-full" style={{ background: l?.color }} />{specLabel(sp)}
+                  <b className="text-foreground">{l?.points.at(-1)?.value.toFixed(2) ?? "—"}</b>
+                  <button type="button" aria-label={`Remove ${specLabel(sp)}`} onClick={() => toggleSpec(sp)} className="text-muted-foreground hover:text-foreground"><X className="size-3" /></button>
+                </span>
+              );
+            })}
           </div>
         )}
         <div className="relative">
