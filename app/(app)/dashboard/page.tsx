@@ -21,6 +21,7 @@ import { INDICES, POPULAR_STOCKS } from "@/lib/universe";
 import { useMarketOpen } from "@/components/use-market-open";
 import { GettingStarted } from "@/components/dashboard/getting-started";
 import { TodayCard } from "@/components/dashboard/today-card";
+import { TopIdeas } from "@/components/dashboard/top-ideas";
 
 const INDEX_SYMBOLS = INDICES.slice(0, 3);
 const MOVERS = POPULAR_STOCKS.slice(0, 14);
@@ -69,6 +70,7 @@ export default function ExplorePage() {
 
       <GettingStarted />
       <TodayCard />
+      <TopIdeas />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {INDEX_SYMBOLS.map((i) => {
