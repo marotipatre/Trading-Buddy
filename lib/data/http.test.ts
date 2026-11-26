@@ -14,13 +14,13 @@ describe("getJsonWithRetry", () => {
   it("retries 429 and alternates hosts", async () => {
     const f = vi.fn().mockResolvedValueOnce(res(429)).mockResolvedValueOnce(res(429)).mockResolvedValueOnce(res(200, { ok: 2 }));
     expect(await getJsonWithRetry("/x", { ...base, fetchImpl: f })).toEqual({ ok: 2 });
-    expect(f.mock.calls.map((c) => c[0])).toEqual(["https://a.test/x", "https://b.test/x", "https://a.test/x"]);
+    expect(f.mock.calls.map((c: unknown[]) => c[0])).toEqual(["https://a.test/x", "https://b.test/x", "https://a.test/x"]);
   });
   it("backs off exponentially", async () => {
     const sleep = vi.fn(async () => {});
     const f = vi.fn().mockResolvedValue(res(503));
     await expect(getJsonWithRetry("/x", { ...base, sleep, retries: 3, fetchImpl: f })).rejects.toThrow("HTTP 503");
-    expect(sleep.mock.calls.map((c) => c[0])).toEqual([500, 1000, 2000]);
+    expect(sleep.mock.calls.map((c: unknown[]) => c[0])).toEqual([500, 1000, 2000]);
     expect(f).toHaveBeenCalledTimes(4);
   });
   it("honours Retry-After", async () => {
