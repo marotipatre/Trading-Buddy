@@ -9,7 +9,7 @@ export default function StocksPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Stocks</h1>
-        <p className="text-sm text-muted-foreground">Browse about 500 NSE stocks by size and sector</p>
+        <p className="text-sm text-muted-foreground">Browse about 750 NSE stocks by size and sector</p>
       </div>
       <Suspense fallback={<Skeleton className="h-96 w-full" />}>
         <StocksBrowser />

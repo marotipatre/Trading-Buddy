@@ -98,8 +98,8 @@ export default function ExplorePage() {
           <h2 className="text-lg font-semibold tracking-tight">Browse by size and sector</h2>
           <Link href="/stocks" className="text-sm text-primary hover:underline">All stocks</Link>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          {(["large", "mid", "small"] as Cap[]).map((c) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(["large", "mid", "small", "micro"] as Cap[]).map((c) => (
             <Link key={c} href={`/stocks?cap=${c}`}>
               <Card className="transition-colors hover:bg-accent/40">
                 <CardContent className="space-y-0.5">

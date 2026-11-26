@@ -15,7 +15,7 @@ import { useWatchlist } from "@/components/use-watchlist";
 import { CAP_LABEL, filterUniverse, type Cap } from "@/lib/universe-lists";
 import { cn } from "@/lib/utils";
 
-const CAPS = ["all", "large", "mid", "small"] as const;
+const CAPS = ["all", "large", "mid", "small", "micro"] as const;
 const PAGE = 20;
 const SORT_OPTIONS = [
   { value: "name", label: "Name (A–Z)" },

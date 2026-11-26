@@ -5,7 +5,7 @@ import { rememberName } from "@/lib/symbols";
 import type { UniverseStock } from "@/lib/universe-lists";
 
 interface Loaded { stocks: UniverseStock[]; sectors: { name: string; count: number }[] }
-const KEY = "trading-buddy:universe:v1";
+const KEY = "trading-buddy:universe:v2";
 let memory: Loaded | null = null;
 
 function fromStorage(): Loaded | null {
@@ -33,7 +33,7 @@ export function useUniverse() {
         setData(saved);
       }
     }
-    fetch("/api/universe")
+    fetch("/api/universe?v=2")
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "Could not load stocks");
