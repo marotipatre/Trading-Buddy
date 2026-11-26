@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { SymbolLabel } from "@/components/symbol-label";
 import { fmtInr, fmtPct } from "@/lib/format";
 import { positionStats } from "@/lib/paper/portfolio";
 import { displaySymbol } from "@/lib/symbols";
+import { ExitEditor } from "./exit-editor";
 import { usePaper } from "./paper-provider";
 import { useNow } from "@/components/use-now";
 
@@ -16,6 +18,7 @@ import { useNow } from "@/components/use-now";
 export function HoldingRows({ product, empty }: { product: "delivery" | "intraday"; empty: string }) {
   const { state, quotes, closeNow } = usePaper();
   const rows = state.positions.filter((p) => p.product === product);
+  const [editing, setEditing] = useState<number | null>(null);
   const now = useNow();
   if (!rows.length) return <Card><p className="px-6 py-10 text-center text-sm text-muted-foreground">{empty}</p></Card>;
   return (
@@ -26,7 +29,8 @@ export function HoldingRows({ product, empty }: { product: "delivery" | "intrada
         const st = positionStats(p, ltp, q?.prevClose, now);
         const up = st.pnl >= 0;
         return (
-          <div key={p.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 border-b px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1.4fr)_1fr_1fr_1fr_auto] sm:items-center">
+          <Fragment key={p.id}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 border-b px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1.4fr)_1fr_1fr_1fr_auto] sm:items-center">
             <Link href={`/trade?symbol=${encodeURIComponent(p.symbol)}`} className="min-w-0">
               <SymbolLabel symbol={p.symbol} />
               <div className="mt-1 text-xs text-muted-foreground">
@@ -56,6 +60,7 @@ export function HoldingRows({ product, empty }: { product: "delivery" | "intrada
               )}
             </div>
             <div className="col-span-2 flex justify-end gap-2 sm:col-span-1">
+              <Button size="sm" variant="outline" onClick={() => setEditing(editing === p.id ? null : p.id)}>Exits</Button>
               <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/trade?symbol=${encodeURIComponent(p.symbol)}&side=buy`} />}>Add</Button>
               <Button size="sm" variant="outline" className="border-down/50 text-down hover:bg-down/10" onClick={async () => {
                 const r = await closeNow(p.id);
@@ -63,6 +68,8 @@ export function HoldingRows({ product, empty }: { product: "delivery" | "intrada
               }}>Exit</Button>
             </div>
           </div>
+          {editing === p.id && <ExitEditor position={p} ltp={ltp} onDone={() => setEditing(null)} />}
+          </Fragment>
         );
       })}
     </Card>
