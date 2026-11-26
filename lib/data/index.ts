@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMarketOpen } from "@/lib/market-hours";
 import { cacheAction, refreshTtlSec } from "./cache-policy";
 import { dedupe } from "./spacer";
-import { fetchCandles } from "./yahoo";
+import { historyService } from "./history";
 import type { Candle, Interval } from "./types";
 
 export interface GetCandlesOptions {
@@ -49,7 +49,7 @@ async function refresh(supabase: SupabaseClient, symbol: string, interval: Inter
   const key = `${symbol}|${interval}`;
   return inflight(`${key}|${fromSec - (fromSec % 3600)}`, async () => {
     try {
-      const fresh = await fetchCandles(symbol, interval, fromSec, toSec);
+      const { candles: fresh } = await historyService.get(symbol, interval, fromSec, toSec);
       if (fresh.length) {
         const rows = fresh.map((c) => ({
           symbol, interval, ts: new Date(c.time * 1000).toISOString(),
