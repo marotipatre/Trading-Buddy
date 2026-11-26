@@ -11,6 +11,7 @@ import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { NewsPanel } from "@/components/news/news-panel";
 import { useUniverse } from "@/components/use-universe";
+import { ExplainButton } from "@/components/coach/explain-button";
 import { planToQuery } from "@/lib/plan-link";
 import { bullBear } from "@/lib/analysis/bullbear";
 import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
@@ -46,6 +47,7 @@ function BullBearPanel({ i, regime, days, target, asOf }: { i: Idea; regime?: "b
         <div><div className="mb-1 text-xs font-medium text-up">The bull case ({bb.bull.length})</div><ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">{bb.bull.length ? bb.bull.map((t) => <li key={t}>{t}</li>) : <li>Nothing strong</li>}</ul></div>
         <div><div className="mb-1 text-xs font-medium text-down">The bear case ({bb.bear.length})</div><ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">{bb.bear.length ? bb.bear.map((t) => <li key={t}>{t}</li>) : <li>Nothing strong</li>}</ul></div>
       </div>
+      <ExplainButton kind="idea" data={{ symbol: i.stock.symbol, verdict: i.view.verdict, score: i.view.score, bull: bb.bull, bear: bb.bear, lean: bb.lean, plan: i.view.plan ? { entry: +i.view.plan.entry.toFixed(2), stop: +i.view.plan.stop.toFixed(2), target: +i.view.plan.target1.toFixed(2), rr: +i.view.plan.rr1.toFixed(1) } : null, history: i.hz ? { hitRatePct: +(i.hz.hitRate * 100).toFixed(0), stopRatePct: +(i.hz.stopRate * 100).toFixed(0), avgResultPct: +i.hz.expectancyPct.toFixed(1), days, targetPct: target } : null }} />
       {(i.patterns?.length ?? 0) > 0 && <p className="text-xs text-muted-foreground">Latest candle: {i.patterns!.map((p) => p.name).join(", ")}.</p>}
       <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Where these numbers come from</summary><ul className="mt-1 list-disc space-y-0.5 pl-4">{bb.provenance.map((t) => <li key={t}>{t}</li>)}</ul></details>
     </div>

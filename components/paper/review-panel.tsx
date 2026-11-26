@@ -14,6 +14,7 @@ import { usePaper } from "@/components/paper/paper-provider";
 import type { Candle } from "@/lib/data/types";
 import { assessStock, type StockView } from "@/lib/analysis/stock-view";
 import { reviewPortfolio, type Holding, type PortfolioReview } from "@/lib/analysis/holding-review";
+import { ExplainButton } from "@/components/coach/explain-button";
 import { fmtInr, fmtPct } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
@@ -118,6 +119,7 @@ export function ReviewPanel() {
             <MetricCard label="Last 5 trading days" value={fmtPct(review.weekPct, 2, { sign: true })} sub={`${fmtInr(review.weekPnl, { sign: true })}${review.benchWeekPct !== null ? ` · Nifty ${fmtPct(review.benchWeekPct, 2, { sign: true })}` : ""}`} tone={review.weekPnl >= 0 ? "up" : "down"} />
             <MetricCard label="Sectors" value={String(review.sectors.length)} sub={review.sectors.slice(0, 2).map((s) => `${s.sector} ${s.weightPct.toFixed(0)}%`).join(" · ")} />
           </div>
+          <ExplainButton kind="portfolio" data={{ valueInr: Math.round(review.value), pnlInr: Math.round(review.pnl), pnlPct: +review.pnlPct.toFixed(1), weekPct: +review.weekPct.toFixed(2), niftyWeekPct: review.benchWeekPct === null ? null : +review.benchWeekPct.toFixed(2), sectors: review.sectors.map((s) => ({ sector: s.sector, weightPct: Math.round(s.weightPct) })), notes: review.notes, holdings: review.rows.map((r) => ({ symbol: r.symbol.replace(/\.(NS|BO)$/, ""), action: r.headline, weightPct: Math.round(r.weightPct), pnlPct: +r.pnlPct.toFixed(1), weekPct: +r.weekPct.toFixed(1) })) }} />
           {review.notes.length > 0 && (
             <Card><CardHeader><CardTitle>What stands out</CardTitle></CardHeader><CardContent><ul className="list-disc space-y-1 pl-5 text-sm">{review.notes.map((n) => <li key={n}>{n}</li>)}</ul></CardContent></Card>
           )}

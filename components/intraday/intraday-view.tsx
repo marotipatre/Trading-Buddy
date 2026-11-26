@@ -12,6 +12,7 @@ import { useNow } from "@/components/use-now";
 import { useUniverse } from "@/components/use-universe";
 import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
 import { moodOf } from "@/lib/analysis/mood";
+import { ExplainButton } from "@/components/coach/explain-button";
 import { AiSentimentToggle } from "@/components/ai-sentiment";
 import { pnlByDay } from "@/lib/intraday/account";
 import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
@@ -309,6 +310,7 @@ function Results() {
           </div>
         </div>
 
+        <ExplainButton kind="intraday" label="Explain my results in plain words" data={{ trades: total, winnersPct: total ? Math.round((wins / total) * 100) : 0, days: days.slice(0, 10).map((d) => ({ date: d.date, trades: d.trades, wins: d.wins, pnlInr: Math.round(d.pnl) })), ruleBreaksLast30Days: breaks, cleanTradesPct: Math.round(clean * 100) }} />
         {fromPicks.length > 0 && (
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center gap-3">
