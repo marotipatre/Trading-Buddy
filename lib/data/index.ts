@@ -67,7 +67,14 @@ export async function getCandles(
 
   if (!needsRefresh) return cached;
 
-  const fresh = await fetchCandles(symbol, interval, fromSec, toSec);
+  let fresh: Candle[];
+  try {
+    fresh = await fetchCandles(symbol, interval, fromSec, toSec);
+  } catch (e) {
+    // Throttled or down: serve whatever is cached rather than failing the page.
+    if (cached.length > 0) return cached;
+    throw e;
+  }
   if (fresh.length) {
     const rows = fresh.map((c) => ({
       symbol,
