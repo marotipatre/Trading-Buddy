@@ -79,8 +79,13 @@ export function IdeasView() {
     const pool = ideas.filter((i) => i.v.verdict === "buy" && i.v.plan);
     const strong = pool.filter((i) => (i.hz?.expectancyPct ?? 0) > 0);
     const list = strong.length >= 3 ? strong : pool;
-    const used = new Map<string, number>(), out: Idea[] = [];
-    for (const i of list) { if ((used.get(i.sector) ?? 0) >= 2) continue; used.set(i.sector, (used.get(i.sector) ?? 0) + 1); out.push(i); if (out.length >= 6) break; }
+    // Volatile small caps hit targets most often in the past, but they are thinner and riskier: at most 2 of the 6, and 3 mid caps.
+    const used = new Map<string, number>(), caps = { large: 0, mid: 0, small: 0 }, capMax = { large: 6, mid: 3, small: 2 }, out: Idea[] = [];
+    for (const i of list) {
+      if ((used.get(i.sector) ?? 0) >= 2 || caps[i.cap] >= capMax[i.cap]) continue;
+      used.set(i.sector, (used.get(i.sector) ?? 0) + 1); caps[i.cap]++; out.push(i);
+      if (out.length >= 6) break;
+    }
     return out;
   }, [ideas]);
 
@@ -122,7 +127,7 @@ export function IdeasView() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold">Best ideas for your plan</h2>
-          <span className="text-xs text-muted-foreground">Buy setups with a positive record over {plan.days}-day windows, at most two per sector</span>
+          <span className="text-xs text-muted-foreground">Buy setups with a positive record over {plan.days}-day windows. At most two per sector and two small caps (they move more but are thinner and riskier)</span>
         </div>
         {firstLoad ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}</div>
