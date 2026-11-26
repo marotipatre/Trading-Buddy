@@ -9,6 +9,7 @@ describe("displaySymbol / exchangeOf", () => {
     expect(displaySymbol("^NSEI")).toBe("NIFTY 50");
     expect(displaySymbol("^NSEBANK")).toBe("BANK NIFTY");
     expect(displaySymbol("M&M.NS")).toBe("M&M");
+    expect(displaySymbol("^NIFTY_REALTY")).toBe("NIFTY REALTY");
   });
   it("identifies the exchange", () => {
     expect(exchangeOf("TCS.NS")).toBe("NSE");

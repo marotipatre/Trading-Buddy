@@ -10,6 +10,8 @@ const INDEX_LABEL: Record<string, string> = { "^NSEI": "NIFTY 50", "^NSEBANK": "
 export function displaySymbol(yahoo: string): string {
   const s = yahoo.trim();
   if (INDEX_LABEL[s.toUpperCase()]) return INDEX_LABEL[s.toUpperCase()];
+  // other indices are stored as ^NIFTY_REALTY; show them the way a broker would: NIFTY REALTY
+  if (s.startsWith("^")) return s.slice(1).replace(/_/g, " ");
   return s.replace(/\.(NS|BO)$/i, "");
 }
 
