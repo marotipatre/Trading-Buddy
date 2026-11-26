@@ -1,10 +1,10 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { CAP_LABEL, type Cap, type UniverseStock } from "@/lib/universe-lists";
+import { CAP_LABEL, CAP_ORDER, type UniverseStock } from "@/lib/universe-lists";
 import { SimpleSelect } from "./simple-select";
 
-export type GroupCap = Cap | "all";
+export type GroupCap = import("@/lib/universe-lists").Cap | "all";
 const COUNTS = [5, 10, 20, 30, 50].map((n) => ({ value: String(n), label: `${n} stocks` }));
 
 export function GroupPicker({ cap, setCap, sector, setSector, count, setCount, sectors, matching, loading }: {
@@ -22,7 +22,7 @@ export function GroupPicker({ cap, setCap, sector, setSector, count, setCount, s
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Size class</Label>
           <SimpleSelect className="w-full" value={cap} onChange={setCap}
-            options={[{ value: "all", label: "All sizes" }, ...(["large", "mid", "small", "micro"] as Cap[]).map((c) => ({ value: c, label: CAP_LABEL[c] }))]} />
+            options={[{ value: "all", label: "All sizes" }, ...CAP_ORDER.map((c) => ({ value: c, label: CAP_LABEL[c] }))]} />
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Sector</Label>

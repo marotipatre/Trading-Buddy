@@ -94,7 +94,7 @@ export function IdeasView() {
     const strong = pool.filter((i) => (i.hz?.expectancyPct ?? 0) > 0);
     const list = strong.length >= 3 ? strong : pool;
     // Volatile small caps hit targets most often in the past, but they are thinner and riskier: at most 2 of the 6, and 3 mid caps.
-    const used = new Map<string, number>(), caps = { large: 0, mid: 0, small: 0, micro: 0 }, capMax = { large: 6, mid: 3, small: 2, micro: 0 } /* micro caps are shown in the table but never auto-picked: too thinly traded */, out: Idea[] = [];
+    const used = new Map<string, number>(), caps = { large: 0, mid: 0, small: 0, micro: 0, other: 0, sme: 0 }, capMax = { large: 6, mid: 3, small: 2, micro: 0, other: 0, sme: 0 } /* thin classes are shown and scored in the table but never auto-picked */, out: Idea[] = [];
     for (const i of list) {
       if ((used.get(i.sector) ?? 0) >= 2 || caps[i.cap] >= capMax[i.cap]) continue;
       used.set(i.sector, (used.get(i.sector) ?? 0) + 1); caps[i.cap]++; out.push(i);

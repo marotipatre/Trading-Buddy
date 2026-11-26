@@ -27,7 +27,7 @@ export function buildMixedPortfolio(items: MixInput[], capital: number, riskPct:
     const plan = it.view.plan;
     if (it.view.verdict !== "buy" || !plan) continue;
     if ((perSector.get(it.sector) ?? 0) >= maxPerSector) continue;
-    if (it.cap === "micro") continue; // too thinly traded to size a plan around
+    if (it.cap === "micro" || it.cap === "other" || it.cap === "sme") continue; // too thinly traded to size a plan around
     if (it.cap === "small" && small >= maxSmall) continue;
     const size = positionSize(capital, riskPct, maxPositionPct, plan);
     if (size.qty <= 0 || invested + size.value > usable) continue;

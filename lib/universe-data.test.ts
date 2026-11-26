@@ -90,3 +90,15 @@ describe("getUniverse", () => {
     expect(u.stocks).toHaveLength(501);
   });
 });
+
+describe("whole listed market", () => {
+  it("adds every other NSE stock, SME as its own class, and leaves out ETFs", async () => {
+    const { mergeListed } = await import("./universe-lists");
+    const base = [{ symbol: "AAA.NS", name: "Aaa", sector: "IT", cap: "large" as const, isin: "" }];
+    const out = mergeListed(base, [
+      { symbol: "AAA.NS", name: "Aaa Ltd", series: "EQ" }, { symbol: "BBB.NS", name: "Bbb Ltd", series: "EQ" },
+      { symbol: "CCC.NS", name: "Ccc Ltd", series: "SM" }, { symbol: "NV20BEES.NS", name: "Nippon ETF", series: "EQ" },
+    ]);
+    expect(out.map((s) => [s.symbol, s.cap, s.sector])).toEqual([["AAA.NS", "large", "IT"], ["BBB.NS", "other", "Unclassified"], ["CCC.NS", "sme", "Unclassified"]]);
+  });
+});

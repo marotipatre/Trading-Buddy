@@ -11,7 +11,7 @@ export const SavedConfig = z.object({
   strategy: StrategyDef,
   slippageBps: z.number().min(0).max(500),
   zeroBrokerage: z.boolean(),
-  group: z.object({ cap: z.enum(["all", "large", "mid", "small", "micro"]), sector: z.string(), count: z.number().int().min(1).max(200) }).optional(),
+  group: z.object({ cap: z.enum(["all", "large", "mid", "small", "micro", "other", "sme"]), sector: z.string(), count: z.number().int().min(1).max(200) }).optional(),
   optimize: z.object({ scope: z.enum(["one", "group"]), param: z.enum(["stopPct", "stopAtr", "maxHold", "targetPct"]), objective: z.enum(["expectancy", "profitFactor"]) }).optional(),
 });
 export type SavedConfig = z.infer<typeof SavedConfig>;

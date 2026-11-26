@@ -7,9 +7,10 @@ import { matchesScreen, SCREENS, type ScreenId } from "@/lib/analysis/features";
 import type { Idea } from "@/lib/analysis/ideas-engine";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
+import { CAP_ORDER, type Cap } from "@/lib/universe-lists";
 import { CAP_SHORT, ScoreRing, Trend, VERDICT_BG, VERDICT_LABEL, pct } from "./shared";
 
-type Scope = "all" | "large" | "mid" | "small" | "micro";
+type Scope = "all" | Cap;
 type Sort = "best" | "score" | "odds" | "month" | "rr";
 const SORTS: { id: Sort; label: string }[] = [{ id: "best", label: "Best first" }, { id: "score", label: "Score" }, { id: "odds", label: "Past odds" }, { id: "month", label: "1-month move" }, { id: "rr", label: "Reward : risk" }];
 
@@ -37,7 +38,7 @@ export function IdeaTable({ ideas, sectorFilter, onSector, sectors, onOpen, days
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-64"><Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><input value={q} onChange={(e) => { setQ(e.target.value); setLimit(60); }} placeholder="Search name or symbol" aria-label="Search stocks" className="h-9 w-full rounded-lg border bg-background pl-8 pr-3 text-sm" /></div>
-        <div className="flex gap-1.5">{(["all", "large", "mid", "small", "micro"] as Scope[]).map((s) => <Chip key={s} on={scope === s} onClick={() => setScope(s)}>{s === "all" ? "All sizes" : `${CAP_SHORT[s]} cap`}</Chip>)}</div>
+        <div className="flex gap-1.5">{(["all", ...CAP_ORDER] as Scope[]).map((s) => <Chip key={s} on={scope === s} onClick={() => setScope(s)}>{s === "all" ? "All sizes" : `${CAP_SHORT[s]} cap`}</Chip>)}</div>
         <div className="flex gap-1.5">{([["all", "All"], ["buy", "Buy setups"], ["watch", "Watch"]] as const).map(([k, l]) => <Chip key={k} on={verdict === k} onClick={() => setVerdict(k)}>{l}</Chip>)}</div>
         <select value={sectorFilter ?? ""} onChange={(e) => onSector(e.target.value || null)} aria-label="Sector" className="h-8 rounded-lg border bg-background px-2 text-xs"><option value="">All sectors</option>{sectors.map((s) => <option key={s} value={s}>{s}</option>)}</select>
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort" className="ml-auto h-8 rounded-lg border bg-background px-2 text-xs">{SORTS.map((s) => <option key={s.id} value={s.id}>Sort: {s.label}</option>)}</select>

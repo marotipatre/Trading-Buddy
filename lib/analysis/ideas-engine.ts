@@ -1,3 +1,4 @@
+import type { Cap } from "@/lib/universe-lists";
 import type { Candle } from "@/lib/data/types";
 import type { Consensus } from "@/lib/data/news";
 import { horizonStats, type HorizonStats } from "./horizon";
@@ -11,7 +12,7 @@ export interface BaseIdea {
   symbol: string;
   name: string;
   sector: string;
-  cap: "large" | "mid" | "small" | "micro";
+  cap: Cap;
   /** Scored on price alone, with relative strength folded in. No target applied yet, so the plan can change without a rescan. */
   view: StockView;
   patterns: { name: string; bias: "bullish" | "bearish" | "neutral" }[];

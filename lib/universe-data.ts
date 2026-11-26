@@ -2,7 +2,8 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { dedupe } from "@/lib/data/spacer";
-import { buildUniverse, parseConstituents, type Constituent, type Universe } from "./universe-lists";
+import { getInstruments } from "@/lib/instruments";
+import { buildUniverse, mergeListed, parseConstituents, type Constituent, type Listed, type Universe } from "./universe-lists";
 
 // Server-only loader (uses the file system for its cache). Browser code must import from "./universe-lists".
 export * from "./universe-lists";
@@ -11,7 +12,7 @@ export * from "./universe-lists";
 
 const BASE = "https://www.niftyindices.com/IndexConstituent";
 const FILES = { large: "ind_nifty100list.csv", mid: "ind_niftymidcap150list.csv", small: "ind_niftysmallcap250list.csv", micro: "ind_niftymicrocap250_list.csv" } as const;
-const CACHE_FILE = join(tmpdir(), "trading-buddy-universe-v2.json");
+const CACHE_FILE = join(tmpdir(), "trading-buddy-universe-v3.json");
 const WEEK_MS = 7 * 86_400_000;
 let memo: Universe | null = null;
 const loading = dedupe<Universe>();
@@ -27,7 +28,7 @@ async function download(name: string, fetchImpl: typeof fetch): Promise<Constitu
 }
 
 /** The universe, cached in memory and in a temp file for a week (index membership changes twice a year). */
-export async function getUniverse(fetchImpl: typeof fetch = fetch, opts: { cacheFile?: string | null } = {}): Promise<Universe> {
+export async function getUniverse(fetchImpl: typeof fetch = fetch, opts: { cacheFile?: string | null; listed?: Listed[] } = {}): Promise<Universe> {
   const cacheFile = opts.cacheFile === undefined ? CACHE_FILE : opts.cacheFile; // null disables the on-disk cache (tests)
   if (opts.cacheFile === undefined && memo && Date.now() - memo.asOf < WEEK_MS) return memo;
   return loading("u", async () => {
@@ -43,8 +44,13 @@ export async function getUniverse(fetchImpl: typeof fetch = fetch, opts: { cache
     } catch {}
     try {
       const [large, mid, small, micro] = await Promise.all([download(FILES.large, fetchImpl), download(FILES.mid, fetchImpl), download(FILES.small, fetchImpl), download(FILES.micro, fetchImpl).catch(() => [] as Constituent[])]); // micro is a bonus: its failure must not break the core list
-      const stocks = buildUniverse(large, mid, small, micro);
+      let stocks = buildUniverse(large, mid, small, micro);
       if (stocks.length < 300) throw new Error("NSE constituent lists looked wrong");
+      // Every other NSE stock (mainboard and SME), so the whole listed market is available everywhere in the app.
+      try {
+        const listed = opts.listed ?? (opts.cacheFile !== undefined ? [] : (await getInstruments())).filter((i) => i.kind === "stock" && i.exchange === "NSE").map((i) => ({ symbol: i.symbol, name: i.name, series: i.series, isin: i.isin }));
+        stocks = mergeListed(stocks, listed);
+      } catch { /* the Nifty lists alone are still a usable universe */ }
       const u = { stocks, asOf: Date.now() };
       try { if (cacheFile) writeFileSync(cacheFile, JSON.stringify(u)); } catch {}
       return opts.cacheFile === undefined ? (memo = u) : u;

@@ -6,8 +6,13 @@
  * A stock in more than one list takes the larger class. Sector is NSE's industry classification.
  */
 
-export type Cap = "large" | "mid" | "small" | "micro";
-export const CAP_LABEL: Record<Cap, string> = { large: "Large cap", mid: "Mid cap", small: "Small cap", micro: "Micro cap" };
+export type Cap = "large" | "mid" | "small" | "micro" | "other" | "sme";
+/** Largest to smallest; "other" is any mainboard stock outside the Nifty lists, "sme" is NSE's SME platform. */
+export const CAP_ORDER: Cap[] = ["large", "mid", "small", "micro", "other", "sme"];
+export const CAP_LABEL: Record<Cap, string> = { large: "Large cap", mid: "Mid cap", small: "Small cap", micro: "Micro cap", other: "Other listed", sme: "SME" };
+export const CAP_SHORT: Record<Cap, string> = { large: "Large", mid: "Mid", small: "Small", micro: "Micro", other: "Other", sme: "SME" };
+/** Classes too thin or too small for the app to build a plan or portfolio around; they are still shown and scored. */
+export const THIN_CAPS: Cap[] = ["micro", "other", "sme"];
 
 export interface UniverseStock { symbol: string; name: string; sector: string; cap: Cap; isin: string }
 export interface Universe { stocks: UniverseStock[]; asOf: number }
@@ -88,6 +93,23 @@ export function buildUniverse(large: Constituent[], mid: Constituent[], small: C
     }
   }
   return out;
+}
+
+/** One listed NSE stock from the exchange's instrument list. */
+export interface Listed { symbol: string; name: string; series: string; isin?: string }
+const FUND_LIKE = /(BEES|ETF|IETF|LIQUID|GILT|NIFTY|SENSEX|BANKEX|MON100|MOM100|MAFANG|\bFUND\b|\bETF\b|INDEX FUND|MUTUAL)/i;
+
+/** Pure: add every other NSE stock (not in the Nifty lists) so the whole listed market is browsable. ETFs and funds are left out. */
+export function mergeListed(stocks: UniverseStock[], listed: Listed[]): UniverseStock[] {
+  const have = new Set(stocks.map((s) => s.symbol));
+  const extra: UniverseStock[] = [];
+  for (const l of listed) {
+    if (have.has(l.symbol) || FUND_LIKE.test(l.symbol) || FUND_LIKE.test(l.name)) continue;
+    have.add(l.symbol);
+    extra.push({ symbol: l.symbol, name: l.name, sector: "Unclassified", cap: l.series === "SM" || l.series === "ST" ? "sme" : "other", isin: l.isin ?? "" });
+  }
+  extra.sort((a, b) => a.name.localeCompare(b.name));
+  return [...stocks, ...extra];
 }
 
 export function sectorsOf(stocks: UniverseStock[]): { name: string; count: number }[] {

@@ -11,7 +11,7 @@ import { computeFeatures } from "@/lib/analysis/features";
 import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
 import { HISTORY_DAYS, withRelativeStrength, type Frame } from "@/lib/analysis/stock-view";
 import type { BaseIdea } from "@/lib/analysis/ideas-engine";
-import type { UniverseStock } from "@/lib/universe-lists";
+import { CAP_ORDER, type UniverseStock } from "@/lib/universe-lists";
 import { isMarketOpen } from "@/lib/market-hours";
 
 const LAST_KEY = "tb.ideas.last.v2";
@@ -19,14 +19,14 @@ export interface Progress { done: number; total: number; phase: "prices" | "news
 interface Saved { at: number; bases: BaseIdea[]; regime: MarketRegime | null; bench: number | null; method: Method; frame: Frame }
 
 export const daysFor = (method: Method, frame: Frame) => (method === "trend" ? HISTORY_DAYS[frame] : 800);
-const ORDER: Record<UniverseStock["cap"], number> = { large: 0, mid: 1, small: 2, micro: 3 };
+const ORDER: Record<UniverseStock["cap"], number> = Object.fromEntries(CAP_ORDER.map((c, i) => [c, i])) as Record<UniverseStock["cap"], number>;
 
 function load(): Saved | null {
   try { const v = JSON.parse(localStorage.getItem(LAST_KEY) ?? "null") as Saved | null; return v && Array.isArray(v.bases) && v.bases.length ? v : null; } catch { return null; }
 }
 
 /**
- * Scans the whole listed market (about 750 stocks: Nifty 500 plus the Nifty Microcap 250, large caps first so useful results appear within seconds) and keeps
+ * Scans the whole listed market (every NSE stock that trades, large caps first so useful results appear within seconds) and keeps
  * the base results. Your plan (days, target, amount) is applied afterwards, so changing it never needs a rescan.
  * The last scan is shown at once; a stale one is refreshed in the background.
  */
@@ -55,7 +55,12 @@ export function useIdeasScan(method: Method, frame: Frame) {
   }, []);
 
   const scan = useCallback(async () => {
-    const all = [...(stocks ?? [])].sort((a, b) => ORDER[a.cap] - ORDER[b.cap] || a.name.localeCompare(b.name));
+    // Every NSE stock is in the universe. To keep the scan fast and the ideas tradable, stocks outside the Nifty 500 are
+    // included only if they traded at least about Rs 10 lakh in the last session (from NSE's own live feed).
+    let turnover: Map<string, number> | null = null;
+    try { const r = await fetch("/api/market"); const j = await r.json(); if (r.ok) turnover = new Map((j.rows as { symbol: string; valueCr: number }[]).map((x) => [x.symbol, x.valueCr])); } catch { /* scan everything without the liquidity gate */ }
+    const tradable = (s: UniverseStock) => !turnover || s.cap === "large" || s.cap === "mid" || s.cap === "small" || (turnover.get(s.symbol.replace(/\.NS$/, "")) ?? 0) >= 0.1;
+    const all = [...(stocks ?? [])].filter(tradable).sort((a, b) => ORDER[a.cap] - ORDER[b.cap] || a.name.localeCompare(b.name));
     if (!all.length) return;
     stopRef.current = false;
     setRunning(true);

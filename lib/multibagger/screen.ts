@@ -1,22 +1,23 @@
+import type { Cap } from "@/lib/universe-lists";
 import type { MarketRow } from "./market";
 
 export type Bucket = "penny" | "small" | "micro" | "other" | "sme";
 export const BUCKET_LABEL: Record<Bucket, string> = { penny: "Penny (under ₹50)", small: "Small cap", micro: "Micro cap", other: "Other listed", sme: "SME (Emerge)" };
 
 /** Penny = priced under ₹50 whatever the company size; otherwise by the Nifty list it sits in, or "other listed" if in none. */
-export function bucketOf(price: number, cap?: "large" | "mid" | "small" | "micro"): Bucket {
+export function bucketOf(price: number, cap?: Cap): Bucket {
   if (price < 50) return "penny";
-  return cap === "small" ? "small" : cap === "micro" ? "micro" : "other";
+  return cap === "sme" ? "sme" : cap === "small" ? "small" : cap === "micro" ? "micro" : "other";
 }
 
-export interface Stage1 { row: MarketRow; cap?: "large" | "mid" | "small" | "micro"; bucket: Bucket; pre: number; why: string[] }
+export interface Stage1 { row: MarketRow; cap?: Cap; bucket: Bucket; pre: number; why: string[] }
 
 /**
  * First cut over every listed stock using only today's market snapshot: tradable (enough rupees changing hands), not a
  * falling knife, and showing early strength (near its 52-week high, up over 30 days, well off the low). Large and mid
  * caps are left out: this tab hunts the small end of the market where a 5 to 10 times move is possible at all.
  */
-export function stage1(rows: MarketRow[], capOf: (symbol: string) => "large" | "mid" | "small" | "micro" | undefined, opts: { minValueCr?: number; minPrice?: number } = {}): Stage1[] {
+export function stage1(rows: MarketRow[], capOf: (symbol: string) => Cap | undefined, opts: { minValueCr?: number; minPrice?: number } = {}): Stage1[] {
   const { minValueCr = 0.15, minPrice = 5 } = opts;
   const out: Stage1[] = [];
   for (const r of rows) {

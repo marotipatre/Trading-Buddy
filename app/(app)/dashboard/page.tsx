@@ -14,7 +14,7 @@ import { StockRow } from "@/components/stock-row";
 import { useQuotes } from "@/components/use-quotes";
 import { useUniverse } from "@/components/use-universe";
 import { useWatchlist } from "@/components/use-watchlist";
-import { CAP_LABEL, type Cap } from "@/lib/universe-lists";
+import { CAP_LABEL, CAP_ORDER } from "@/lib/universe-lists";
 import { fmtInr } from "@/lib/format";
 import { companyName, displaySymbol } from "@/lib/symbols";
 import { INDICES, POPULAR_STOCKS } from "@/lib/universe";
@@ -98,8 +98,8 @@ export default function ExplorePage() {
           <h2 className="text-lg font-semibold tracking-tight">Browse by size and sector</h2>
           <Link href="/stocks" className="text-sm text-primary hover:underline">All stocks</Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {(["large", "mid", "small", "micro"] as Cap[]).map((c) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {CAP_ORDER.map((c) => (
             <Link key={c} href={`/stocks?cap=${c}`}>
               <Card className="transition-colors hover:bg-accent/40">
                 <CardContent className="space-y-0.5">
@@ -111,7 +111,7 @@ export default function ExplorePage() {
           ))}
         </div>
         <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-          {(sectors ?? []).slice(0, 12).map((s) => (
+          {(sectors ?? []).filter((s) => s.name !== "Unclassified").slice(0, 12).map((s) => (
             <Link key={s.name} href={`/stocks?sector=${encodeURIComponent(s.name)}`} className="shrink-0 rounded-full border px-3 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
               {s.name} <span className="opacity-60">{s.count}</span>
             </Link>
