@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, LogOut, TrendingUp, Wallet } from "lucide-react";
+import { Bell, CircleHelp, LogOut, TrendingUp, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useAlerts } from "@/components/alerts/alerts-provider";
@@ -59,6 +59,7 @@ export function AppHeader() {
             <Bell className="size-4" />
             {activeAlerts > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">{activeAlerts}</span>}
           </Link>
+          <Link href="/help" aria-label="Help" title="Help" className="hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground md:grid"><CircleHelp className="size-4" /></Link>
           <ThemeToggle />
           <Button variant="ghost" size="icon" aria-label="Sign out"
             onClick={async () => { await createClient().auth.signOut(); router.replace("/login"); }}>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Compass, FlaskConical, Layers, Lightbulb, MoreHorizontal, Wallet, Zap } from "lucide-react";
+import { BookOpen, CircleHelp, Compass, FlaskConical, Layers, Lightbulb, MoreHorizontal, Wallet, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAIN = [
@@ -16,6 +16,7 @@ const MORE = [
   { href: "/portfolio", label: "Portfolio", icon: Wallet, hint: "Holdings, orders, funds, review" },
   { href: "/strategies", label: "Backtest", icon: FlaskConical, hint: "Test a strategy on history" },
   { href: "/playbook", label: "Rule books", icon: BookOpen, hint: "Swing and intraday rules" },
+  { href: "/help", label: "Help", icon: CircleHelp, hint: "Data sources, extras, FAQ" },
 ];
 
 /** Bottom tab bar for phones, like retail broker apps: four main tabs and a More sheet. */

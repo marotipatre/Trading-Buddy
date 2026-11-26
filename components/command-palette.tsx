@@ -18,6 +18,8 @@ const PAGES = [
   { label: "Funds", href: "/portfolio?tab=funds", hint: "Trading and bank pots" },
   { label: "Price alerts", href: "/portfolio?tab=alerts", hint: "Alerts you set" },
   { label: "Backtest", href: "/strategies", hint: "Test a strategy on history" },
+  { label: "Strategy lab", href: "/strategies/lab", hint: "Compare every strategy on the same stocks" },
+  { label: "Help and about", href: "/help", hint: "Data sources, optional extras, FAQ" },
   { label: "Swing rule book", href: "/playbook?book=swing", hint: "Rules for holding days to weeks" },
   { label: "Intraday rule book", href: "/playbook?book=intraday", hint: "Rules for same-day trades" },
 ];
