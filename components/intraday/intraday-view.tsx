@@ -133,7 +133,7 @@ function Picks({ lock }: { lock: string | null }) {
     try {
       try { reg = marketRegime(await fetchCandles("^NSEI", 500)); setRegime(reg); } catch { /* the market check is optional */ }
       await runPool(universe, 8, async (s) => {
-        try { const p = scoreIntraday(s.symbol, s.name, s.sector, await fetchCandles(s.symbol, 400)); if (p) found.push(p); } catch { /* skip */ }
+        try { const p = scoreIntraday(s.symbol, s.name, s.sector, await fetchCandles(s.symbol, 400), 0, Math.floor(Date.now() / 1000)); if (p) found.push(p); } catch { /* skip */ }
         done++;
         if (done % 10 === 0) setProgress({ done, total: universe.length });
       }, () => stopRef.current);
@@ -147,7 +147,7 @@ function Picks({ lock }: { lock: string | null }) {
           if (j.news) mood = (await moodOf(j.news)).score;
         } catch { /* headlines are optional */ }
         const c = await fetchCandles(p.symbol, 400);
-        const again = scoreIntraday(p.symbol, p.name, p.sector, c, mood);
+        const again = scoreIntraday(p.symbol, p.name, p.sector, c, mood, Math.floor(Date.now() / 1000));
         if (again) rescored.push(again);
       }
       const picks = topPicks(rescored, reg?.regime === "bear" ? 3 : 5, 2);

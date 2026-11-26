@@ -42,7 +42,20 @@ export function nextSession(date: string): string {
  * margin, moving enough to reach a target, trending up, closing strong on rising volume. Returns null if it does not
  * qualify. `mood` (-1..1) is the headline tone, worth up to 10 points either way.
  */
-export function scoreIntraday(symbol: string, name: string, sector: string, daily: Candle[], mood = 0): IntradayPick | null {
+export function scoreIntraday(symbol: string, name: string, sector: string, dailyIn: Candle[], mood = 0, nowSec?: number): IntradayPick | null {
+  // While today's session is still running its daily candle is incomplete (volume and range are not final), so it is
+  // dropped and the plan is built from the last finished day, for the session after today.
+  let daily = dailyIn;
+  let planFrom: string | undefined;
+  if (nowSec !== undefined && daily.length) {
+    const nowIst = new Date((nowSec + 19800) * 1000);
+    const mins = nowIst.getUTCHours() * 60 + nowIst.getUTCMinutes();
+    const today = istDate(nowSec);
+    if (istDate(daily[daily.length - 1].time) === today && mins < 15 * 60 + 35 && nowIst.getUTCDay() >= 1 && nowIst.getUTCDay() <= 5) {
+      daily = daily.slice(0, -1);
+      planFrom = today;
+    }
+  }
   const n = daily.length - 1;
   if (n < 60) return null;
   const L = daily[n];
@@ -90,7 +103,7 @@ export function scoreIntraday(symbol: string, name: string, sector: string, dail
   const risk = entry - stop;
   if (!(risk > 0)) return null;
   const plan: IntradayPlan = { entry, stop, target1: tick(entry + 1.5 * risk), target2: tick(entry + 2.5 * risk), risk, riskPct: (risk / entry) * 100, rr1: (tick(entry + 1.5 * risk) - entry) / risk };
-  return { symbol, name, sector, forDate: nextSession(istDate(L.time)), score, reasons, plan, lastClose: L.close, atrPct, volumeRatio };
+  return { symbol, name, sector, forDate: nextSession(planFrom ?? istDate(L.time)), score, reasons, plan, lastClose: L.close, atrPct, volumeRatio };
 }
 
 /** The best `n` picks, at most `perSector` from one sector, best score first. */

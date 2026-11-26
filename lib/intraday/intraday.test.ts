@@ -98,3 +98,20 @@ describe("summarize", () => {
     expect(s.totalR).toBeCloseTo(2);
   });
 });
+
+describe("picks while the session is running", () => {
+  it("ignores today's unfinished candle and plans for the day after", () => {
+    const c = rising(120);
+    const last = c[c.length - 1];
+    const lastIst = new Date((last.time + 19800) * 1000).toISOString().slice(0, 10);
+    // 11:00 IST on the day of the last candle, if that day is a weekday; otherwise pick the next Monday-like date check is skipped
+    const dow = new Date(lastIst + "T00:00:00Z").getUTCDay();
+    if (dow === 0 || dow === 6) return;
+    const during = Date.parse(lastIst + "T05:30:00Z") / 1000; // 11:00 IST
+    const after = Date.parse(lastIst + "T11:00:00Z") / 1000; // 16:30 IST
+    const a = scoreIntraday("A.NS", "A", "X", c, 0, during);
+    const b = scoreIntraday("A.NS", "A", "X", c, 0, after);
+    expect(b?.forDate).toBe(nextSession(lastIst));
+    if (a) expect(a.forDate).toBe(nextSession(lastIst)); // built from the previous finished day, for the same next session
+  });
+});
