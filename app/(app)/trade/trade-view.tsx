@@ -9,7 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { OrderTicket } from "@/components/paper/order-ticket";
 import { AlertForm } from "@/components/alerts/alert-form";
 import { StockChart } from "@/components/chart/stock-chart";
+import { planFromParams } from "@/lib/plan-link";
 import { NewsPanel } from "@/components/news/news-panel";
+import { TechSnapshot } from "@/components/trade/tech-snapshot";
 import { ForecastCard } from "@/components/forecast/forecast-card";import { PositionsPanel } from "@/components/paper/positions-panel";
 import { SymbolSearch } from "@/components/symbol-search";
 import type { Quote } from "@/lib/data/types";
@@ -27,6 +29,7 @@ import { companyName, displaySymbol } from "@/lib/symbols";
 export function TradeView() {
   const router = useRouter();
   const params = useSearchParams();
+  const plan = planFromParams((k) => params.get(k));
   const symbol = params.get("symbol") ?? "RELIANCE.NS";
   const initialSide = params.get("side") === "sell" ? "sell" : "buy";
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -149,7 +152,8 @@ export function TradeView() {
             {error && !q && <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{error}</p>}
           </CardContent>
         </Card>
-          <StockChart symbol={symbol} />
+          <StockChart symbol={symbol} plan={plan} />
+          <TechSnapshot symbol={symbol} />
           <ForecastCard symbol={symbol} />
           <NewsPanel name={companyName(symbol) ?? displaySymbol(symbol)} price={q?.price} />
         </div>
@@ -170,7 +174,7 @@ export function TradeView() {
               </CardContent>
             </Card>
           )}
-          <OrderTicket key={`${symbol}-${initialSide}`} symbol={symbol} ltp={q?.price} initialSide={initialSide} />
+          <OrderTicket key={`${symbol}-${initialSide}`} symbol={symbol} ltp={q?.price} initialSide={initialSide} plan={plan} />
           <AlertForm key={`alert-${symbol}`} symbol={symbol} ltp={q?.price} />
         </div>
       </div>

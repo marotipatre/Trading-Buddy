@@ -11,6 +11,7 @@ import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { NewsPanel } from "@/components/news/news-panel";
 import { useUniverse } from "@/components/use-universe";
+import { planToQuery } from "@/lib/plan-link";
 import { bullBear } from "@/lib/analysis/bullbear";
 import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
 import { latestPatterns } from "@/lib/analysis/patterns";
@@ -413,7 +414,7 @@ export function IdeasView() {
                         ))}
                       </ul>
                       <p className="text-xs text-muted-foreground">1 week {pct(v.ret.w1)} · 1 month {pct(v.ret.m1)} · 3 months {pct(v.ret.m3)} · 6 months {pct(v.ret.m6)} · RSI {v.rsi.toFixed(0)}</p>
-                      <div className="flex gap-2"><Button size="sm" nativeButton={false} render={<Link href={`/trade?symbol=${encodeURIComponent(i.stock.symbol)}`} />}>Open chart &amp; trade</Button></div>
+                      <div className="flex gap-2"><Button size="sm" nativeButton={false} render={<Link href={`/trade?symbol=${encodeURIComponent(i.stock.symbol)}${p ? `&${planToQuery({ entry: p.entry, stop: p.stop, target: p.target1 })}` : ""}`} />}>{p ? "Open chart with this plan" : "Open chart & trade"}</Button></div>
                       <NewsPanel name={i.stock.name} price={v.price} />
                     </div>
                   )}

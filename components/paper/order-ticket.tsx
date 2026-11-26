@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { usePaper } from "./paper-provider";
 import { displaySymbol } from "@/lib/symbols";
 import { useMarketOpen } from "@/components/use-market-open";
 
-export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: string; ltp?: number; initialSide?: "buy" | "sell" }) {
+export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol: string; ltp?: number; initialSide?: "buy" | "sell"; plan?: { entry: number; stop: number; target: number } | null }) {
   const { state, place, ready, transfer } = usePaper();
   const open = useMarketOpen();
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
@@ -29,6 +29,16 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
   const [targetPct, setTargetPct] = useState(10);
   const [trailing, setTrailing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [planApplied, setPlanApplied] = useState(false);
+  // A plan from Ideas fills the stop and target once, as percentages of the live price, so the ticket matches the plan.
+  useEffect(() => {
+    if (!plan || planApplied || !ltp) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- apply the linked plan once the live price is known */
+    setUseStop(true); setStopPct(Math.max(0.1, Math.round(((ltp - plan.stop) / ltp) * 1000) / 10));
+    setUseTarget(true); setTargetPct(Math.max(0.1, Math.round(((plan.target - ltp) / ltp) * 1000) / 10));
+    setPlanApplied(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [plan, ltp, planApplied]);
 
   const held = state.positions.find((p) => p.symbol === symbol && p.direction === (side === "sell" ? "long" : "short"));
   const closing = !!held && product === held.product;
@@ -92,6 +102,7 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {plan && <p className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs">Plan from Ideas: buy near <b className="font-mono">{plan.entry.toFixed(2)}</b>, stop <b className="font-mono text-down">{plan.stop.toFixed(2)}</b>, target <b className="font-mono text-up">{plan.target.toFixed(2)}</b>. The stop and target below are set from it. {ltp && ltp > plan.entry * 1.02 ? <b className="text-warn">The price is already above the planned entry: consider waiting for a dip.</b> : null}</p>}
         <div className="grid grid-cols-2 gap-2">
           <Button variant={side === "buy" ? "default" : "outline"} className={side === "buy" ? "bg-up text-background hover:bg-up/80" : ""} onClick={() => setSide("buy")}>Buy</Button>
           <Button variant={side === "sell" ? "default" : "outline"} className={side === "sell" ? "bg-down text-background hover:bg-down/80" : ""} onClick={() => setSide("sell")}>Sell</Button>

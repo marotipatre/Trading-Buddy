@@ -22,7 +22,7 @@ import { computeIndicators, loadSpecs, PRESETS, saveSpecs, specId, specLabel, IN
 const compact = (n: number) => (n >= 1e7 ? `${(n / 1e7).toFixed(2)}Cr` : n >= 1e5 ? `${(n / 1e5).toFixed(2)}L` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(Math.round(n)));
 
 /** Price chart with timeframes. Your open positions, stop-loss, take-profit and pending orders are drawn as price lines, and past trades as markers. */
-export function StockChart({ symbol }: { symbol: string }) {
+export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: number; stop: number; target: number } | null }) {
   const [tfId, setTfId] = useState("1d");
   const [mode, setMode] = useState<"candles" | "line">("candles");
   const [hover, setHover] = useState<Hover | null>(null);
@@ -67,6 +67,12 @@ export function StockChart({ symbol }: { symbol: string }) {
     }
     return out;
   }, [state.positions, state.orders, symbol]);
+  const allLines = useMemo<ChartLine[]>(() => plan ? [
+    ...lines,
+    { price: plan.entry, label: `Plan entry ${plan.entry.toFixed(2)}`, tone: "primary", dashed: true },
+    { price: plan.stop, label: `Plan stop ${plan.stop.toFixed(2)}`, tone: "down", dashed: true },
+    { price: plan.target, label: `Plan target ${plan.target.toFixed(2)}`, tone: "up", dashed: true },
+  ] : lines, [lines, plan]);
 
   const markers = useMemo<ChartMarker[]>(() => {
     const times = candles.map((c) => c.time);
@@ -180,7 +186,7 @@ export function StockChart({ symbol }: { symbol: string }) {
             </div>
           ) : (
             <>
-              <PriceChart candles={candles} intraday={intraday} mode={mode} dark={resolvedTheme !== "light"} lines={lines} markers={markers}
+              <PriceChart candles={candles} intraday={intraday} mode={mode} dark={resolvedTheme !== "light"} lines={allLines} markers={markers}
                 resetKey={`${symbol}|${tfId}`} onHover={setHover}
                 scale={scale} tool={tool} onToolChange={setTool} drawings={drawings} onDrawingsChange={updateDrawings} overlays={indicatorLines} />
               {loading && candles.length === 0 && <Skeleton className="absolute inset-0" />}
