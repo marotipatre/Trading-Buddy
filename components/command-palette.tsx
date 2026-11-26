@@ -29,6 +29,7 @@ export function CommandPalette() {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SymbolHit[]>([]);
   const [active, setActive] = useState(0);
+  const [searching, setSearching] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -50,11 +51,13 @@ export function CommandPalette() {
   useEffect(() => {
     if (!open || term.length < 2) return;
     const ctl = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a search is about to start
+    setSearching(true);
     const t = setTimeout(async () => {
       try {
         const j = await (await fetch(`/api/symbols?q=${encodeURIComponent(term)}`, { signal: ctl.signal })).json();
         setHits(((j.results ?? []) as SymbolHit[]).slice(0, 6));
-      } catch { /* ignore */ }
+      } catch { /* ignore */ } finally { if (!ctl.signal.aborted) setSearching(false); }
     }, 120);
     return () => { clearTimeout(t); ctl.abort(); };
   }, [term, open]);
@@ -82,7 +85,7 @@ export function CommandPalette() {
           <kbd className="rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground">Esc</kbd>
         </div>
         <ul className="max-h-[50vh] overflow-y-auto p-1.5" role="listbox">
-          {items.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">Nothing matches &ldquo;{q}&rdquo;.</li>}
+          {items.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">{searching ? "Searching…" : <>Nothing matches &ldquo;{q}&rdquo;.</>}</li>}
           {items.map((it, i) => (
             <li key={it.key} role="option" aria-selected={i === active}>
               <button type="button" onMouseEnter={() => setActive(i)} onClick={it.go} className={cn("flex w-full items-center rounded-lg px-3 py-2 text-left", i === active ? "bg-accent" : "hover:bg-accent/60")}>
