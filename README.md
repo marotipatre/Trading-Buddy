@@ -19,6 +19,11 @@ It answers two questions honestly:
 - **Saved runs**: save any backtest, scan or optimization with its settings, load it again later, and compare up to three side by side.
 - **Price alerts**: "tell me when RELIANCE rises to 1450", checked while the app is open (and by the watcher if enabled), with an in-app notice and an optional browser notification.
 - **Backtester** (`lib/engine`): visual rule builder plus six swing presets, on one stock or on a whole group (size class and/or sector, 5 to 50 stocks) with pooled win probability, how many stocks made money, whether it beat buy-and-hold, and an out-of-sample check. Signals are read at the close and filled at the next open, with pessimistic stop/target ordering, gap handling, trailing and time stops, slippage and Indian transaction charges. Reports win probability, Monte Carlo, in/out-of-sample and a stop-loss study that holds the target fixed so only the stop changes.
+- **Chart** (Trade page): candle sizes 5m, 15m, 4H, 1D and 1W; Price, % and Log scales; TradingView-style drawings (horizontal line and trendline as two-point segments, a % ruler) that you can select, drag, reshape and delete, saved per stock; an Indicators menu (EMA, SMA, Bollinger, Supertrend, RSI in its own pane) with a legend and remembered choices.
+- **News & broker calls** (Trade page): headlines and broker calls (Jefferies, ICICI Securities, HDFC Securities, Motilal Oswal and others) read from Google News RSS, each linked to its article. Broker calls come from headlines only, so coverage is thin.
+- **Ideas**: set an amount, a number of days (7, 15, 30 or your own) and the return you want. It scans large, mid, small or mixed stocks (or all ~500), scores each with a chosen method (trend + strength, Minervini trend template, 12-1 momentum, RSI pullback; daily, weekly or monthly candles), ranks sectors, and shows entry, stop, targets and share count. For each stock it replays the last 3 years to show how often a move of your size happened within your days before the stop, and rolls that into a "what to expect" card. A mixed portfolio spreads picks over sectors, and a Focus list shows stocks in the bullish sectors. A reality-check card cites published return figures.
+- **Portfolio review** (Portfolio > My portfolio review): enter your holdings (or import paper holdings) and get weekly performance against the Nifty 50, sector concentration, and a Hold / Add / Trim / Exit view per holding with a stop level.
+- **Backtest page**: a Simple (EMA) builder (when to buy, stop below an EMA, target at the next EMA), plus presets and rules including support, resistance and trendline levels from confirmed swing pivots (no lookahead). A chart shows the stock, its averages and every simulated buy and exit. A Monthly & weekly tab shows return per period, trades per period and how many periods reached a goal. Strategies can also run on weekly candles.
 - **Paper broker** (`lib/paper`): shares the backtester's cost model. Stops and targets that triggered while the app was closed are replayed, and intraday positions square off at 15:15 IST.
 - **Orders**: market, limit, and stop (trigger) orders. Take-profit and stop-loss exits can be placed on any holding (or edited later with Exits); they are linked, so when one executes the other cancels. Orders are day or GTT (good till triggered, up to a year), execute when the price hits them, fill gaps at the open, and expire on their own. Activity and executions are announced as toasts, including anything that triggered while the app was closed.
 - **Data** (`lib/data`): price history and live quotes come from Upstox's open candle endpoints (no login or key needed; NSE stocks and indices, 10 years of daily and years of 5m/15m, plus today's bars), with Moneycontrol, Yahoo and a verified Google Finance page as fallbacks. Every source is cross-checked, previous close is derived from daily bars, and a price is only shown if it can be tied to the requested symbol. Requests are spaced, deduplicated, cached in Supabase and served stale-while-revalidate. CSV import is the last resort.
@@ -72,11 +77,18 @@ How it stays safe: the watcher only touches an account the open app has not save
 - Short selling on NSE cash equity is intraday-only; the schema rejects delivery shorts.
 - This is a learning and research tool, not financial advice.
 
+## About the Ideas page
+
+Its scores are fixed, visible rules on price trends, headline wording and published broker calls. They are screens, not predictions, and not investment advice. The "what to expect" figures come from each stock's own past windows, which overlap and mostly come from a rising market, so they flatter results. No rule here can promise a monthly return; published momentum approaches have returned roughly 1.5% a month on average, with losing stretches.
+
 ## Layout
 
 ```
 app/(app)/            explore, trade, backtest workbench, portfolio
 app/api/              candles, quotes, symbols route handlers (proxy to data providers)
+components/chart/     price chart, drawings, indicators
+components/ideas/     scan, sectors, expectations, focus list
+lib/analysis/         stock scoring, methods, sectors, hit rates, portfolio mix and review, sentiment
 components/backtest/  rule builder, risk form, charts, result panels
 components/paper/     provider, order ticket, positions, journal, portfolio view
 lib/instruments.ts    every NSE/BSE stock and index, with ranked search
