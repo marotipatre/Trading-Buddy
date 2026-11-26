@@ -31,6 +31,9 @@ import { WeeklyReviewCard } from "@/components/weekly-review-card";
 import { AccountEquityChart } from "@/components/paper/account-equity-chart";
 import { capitalOf } from "@/lib/paper/funds";
 import { IntradayProvider, useIntraday } from "./intraday-provider";
+import { backtestPicks, type PickBacktest } from "@/lib/intraday/pick-backtest";
+import { useLivePicks } from "./use-live-picks";
+import { CALL_LABEL, CALL_TONE } from "@/lib/intraday/live";
 
 const istToday = () => new Date(Date.now() + 19800_000).toISOString().slice(0, 10);
 const OUTCOME = { target: "Target hit", stop: "Stopped out", eod: "Closed at 3:15", "no-entry": "Never triggered", "skipped-gap": "Skipped (gap)" } as const;
@@ -122,6 +125,7 @@ function Inner() {
       <GraduationCard trades={acc.state.trades} book="intraday" />
       <Results />
       <Scorecard />
+      <PickBacktestCard />
       <p className="text-xs text-muted-foreground">Day trading on margin loses money for most people (SEBI&apos;s own studies of Indian traders say so). Read the <Link className="underline" href="/playbook?book=intraday">intraday rule book</Link> before you trade. Paper money only, for learning; picks are rule-based screens, not advice.</p>
     </div>
   );
@@ -147,6 +151,7 @@ function Picks({ lock }: { lock: string | null }) {
   const [settings, setSettings] = useState(false);
   const [regime, setRegime] = useState<MarketRegime | null>(null);
   const stopRef = useRef(false);
+  const live = useLivePicks(batch?.picks, batch?.forDate);
 
   const generate = useCallback(async () => {
     const universe = [...(stocks ?? [])].sort((a, b) => (a.cap === "large" ? 0 : a.cap === "mid" ? 1 : 2) - (b.cap === "large" ? 0 : b.cap === "mid" ? 1 : 2)); // the whole market, most liquid first
@@ -224,6 +229,7 @@ function Picks({ lock }: { lock: string | null }) {
             <p className="text-sm">For the session on <b>{batch.forDate}</b> (found {new Date(batch.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}).</p>
             <div className="grid gap-3 lg:grid-cols-2">
               {batch.picks.map((p) => {
+                const ls = live.status[p.symbol];
                 const size = intradaySize(pot, acc?.leverage ?? 5, riskPct * (regime?.sizeFactor ?? 1), 5, p.plan);
                 return (
                   <div key={p.symbol} className="space-y-2 rounded-lg border p-3">
@@ -231,6 +237,12 @@ function Picks({ lock }: { lock: string | null }) {
                       <span><b className="font-mono text-base">{displaySymbol(p.symbol)}</b> <span className="text-xs text-muted-foreground">{p.sector}</span></span>
                       <span className="tabular font-mono text-sm">{p.score}<span className="text-xs text-muted-foreground">/100</span></span>
                     </div>
+                    {ls && (
+                      <div className={cn("rounded-md border px-2.5 py-1.5 text-xs", CALL_TONE[ls.call] === "up" ? "border-up/40 bg-up/10" : CALL_TONE[ls.call] === "down" ? "border-down/40 bg-down/10" : CALL_TONE[ls.call] === "warn" ? "border-warn/40 bg-warn/10" : "bg-muted/50")}>
+                        <b>Live: {CALL_LABEL[ls.call]}.</b> {ls.say}
+                        <span className="mt-0.5 block font-mono text-muted-foreground">Price {ls.price.toFixed(2)}{ls.vwap ? ` · VWAP ${ls.vwap.toFixed(2)}` : ""}{ls.orHigh ? ` · first-15-min range ${ls.orLow!.toFixed(2)} to ${ls.orHigh.toFixed(2)}` : ""}</span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-4 gap-2 rounded-md bg-muted/50 p-2 text-xs">
                       <span><span className="text-muted-foreground">Buy above</span><b className="block font-mono text-sm">{p.plan.entry.toFixed(2)}</b></span>
                       <span><span className="text-muted-foreground">Stop</span><b className="block font-mono text-sm text-down">{p.plan.stop.toFixed(2)}</b></span>
@@ -440,6 +452,58 @@ function Scorecard() {
             <table className="w-full text-sm">
               <tbody className="divide-y">{rows.slice(0, 40).map((r) => <tr key={r.date + r.symbol}><td className="py-1 text-xs text-muted-foreground">{r.date}</td><td className="font-mono">{displaySymbol(r.symbol)}</td><td className="text-xs">{OUTCOME[r.res.outcome]}</td><td className={cn("tabular text-right font-mono", r.res.r > 0 ? "text-up" : r.res.r < 0 ? "text-down" : "")}>{r.res.r === 0 ? "—" : `${r.res.r > 0 ? "+" : ""}${r.res.r.toFixed(2)}R`}</td></tr>)}</tbody>
             </table>
+          </>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Replays the pick rules over the past ~40 sessions on 30 liquid stocks, so you can see whether the picks would have worked before you trust them. */
+function PickBacktestCard() {
+  const { stocks } = useUniverse();
+  const [busy, setBusy] = useState(false);
+  const [prog, setProg] = useState(0);
+  const [r, setR] = useState<PickBacktest | null>(null);
+  async function run() {
+    const list = (stocks ?? []).filter((x) => x.cap === "large").slice(0, 30);
+    if (!list.length) { toast.error("Stock list is still loading"); return; }
+    setBusy(true); setProg(0);
+    try {
+      const inputs: { symbol: string; name: string; sector: string; daily: Awaited<ReturnType<typeof fetchCandles>>; bars5: Awaited<ReturnType<typeof fetchCandles>> }[] = [];
+      let n = 0;
+      await runPool(list, 6, async (s) => {
+        try {
+          const [daily, bars5] = await Promise.all([fetchCandles(s.symbol, 400), fetchCandles(s.symbol, 40, "5m")]);
+          if (daily.length > 80 && bars5.length > 100) inputs.push({ symbol: s.symbol, name: s.name, sector: s.sector, daily, bars5 });
+        } catch { /* skip stocks with no intraday history */ }
+        setProg(++n / list.length);
+      });
+      setR(backtestPicks(inputs));
+    } finally { setBusy(false); }
+  }
+  const c = r?.card;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Backtest the pick rules</CardTitle>
+        <CardDescription>Runs the exact pick rules on each of the last ~40 sessions using only what was known the day before, then replays the top 5 on that day&apos;s 5-minute candles (30 liquid large caps, before charges). It is a sanity check on a short window, not proof.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button variant="outline" onClick={run} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{busy ? `Replaying… ${Math.round(prog * 100)}%` : r ? "Run again" : "Run backtest"}</Button>
+        {c && (c.evaluated === 0 ? <p className="text-sm text-muted-foreground">No intraday history was available to replay.</p> : (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label="Sessions" value={String(r!.sessions)} sub={`${c.taken} trades taken of ${c.evaluated} picks`} />
+              <Stat label="Winners" value={`${(c.winRate * 100).toFixed(0)}%`} sub={`${c.wins} won, ${c.losses} lost`} />
+              <Stat label="Per trade" value={`${c.avgR >= 0 ? "+" : ""}${c.avgR.toFixed(2)}R`} sub={`${c.totalR >= 0 ? "+" : ""}${c.totalR.toFixed(1)}R in total`} tone={c.avgR >= 0 ? "up" : "down"} />
+              <Stat label="Average move" value={fmtPct(c.avgPnlPct, 2, { sign: true })} sub="before charges" tone={c.avgPnlPct >= 0 ? "up" : "down"} />
+            </div>
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1 font-medium">Pick score</th><th className="font-medium">Trades</th><th className="font-medium">Winners</th><th className="font-medium">Per trade</th></tr></thead>
+              <tbody className="divide-y">{r!.byScore.map((b) => <tr key={b.band}><td className="py-1">{b.band}</td><td>{b.card.taken}</td><td>{b.card.taken ? `${(b.card.winRate * 100).toFixed(0)}%` : "-"}</td><td className={b.card.avgR >= 0 ? "text-up" : "text-down"}>{b.card.taken ? `${b.card.avgR >= 0 ? "+" : ""}${b.card.avgR.toFixed(2)}R` : "-"}</td></tr>)}</tbody>
+            </table>
+            <p className="text-xs text-muted-foreground">{c.avgR <= 0 ? "On this window the picks did not beat the costs of trading them. Treat them as ideas to study, not a system to follow blindly. " : "Positive on this short window, but intraday charges (about 0.1% to 0.2% a round trip) and slippage are not included. "}{c.taken < 30 ? `Only ${c.taken} trades: too few to judge.` : "Forty sessions is still a small sample."}</p>
           </>
         ))}
       </CardContent>
