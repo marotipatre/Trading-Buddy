@@ -88,7 +88,7 @@ export function AppHeader() {
           <MoreMenu path={path} />
         </nav>
         <div className="hidden min-w-0 flex-1 justify-end md:flex">
-          <SymbolSearch onPick={(h) => open(h.symbol)} className="w-full max-w-xs" />
+          <SymbolSearch placeholder="Search stocks" onPick={(h) => open(h.symbol)} className="w-full max-w-xs" />
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1 md:ml-0">
           <span className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium text-muted-foreground lg:flex" title={marketOpen ? "NSE is open" : "NSE is closed"}>
