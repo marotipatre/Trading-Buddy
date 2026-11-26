@@ -3,11 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Candle, Quote } from "@/lib/data/types";
-import { catchUp, closePosition, intradayDue, newAccount, onPrice, placeOrder, squareOffIntraday, cancelOrder, equity as equityOf } from "@/lib/paper/broker";
+import { catchUp, closePosition, expireOrders, intradayDue, modifyOrder, newAccount, onPrice, placeOrder, setExits as setExitsFn, squareOffIntraday, cancelOrder, equity as equityOf } from "@/lib/paper/broker";
 import { annotateTrade, recordEquity } from "@/lib/paper/journal";
 import { addMoney as addMoneyFn, normalizeState, transferMoney, withdrawMoney } from "@/lib/paper/funds";
 import { loadAccount, saveAccount, type Loaded } from "@/lib/paper/store";
-import type { OrderRequest, PaperState, Pot } from "@/lib/paper/types";
+import type { OrderEvent, OrderRequest, PaperState, Pot } from "@/lib/paper/types";
+import { toast } from "sonner";
 import { isMarketOpen } from "@/lib/market-hours";
 
 interface PaperCtx {
@@ -21,6 +22,10 @@ interface PaperCtx {
   place: (req: OrderRequest) => Promise<{ error?: string; filled?: boolean }>;
   closeNow: (positionId: number, qty?: number) => Promise<{ error?: string }>;
   cancel: (orderId: number) => void;
+  /** Change a resting order's price and/or quantity. */
+  modify: (orderId: number, patch: { price?: number; qty?: number }) => Promise<{ error?: string }>;
+  /** Set, change (number) or remove (null) a position's stop-loss and take-profit. */
+  setExits: (positionId: number, exits: { stop?: number | null; target?: number | null; trailing?: boolean }) => Promise<{ error?: string }>;
   annotate: (tradeId: number, patch: { note?: string; tags?: string[] }) => void;
   /** Money moves between the trading pot and the bank pot (or in/out of the app). */
   addMoney: (pot: Pot, amount: number) => { error?: string };
@@ -65,11 +70,25 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
     }, 600);
   }, [supabase]);
 
+  const seenEvent = useRef(0); // highest order-event id already shown to the user
+
+  /** Tell the user when an order executed, expired or was rejected (not for changes they just made). */
+  const announce = useCallback((events: OrderEvent[] | undefined, prefix = "") => {
+    for (const e of events ?? []) {
+      if (e.id <= seenEvent.current) continue;
+      seenEvent.current = Math.max(seenEvent.current, e.id);
+      if (e.kind === "filled") toast.success(prefix + e.text);
+      else if (e.kind === "rejected" || e.kind === "expired") toast.warning(prefix + e.text);
+      else if (e.kind === "cancelled" && e.text.includes("no longer hold")) toast.info(prefix + e.text);
+    }
+  }, []);
+
   const commit = useCallback((next: PaperState) => {
     stateRef.current = next;
     setState(next);
+    announce(next.events);
     scheduleSave();
-  }, [scheduleSave]);
+  }, [scheduleSave, announce]);
 
   // Load + catch up on anything that happened while the app was closed.
   useEffect(() => {
@@ -81,6 +100,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
         loadedRef.current = { id: loaded.id, localOnly: loaded.localOnly };
         setLocalOnly(loaded.localOnly);
         let st = normalizeState(loaded.state);
+        seenEvent.current = Math.max(0, ...(st.events ?? []).map((e) => e.id));
         const symbols = [...new Set([...st.positions.map((p) => p.symbol), ...st.orders.map((o) => o.symbol)])];
         for (const sym of symbols) {
           const since = Math.min(...[...st.positions.filter((p) => p.symbol === sym).map((p) => p.lastCheckedAt), ...st.orders.filter((o) => o.symbol === sym).map((o) => o.createdAt)]);
@@ -92,9 +112,11 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
             st = catchUp(st, sym, candles.map((c) => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
           } catch {}
         }
+        st = expireOrders(st, nowSec());
         if (cancelled) return;
         stateRef.current = st;
         setState(st);
+        announce(st.events, "While you were away: ");
         setReady(true);
         if (st !== loaded.state) scheduleSave();
       } catch (e) {
@@ -107,7 +129,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [supabase, scheduleSave]);
+  }, [supabase, scheduleSave, announce]);
 
   // Live ticks for anything we hold or have working orders on.
   const symbolsKey = useMemo(
@@ -125,6 +147,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
         for (const q of qs) priceRef.current[q.symbol] = q.price;
         let st = stateRef.current;
         for (const q of qs) st = onPrice(st, q.symbol, q.price, q.time || nowSec());
+        st = expireOrders(st, nowSec());
         if (intradayDue(st, nowSec())) st = squareOffIntraday(st, Object.fromEntries(qs.map((q) => [q.symbol, q.price])), nowSec());
         // Sample account value for the equity curve (immediately after a trade closes, else every 15 min).
         st = recordEquity(st, equityOf(st, priceRef.current), nowSec(), { force: st.trades.length !== stateRef.current.trades.length });
@@ -172,7 +195,29 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
     }
   }, [commit]);
 
-  const cancel = useCallback((orderId: number) => commit(cancelOrder(stateRef.current, orderId)), [commit]);
+  const cancel = useCallback((orderId: number) => commit(cancelOrder(stateRef.current, orderId, nowSec())), [commit]);
+  const withPrice = useCallback(async (symbol: string, fn: (ltp: number) => { state: PaperState; error?: string }) => {
+    try {
+      const [q] = await fetchQuotes([symbol]);
+      if (!q) return { error: "No live price available for this symbol" };
+      priceRef.current[q.symbol] = q.price;
+      const r = fn(q.price);
+      if (!r.error) commit(r.state);
+      return { error: r.error };
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  }, [commit]);
+  const modify = useCallback((orderId: number, patch: { price?: number; qty?: number }) => {
+    const o = stateRef.current.orders.find((x) => x.id === orderId);
+    if (!o) return Promise.resolve({ error: "Order not found" });
+    return withPrice(o.symbol, (ltp) => modifyOrder(stateRef.current, orderId, patch, ltp, nowSec()));
+  }, [withPrice]);
+  const setExits = useCallback((positionId: number, exits: { stop?: number | null; target?: number | null; trailing?: boolean }) => {
+    const p = stateRef.current.positions.find((x) => x.id === positionId);
+    if (!p) return Promise.resolve({ error: "Position not found" });
+    return withPrice(p.symbol, (ltp) => setExitsFn(stateRef.current, positionId, exits, ltp, nowSec()));
+  }, [withPrice]);
   const annotate = useCallback(
     (tradeId: number, patch: { note?: string; tags?: string[] }) => commit(annotateTrade(stateRef.current, tradeId, patch)),
     [commit],
@@ -191,8 +236,8 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
   const equity = useMemo(() => equityOf(state, prices), [state, prices]);
 
   const value = useMemo<PaperCtx>(
-    () => ({ state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, addMoney, withdraw, transfer, reset }),
-    [state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, addMoney, withdraw, transfer, reset],
+    () => ({ state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, modify, setExits, annotate, addMoney, withdraw, transfer, reset }),
+    [state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, modify, setExits, annotate, addMoney, withdraw, transfer, reset],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
