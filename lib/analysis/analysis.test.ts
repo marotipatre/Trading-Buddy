@@ -87,3 +87,18 @@ describe("relative strength", () => {
     expect(out[2].score).toBe(60);
   });
 });
+
+describe("weekly and monthly frames", () => {
+  const long = mk((i) => 100 + i * 0.3 + Math.sin(i / 9) * 3, 1500);
+  it("scores on weekly and monthly candles, with wider swings for bigger frames", () => {
+    const d = assessStock("U", long, "daily")!, w = assessStock("U", long, "weekly")!, m = assessStock("U", long, "monthly")!;
+    expect(d && w && m).toBeTruthy();
+    expect(w.reasons.some((r) => r.text.includes("week"))).toBe(true);
+    expect(m.reasons.some((r) => r.text.includes("month"))).toBe(true);
+    if (d.plan && m.plan) expect(m.plan.riskPct).toBeGreaterThanOrEqual(d.plan.riskPct * 0.5);
+  });
+  it("needs enough history for the frame", () => {
+    expect(assessStock("U", mk((i) => 100 + i, 400), "monthly")).toBeNull(); // about 13 months
+    expect(assessStock("U", mk((i) => 100 + i, 450), "weekly")).not.toBeNull();
+  });
+});
