@@ -122,7 +122,7 @@ export function useIdeasScan(method: Method, frame: Frame) {
     if (startedRef.current || uniLoading || !stocks?.length || !lastLoaded.current) return;
     const s = load();
     const age = s ? Date.now() - s.at : Infinity;
-    const stale = !s || s.method !== method || s.frame !== frame || age > (isMarketOpen() ? 15 * 60_000 : 6 * 3600_000);
+    const stale = !s || !s.bases.some((b) => b.feat) || s.method !== method || s.frame !== frame || age > (isMarketOpen() ? 15 * 60_000 : 6 * 3600_000);
     startedRef.current = true;
     if (stale) setTimeout(() => void scan(), 0);
   }, [uniLoading, stocks, method, frame, scan]);
