@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IChartApi, ISeriesApi, Logical } from "lightweight-charts";
-import { drawingPriceAt, formatSpan, logicalToTime, measure, newDrawingId, pctFrom, timeToLogical, type DrawPoint, type Drawing } from "@/lib/drawings";
+import { formatSpan, logicalToTime, measure, newDrawingId, timeToLogical, type DrawPoint, type Drawing } from "@/lib/drawings";
 import type { Candle } from "@/lib/data/types";
 
 export type Tool = "cursor" | "hline" | "trend" | "measure";
@@ -30,12 +30,11 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
   /** The drawing being dragged. It is shown live and only saved when you let go. */
   const [dragInfo, setDragInfo] = useState<{ part: "move" | 0 | 1; x0: number; y0: number; orig: Drawing } | null>(null);
   const [draft, setDraft] = useState<Drawing | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const latest = useRef<Drawing | null>(null);
   const times = useMemo(() => candles.map((c) => c.time), [candles]);
-  const lastClose = candles.at(-1)?.close ?? 0;
   /** Bar counts are only meaningful when both points lie inside the loaded candles; otherwise they are extrapolated. */
   const inData = (pts: DrawPoint[]) => times.length > 1 && pts.every((p) => p.time >= times[0] && p.time <= times[times.length - 1]);
-  const lastIdx = candles.length - 1;
 
   const redraw = useCallback(() => {
     const el = svg.current;
@@ -53,12 +52,20 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
     return () => { ts.unsubscribeVisibleLogicalRangeChange(redraw); chart.unsubscribeCrosshairMove(redraw); ro.disconnect(); clearInterval(iv); };
   }, [chart, redraw]);
 
-  // Escape cancels a drawing in progress.
+  // Escape cancels a drawing in progress. Delete removes the selected drawing. A click anywhere else deselects.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPending(null); setCursor(null); onToolChange("cursor"); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setPending(null); setCursor(null); setSelected(null); onToolChange("cursor"); }
+      else if ((e.key === "Delete" || e.key === "Backspace") && selected && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) {
+        onChange(drawings.filter((d) => d.id !== selected));
+        setSelected(null);
+      }
+    };
+    const onDown = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.("[data-drawing]")) setSelected(null); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onToolChange]);
+    window.addEventListener("pointerdown", onDown);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("pointerdown", onDown); };
+  }, [onToolChange, onChange, drawings, selected]);
 
   useEffect(() => {
     if (tool === "cursor") { setPending(null); setCursor(null); } // eslint-disable-line react-hooks/set-state-in-effect -- leaving a tool abandons a half-drawn shape
@@ -94,6 +101,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
     e.stopPropagation();
     const r = (e.currentTarget as SVGElement).ownerSVGElement?.getBoundingClientRect();
     if (!r) return;
+    setSelected(d.id);
     setDragInfo({ part, x0: e.clientX - r.left, y0: e.clientY - r.top, orig: d });
     setDraft(d);
   }
@@ -110,7 +118,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
       if (g.part !== "move") {
         const p = pointFrom(e, true);
         if (!p) return;
-        const pts = g.orig.points.map((q, i) => (i === g.part ? p : q));
+        const pts = g.orig.kind === "hline" ? g.orig.points.map((q, i) => ({ time: i === g.part ? p.time : q.time, price: p.price })) : g.orig.points.map((q, i) => (i === g.part ? p : q));
         latest.current = { ...g.orig, points: pts };
         setDraft(latest.current);
         return;
@@ -146,13 +154,14 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
     const p = pointFrom(e);
     if (!p) return;
     e.preventDefault();
-    if (tool === "hline") {
-      onChange([...drawings, { id: newDrawingId(), kind: "hline", points: [p] }]);
-      onToolChange("cursor");
-    } else if (!pending) {
+    if (!pending) {
       setPending(p);
     } else {
-      onChange([...drawings, { id: newDrawingId(), kind: tool, points: [pending, p], extend: tool === "trend" }]);
+      const end = tool === "hline" ? { time: p.time, price: pending.price } : p; // a horizontal line stays level
+      if (end.time === pending.time && (tool === "hline" || end.price === pending.price)) return; // needs two different points
+      const id = newDrawingId();
+      onChange([...drawings, { id, kind: tool, points: [pending, end] }]);
+      setSelected(id);
       setPending(null);
       setCursor(null);
       onToolChange("cursor");
@@ -182,15 +191,25 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
 
   const renderOne = (d: Drawing, preview = false) => {
     const op = preview ? 0.7 : 1;
+    const sel = selected === d.id && !preview;
+    const handles = (pts: { x: number; y: number }[], color: string) => !preview && (
+      <>
+        {pts.map((q, i) => (
+          <circle key={i} data-drawing cx={q.x} cy={q.y} r={sel ? 5 : 8} fill={sel ? "var(--background)" : "transparent"} stroke={sel ? color : "none"} strokeWidth={2}
+            style={{ pointerEvents: "all", cursor: "grab" }} onPointerDown={(e) => startDrag(e, d, i as 0 | 1)} />
+        ))}
+      </>
+    );
     if (d.kind === "hline") {
       const y = Y(d.points[0].price);
       if (y === null) return null;
-      const p = pctFrom(d.points[0].price, lastClose);
+      const a = d.points.length > 1 ? xy(d.points[0]) : null, b = d.points.length > 1 ? xy(d.points[1]) : null;
+      const x1 = a && b ? a.x : 0, x2 = a && b ? b.x : w; // an older single-point line spans the chart
       return (
         <g key={d.id} opacity={op}>
-          <line x1={0} x2={w} y1={y} y2={y} stroke="#d99a1c" strokeWidth={1.5} strokeDasharray={preview ? "4 4" : undefined} />
-          {!preview && <line x1={0} x2={w} y1={y} y2={y} stroke="transparent" strokeWidth={14} style={{ pointerEvents: "stroke", cursor: "ns-resize" }} onPointerDown={(e) => startDrag(e, d, "move")} />}
-          {chip(w - 240, y - 12, `${d.points[0].price.toFixed(2)}  ${pct(p)}`, "#d99a1c", preview ? undefined : () => remove(d.id))}
+          <line x1={x1} x2={x2} y1={y} y2={y} stroke="#d99a1c" strokeWidth={sel ? 2.25 : 1.5} strokeDasharray={preview ? "4 4" : undefined} />
+          {!preview && <line data-drawing x1={x1} x2={x2} y1={y} y2={y} stroke="transparent" strokeWidth={14} style={{ pointerEvents: "stroke", cursor: "ns-resize" }} onPointerDown={(e) => startDrag(e, d, "move")} />}
+          {a && b && handles([{ x: a.x, y }, { x: b.x, y }], "#d99a1c")}
         </g>
       );
     }
@@ -198,20 +217,11 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
     if (!a || !b) return null;
     const m = measure(d.points[0], d.points[1], times);
     if (d.kind === "trend") {
-      let ex = b.x, ey = b.y;
-      if (d.extend && b.x !== a.x) { ex = Math.max(w, b.x); ey = a.y + ((b.y - a.y) * (ex - a.x)) / (b.x - a.x); }
-      const now = lastIdx >= 0 ? drawingPriceAt(d, times, lastIdx) : null;
-      const span = inData(d.points) ? `${Math.round(m.bars)} bars` : formatSpan(m.seconds);
-      const label = `${m.dPct >= 0 ? "▲" : "▼"} ${pct(m.dPct)} · ${span}${now ? ` · now ${now.toFixed(2)} (${pct(pctFrom(now, lastClose))})` : ""}`;
       return (
         <g key={d.id} opacity={op}>
-          <line x1={a.x} y1={a.y} x2={ex} y2={ey} stroke="#3b82f6" strokeWidth={1.75} strokeDasharray={preview ? "4 4" : undefined} />
-          <circle cx={a.x} cy={a.y} r={3.5} fill="#3b82f6" /><circle cx={b.x} cy={b.y} r={3.5} fill="#3b82f6" />
-          {!preview && <>
-            <line x1={a.x} y1={a.y} x2={ex} y2={ey} stroke="transparent" strokeWidth={12} style={{ pointerEvents: "stroke", cursor: "move" }} onPointerDown={(e) => startDrag(e, d, "move")} />
-            {([a, b] as const).map((q, i) => <circle key={i} cx={q.x} cy={q.y} r={8} fill="transparent" style={{ pointerEvents: "all", cursor: "grab" }} onPointerDown={(e) => startDrag(e, d, i as 0 | 1)} />)}
-          </>}
-          {chip(Math.min(a.x, b.x), Math.max(a.y, b.y) + 24, label, "#3b82f6", preview ? undefined : () => remove(d.id))}
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#3b82f6" strokeWidth={sel ? 2.5 : 1.75} strokeDasharray={preview ? "4 4" : undefined} />
+          {!preview && <line data-drawing x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} style={{ pointerEvents: "stroke", cursor: "move" }} onPointerDown={(e) => startDrag(e, d, "move")} />}
+          {handles([a, b], "#3b82f6")}
         </g>
       );
     }
@@ -223,15 +233,15 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
         <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={col} strokeWidth={1.5} />
         <circle cx={a.x} cy={a.y} r={3} fill={col} /><circle cx={b.x} cy={b.y} r={3} fill={col} />
         {!preview && <>
-          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} style={{ pointerEvents: "stroke", cursor: "move" }} onPointerDown={(e) => startDrag(e, d, "move")} />
-          {([a, b] as const).map((q, i) => <circle key={i} cx={q.x} cy={q.y} r={8} fill="transparent" style={{ pointerEvents: "all", cursor: "grab" }} onPointerDown={(e) => startDrag(e, d, i as 0 | 1)} />)}
+          <line data-drawing x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={12} style={{ pointerEvents: "stroke", cursor: "move" }} onPointerDown={(e) => startDrag(e, d, "move")} />
+          {handles([a, b], col)}
         </>}
         {chip((a.x + b.x) / 2 - 90, (a.y + b.y) / 2, `${sign(m.dPrice)}${Math.abs(m.dPrice).toFixed(2)} (${pct(m.dPct)}) · ${inData(d.points) ? `${Math.round(m.bars)} bars · ` : ""}${formatSpan(m.seconds)}`, col, preview ? undefined : () => remove(d.id))}
       </g>
     );
   };
 
-  const previewShape = pending && cursor && tool !== "hline" && tool !== "cursor" ? renderOne({ id: "preview", kind: tool, points: [pending, cursor], extend: tool === "trend" }, true) : null;
+  const previewShape = pending && cursor && tool !== "cursor" ? renderOne({ id: "preview", kind: tool, points: [pending, tool === "hline" ? { time: cursor.time, price: pending.price } : cursor] }, true) : null;
 
   return (
     <svg
@@ -247,7 +257,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
       {previewShape}
       {tool !== "cursor" && (
         <text x={10} y={18} fontSize={11} fill="var(--muted-foreground)">
-          {tool === "hline" ? "Click to place a horizontal line" : pending ? "Click the second point" : tool === "trend" ? "Click the first point of the trendline" : "Click the start, then the end, to measure"} · Esc to cancel
+          {pending ? "Click the second point" : tool === "hline" ? "Click where the line starts" : tool === "trend" ? "Click the first point of the trendline" : "Click the start, then the end, to measure"} · Esc to cancel
         </text>
       )}
     </svg>

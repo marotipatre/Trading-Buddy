@@ -8,7 +8,7 @@ export type DrawingKind = "hline" | "trend" | "measure";
 export interface Drawing {
   id: string;
   kind: DrawingKind;
-  /** One point for a horizontal line, two for a trendline or a measurement. */
+  /** A horizontal line has two points on the same price (a segment); an older single-point one spans the whole chart. Two points for a trendline or a measurement. */
   points: DrawPoint[];
   /** Trendlines run on to the right edge when true. */
   extend?: boolean;
@@ -20,7 +20,7 @@ export const DrawingSchema = z.object({
   kind: z.enum(["hline", "trend", "measure"]),
   points: z.array(PointSchema).min(1).max(2),
   extend: z.boolean().optional(),
-}).refine((d) => (d.kind === "hline" ? d.points.length === 1 : d.points.length === 2), { message: "wrong number of points" });
+}).refine((d) => (d.kind === "hline" ? d.points.length >= 1 : d.points.length === 2), { message: "wrong number of points" });
 
 // ---------- time <-> bar position ----------
 

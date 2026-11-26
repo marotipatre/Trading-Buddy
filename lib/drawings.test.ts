@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { barSeconds, drawingPriceAt, formatSpan, logicalToTime, measure, parseDrawings, pctFrom, timeToLogical, trendPriceAt, type Drawing } from "./drawings";
+import { barSeconds, DrawingSchema, drawingPriceAt, formatSpan, logicalToTime, measure, parseDrawings, pctFrom, timeToLogical, trendPriceAt, type Drawing } from "./drawings";
 
 const DAY = 86400;
 const times = [0, 1, 2, 3, 4].map((i) => 1_700_000_000 + i * DAY);
@@ -92,5 +92,14 @@ describe("parseDrawings", () => {
   it("accepts a valid trendline and measure", () => {
     const p = [{ time: 1, price: 10 }, { time: 2, price: 20 }];
     expect(parseDrawings(JSON.stringify([{ id: "t", kind: "trend", points: p, extend: true }, { id: "m", kind: "measure", points: p }]))).toHaveLength(2);
+  });
+});
+
+describe("two-point horizontal lines", () => {
+  it("accepts both the old single-point and the new two-point form", () => {
+    const p = { time: 100, price: 50 };
+    expect(DrawingSchema.safeParse({ id: "a", kind: "hline", points: [p] }).success).toBe(true);
+    expect(DrawingSchema.safeParse({ id: "a", kind: "hline", points: [p, { time: 200, price: 50 }] }).success).toBe(true);
+    expect(DrawingSchema.safeParse({ id: "a", kind: "trend", points: [p] }).success).toBe(false);
   });
 });
