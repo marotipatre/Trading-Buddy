@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -20,10 +21,7 @@ const SHORTCUTS = [["Ctrl K  or  /", "Quick jump to a page or stock"], ["Esc", "
 export default function HelpPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Help and about</h1>
-        <p className="text-sm text-muted-foreground">What this app is, where its data comes from, and how to set up the optional extras</p>
-      </div>
+      <PageHeader title="Help and about" description="What this app is, where its data comes from, and how to set up the optional extras" />
 
       <Card>
         <CardHeader><CardTitle>Start here</CardTitle></CardHeader>

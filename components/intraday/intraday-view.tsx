@@ -80,7 +80,7 @@ function Inner() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardContent className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-5">
+        <CardContent className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-5">
           <Stat label="Pot value" value={fmtInr(view.value)} sub={`Started with ${fmtInr(acc.pot)}`} />
           <Stat label="Total P&L" value={fmtInr(view.pnl, { sign: true })} sub={fmtPct(view.pnlPct, 1, { sign: true }) + " of pot"} tone={view.pnl >= 0 ? "up" : "down"} />
           <Stat label="Today" value={fmtInr(today?.pnl ?? 0, { sign: true })} sub={`${today?.trades ?? 0} trades closed`} tone={(today?.pnl ?? 0) >= 0 ? "up" : "down"} />
@@ -94,6 +94,31 @@ function Inner() {
           {view.broke && <span className="text-sm text-down">Your pot is used up.</span>}
         </CardContent>
       </Card>
+      {localOnly && (
+        <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">Your intraday account is saved only in this browser. Run <code>supabase/migrations/0004_intraday_account.sql</code> in the Supabase SQL editor to back it up and keep it across devices.</p>
+      )}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
+          <Picks lock={lockReason} />
+          <Open />
+          <Results />
+        </div>
+        <div className="min-w-0 space-y-6">
+          {!status.locked && !pledged && (
+            <Card className="border-primary/40">
+              <CardHeader><CardTitle>Today&apos;s pledge</CardTitle><CardDescription>Orders stay off until you tick this, once each day.</CardDescription></CardHeader>
+              <CardContent className="space-y-3">
+                <details className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                  <summary className="cursor-pointer font-medium">Read the {INTRADAY.constitution.length} rules</summary>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5">{INTRADAY.constitution.map((c) => <li key={c}>{c}</li>)}</ol>
+                </details>
+                <label className="flex cursor-pointer items-start gap-2.5 text-sm font-medium">
+                  <input type="checkbox" className="mt-1" onChange={(e) => { if (e.target.checked) { try { localStorage.setItem("tb.intraday.pledge", dateKey); } catch { /* ignore */ } setPledgeDate(dateKey); } }} />
+                  <span>I have read today&apos;s limits and the pledge, and I will trade only the plan.</span>
+                </label>
+              </CardContent>
+            </Card>
+          )}
       <Card className={status.locked ? "border-down/50" : undefined}>
         <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
           <span className="font-medium">Today&apos;s limits</span>
@@ -103,29 +128,13 @@ function Inner() {
           {status.locked ? <span className="w-full font-medium text-down">{status.reason} New orders are switched off. <Link className="underline" href="/playbook?book=intraday">Read the rule book</Link>.</span> : <span className="text-xs text-up">Within limits</span>}
         </CardContent>
       </Card>
-      {localOnly && (
-        <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">Your intraday account is saved only in this browser. Run <code>supabase/migrations/0004_intraday_account.sql</code> in the Supabase SQL editor to back it up and keep it across devices.</p>
-      )}
-      {!status.locked && !pledged && (
-        <Card className="border-primary/40">
-          <CardHeader><CardTitle>Today&apos;s pledge</CardTitle><CardDescription>Read it, then tick the box. Orders stay off until you do, once each day.</CardDescription></CardHeader>
-          <CardContent className="space-y-3">
-            <ol className="list-decimal space-y-1 pl-5 text-sm">{INTRADAY.constitution.map((c) => <li key={c}>{c}</li>)}</ol>
-            <label className="flex cursor-pointer items-start gap-2.5 text-sm font-medium">
-              <input type="checkbox" className="mt-1" onChange={(e) => { if (e.target.checked) { try { localStorage.setItem("tb.intraday.pledge", dateKey); } catch { /* ignore */ } setPledgeDate(dateKey); } }} />
-              <span>I have read today&apos;s limits and the pledge, and I will trade only the plan.</span>
-            </label>
-          </CardContent>
-        </Card>
-      )}
-      <Picks lock={lockReason} />
-      <Open />
-      <EquityCard />
-      <WeeklyReviewCard trades={acc.state.trades} title="Intraday" />
-      <GraduationCard trades={acc.state.trades} book="intraday" />
-      <Results />
-      <Scorecard />
-      <PickBacktestCard />
+          <EquityCard />
+          <WeeklyReviewCard trades={acc.state.trades} title="Intraday" />
+          <GraduationCard trades={acc.state.trades} book="intraday" />
+          <Scorecard />
+          <PickBacktestCard />
+        </div>
+      </div>
       <p className="text-xs text-muted-foreground">Day trading on margin loses money for most people (SEBI&apos;s own studies of Indian traders say so). Read the <Link className="underline" href="/playbook?book=intraday">intraday rule book</Link> before you trade. Paper money only, for learning; picks are rule-based screens, not advice.</p>
     </div>
   );
@@ -135,7 +144,7 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
   return (
     <div className="min-w-0">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("tabular truncate font-mono text-xl font-semibold", tone === "up" && "text-up", tone === "down" && "text-down")}>{value}</div>
+      <div className={cn("figure truncate text-[1.6rem] leading-tight", tone === "up" && "text-up", tone === "down" && "text-down")}>{value}</div>
       {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
     </div>
   );

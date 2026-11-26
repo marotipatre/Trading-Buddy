@@ -314,8 +314,8 @@ export function Workbench() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[440px_minmax(0,1fr)]">
-      <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="What to do">
+      <div className="space-y-4 xl:sticky xl:top-[5.5rem] xl:max-h-[calc(100vh-6.5rem)] xl:self-start xl:overflow-y-auto xl:pb-2 xl:pr-1">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="What to do">
           {([["one", "One stock"], ["group", "Group"], ["optimize", "Optimize"]] as const).map(([m, label]) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} disabled={running} onClick={() => setMode(m)}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${mode === m ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
@@ -466,7 +466,7 @@ export function Workbench() {
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-20 space-y-2 md:bottom-4">
+        <div className="sticky bottom-20 space-y-2 lg:bottom-1">
           {running && progress && (
             <div className="rounded-lg border bg-card p-3 text-xs shadow-lg" role="status">
               <div className="mb-1.5 flex justify-between"><span>Testing <b>{progress.current.replace(/\.NS$/, "")}</b></span><span className="font-mono">{progress.done}/{progress.total}</span></div>
