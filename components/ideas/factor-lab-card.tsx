@@ -25,7 +25,7 @@ export function FactorLabCard() {
     try {
       const series: Record<string, Candle[]> = {};
       let n = 0;
-      await pool(list, 10, async (s) => { try { const c = await fetchCandles(s.symbol, 1100); if (c.length >= 330) series[s.symbol] = c; } catch { /* skip */ } setProg(++n / list.length); });
+      await pool(list, 10, async (s) => { try { const c = await fetchCandles(s.symbol, 1800); if (c.length >= 330) series[s.symbol] = c; } catch { /* skip */ } setProg(++n / list.length); });
       setLab(factorLab(series));
     } finally { setBusy(false); }
   }
@@ -33,7 +33,7 @@ export function FactorLabCard() {
     <div className="space-y-3 rounded-xl border bg-card p-4">
       <div>
         <h3 className="text-base font-semibold">Does our ranking actually work?</h3>
-        <p className="text-sm text-muted-foreground">Every month, using only what was known then, we rank about 200 large and mid caps on each idea, split them into five groups, and see how each group did over the next month. If an idea works, the top group beats the bottom group again and again, not once.</p>
+        <p className="text-sm text-muted-foreground">Every month, using only what was known then, we rank about 200 large and mid caps over up to five years on each idea, split them into five groups, and see how each group did over the next month. If an idea works, the top group beats the bottom group again and again, not once.</p>
       </div>
       <Button variant="outline" onClick={run} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{busy ? `Testing… ${Math.round(prog * 100)}%` : lab ? "Run again" : "Run the test"}</Button>
       {lab === null && <p className="text-sm text-muted-foreground">Not enough history was available to run the test.</p>}

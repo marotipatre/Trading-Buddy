@@ -30,3 +30,26 @@ describe("scoreFundamentals", () => {
   });
   it("says so when there is too little data", () => { expect(scoreFundamentals({ pe: 20 }).flags[0]).toContain("Too little"); });
 });
+
+describe("accuracy guards", () => {
+  it("does not apply debt ratios to banks and lenders", () => {
+    const s = scoreFundamentals({ profit3y: 25, sales3y: 20, roce: 8, roe: 14, debtToEquity: 6, financial: true, promoter: 55, pe: 12, mcapCr: 9000 });
+    expect(s.flags.some((x) => x.includes("Borrowings"))).toBe(false);
+  });
+  it("gives little growth credit and a loss flag when there is no P/E", () => {
+    const loss = scoreFundamentals({ profit3y: 40, sales3y: 30, roce: 20, roe: 20, promoter: 60, noPe: true, mcapCr: 800 });
+    const ok = scoreFundamentals({ profit3y: 40, sales3y: 30, roce: 20, roe: 20, promoter: 60, pe: 20, mcapCr: 800 });
+    expect(loss.score).toBeLessThan(ok.score - 15);
+    expect(loss.flags.some((x) => x.includes("No positive P/E"))).toBe(true);
+  });
+  it("flags negative net worth and words promoter changes as a fact, not an accusation", () => {
+    const s = scoreFundamentals({ bookValue: -4, promoter: 20, promoterStart: 45, promoterChange: -25, noPe: true, roce: -2, mcapCr: 5000 });
+    expect(s.flags.some((x) => x.includes("Negative book value"))).toBe(true);
+    expect(s.flags.some((x) => x.includes("fell from 45.0% to 20.0%"))).toBe(true);
+    expect(s.flags.join(" ")).not.toMatch(/sold/);
+  });
+  it("marks banks as financial when parsing", () => {
+    const f = parseScreener("<h1>X Bank Ltd</h1> Market Cap ₹ 5,000 Cr. Stock P/E 10 ROCE 7 % ROE 11 % Deposits + 100 120 150 Borrowings + 10 20 30");
+    expect(f?.financial).toBe(true);
+  });
+});

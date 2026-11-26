@@ -80,11 +80,11 @@ const PREFIXES = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"];
  * Every listed equity. The tool returns at most 500 stocks per call, so the list is fetched by symbol prefix (A, B, C...)
  * and any prefix that hits the cap is split into two-letter prefixes.
  */
-export async function getAllEquities(f?: typeof fetch): Promise<Eq> {
+export async function getAllEquities(f?: typeof fetch, tool: "cm_get_equity_stocks" | "cm_get_sme_stocks" = "cm_get_equity_stocks"): Promise<Eq> {
   const seen = new Map<string, Record<string, unknown>>();
   let updatedAt: string | undefined;
   const grab = async (prefix: string): Promise<void> => {
-    const j = await callTool<Eq>("live", "cm_get_equity_stocks", { limit: 500, symbolFilter: prefix }, f);
+    const j = await callTool<Eq>("live", tool, { limit: 500, symbolFilter: prefix }, f);
     updatedAt ??= j.updatedAt;
     for (const s of j.stocks) seen.set(String(s.symbol), s);
     if (j.stocks.length >= 500 && prefix.length < 2) await Promise.all(PREFIXES.map((c) => grab(prefix + c)));

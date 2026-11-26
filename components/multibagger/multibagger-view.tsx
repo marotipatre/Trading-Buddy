@@ -94,7 +94,7 @@ export function MultibaggerView() {
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-warn/40 bg-warn/10 p-4 text-sm">
-        <b>Read this first.</b> A multibagger is a stock that grows 5 to 10 times. Most small and penny stocks never do: many fall, some are manipulated, and thinly traded ones can trap your money. This tab only lists stocks that pass <b>both</b> a financial check and a chart check, and flags the dangers. It narrows the haystack; it does not predict winners. Paper trade first, keep each position small, and read the company before you buy.
+        <b>Read this first.</b> A multibagger is a stock that grows 5 to 10 times. Many small and penny stocks fall or become impossible to sell, and some are manipulated. This tab only lists stocks that pass <b>both</b> a financial check and a chart check, and flags the dangers. It narrows the haystack; it does not predict winners. Paper trade first, keep each position small, and read the company before you buy.
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3.5">
@@ -108,7 +108,7 @@ export function MultibaggerView() {
       {mb.error && <p className="rounded-xl border border-down/40 bg-down/10 p-3 text-sm text-down">{mb.error}</p>}
 
       <div className="flex flex-wrap items-center gap-2">
-        {([["all", "All"], ["small", "Small cap"], ["micro", "Micro cap"], ["penny", "Penny (under ₹50)"], ["other", "Other listed"]] as const).map(([k, l]) => (
+        {([["all", "All"], ["small", "Small cap"], ["micro", "Micro cap"], ["penny", "Penny (under ₹50)"], ["other", "Other listed"], ["sme", "SME (Emerge)"]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setBucket(k)} className={cn("rounded-full border px-3 py-1 text-xs font-medium", bucket === k ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{l}</button>
         ))}
         <span className="mx-1 h-4 w-px bg-border" />
@@ -125,10 +125,10 @@ export function MultibaggerView() {
       <details className="rounded-xl border bg-card p-4 text-sm">
         <summary className="cursor-pointer font-medium">How the score works</summary>
         <div className="mt-3 space-y-2 text-muted-foreground">
-          <p><b className="text-foreground">Step 1, the whole market.</b> NSE&apos;s official feed lists about 3,000 stocks. We drop ETFs, large and mid caps (they rarely multiply), stocks that barely trade, and any still near their 52-week low.</p>
+          <p><b className="text-foreground">Step 1, the whole market.</b> NSE&apos;s official feed lists about 3,500 stocks (mainboard plus SME). We drop ETFs, large and mid caps (they start from a much bigger base), stocks that barely trade, and any still near their 52-week low.</p>
           <p><b className="text-foreground">Step 2, the chart (45%).</b> Best 120 get a technical score: a stage 2 uptrend, closeness to the 1-year high, 6-month strength, rising volume, and how bad the worst fall was. Thin trading and big drawdowns are flagged.</p>
           <p><b className="text-foreground">Step 3, the business (55%).</b> The top 36 charts get a fundamental score: profit and sales growth, return on capital, low debt, promoter holding and whether the price is sensible for the growth. Losses, heavy debt and promoters selling cost points.</p>
-          <p>Sources: prices and the market list from NSE&apos;s official MCP feed, charts from our market data, financials from public company pages on screener.in (cached a day, for personal learning). Not advice.</p>
+          <p>Sources: prices and the market list from NSE&apos;s official MCP feed (mainboard and SME), charts from our market data, financials from public company pages on screener.in (cached a day, for personal learning; they can lag the latest results). Every number shown is read from those sources or computed from them, never estimated. The weights and cut-offs in the scores are our own rules of thumb, not proven predictors. Not advice.</p>
         </div>
       </details>
     </div>

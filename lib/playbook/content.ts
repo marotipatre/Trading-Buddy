@@ -116,7 +116,7 @@ const SWING_INDIA: Section = {
   intro: "Rules change. Check current figures with your broker or a tax advisor before relying on them.",
   rules: [
     { rule: "Short-term capital gains on listed equity held under a year were taxed at 20%, and long-term gains above Rs 1.25 lakh a year at 12.5% (rates since July 2024; they have changed before).", why: "Tax is a cost on every winning swing trade. A 10% pre-tax gain is closer to 8% after tax and charges." },
-    { rule: "Check the circuit band and delivery volume. Stocks that hit 5% or 10% circuits can be impossible to exit.", why: "A stop-loss does not help if there are no sellers' buyers." },
+    { rule: "Check the circuit band and delivery volume. Stocks that hit their daily price band (2%, 5%, 10% or 20%, set by the exchange) can be impossible to exit.", why: "A stop-loss does not help if there are no sellers' buyers." },
     { rule: "Avoid the ASM/GSM watch lists and stocks under trade-for-trade settlement.", why: "These carry extra margin rules and are flagged by the exchange for unusual risk." },
     { rule: "Be careful with results season, Union Budget, RBI policy days and global events. Reduce size or skip trades that could gap beyond your stop.", why: "Gaps go through stops. Size to survive a gap, not just a normal stop-out." },
     { rule: "Prefer stocks in the Nifty 200 for swing trades until you have a track record.", why: "Liquidity and information quality are better than in small caps, so your stops behave as expected." },
@@ -374,8 +374,8 @@ export const INTRADAY: Book = {
   title: "Intraday rule book",
   tagline: "Same-day trades with margin. The aim is to survive, keep losses small and trade only when conditions are good.",
   facts: [
-    { text: "SEBI's study of FY2022-23 found about 7 in 10 individual intraday traders in the equity cash segment made a net loss, rising to about 8 in 10 among the most frequent traders; costs made up a large share of the losses.", href: "https://www.sebi.gov.in/media-and-notifications/press-releases/jul-2024/sebi-study-finds-that-7-out-of-10-individual-intraday-traders-in-equity-cash-segment-make-losses_84948.html" },
-    { text: "SEBI's earlier studies of futures and options found roughly 9 in 10 active individual traders lost money (about 89–90% in FY22, per press reports of SEBI's study)." },
+    { text: "SEBI's study of FY2022-23 found about 7 in 10 individual intraday traders in the equity cash segment made a net loss in that study, and the study reported that trading costs were a large part of the losses.", href: "https://www.sebi.gov.in/media-and-notifications/press-releases/jul-2024/sebi-study-finds-that-7-out-of-10-individual-intraday-traders-in-equity-cash-segment-make-losses_84948.html" },
+    { text: "SEBI's studies of equity futures and options found that roughly 9 in 10 individual traders lost money (reported as 89% for FY22 and 93% across FY22 to FY24). Read the studies on sebi.gov.in for the exact definitions." },
     { text: "Margin multiplies gains and losses equally. At 5x, a 1% move against you costs 5% of your own money, and a 20% adverse move wipes it out." },
   ],
   sections: [

@@ -15,8 +15,9 @@ export async function GET() {
   if (!rl.ok) return NextResponse.json({ error: `Too many requests. Try again in ${rl.retryAfterSec}s.` }, { status: 429 });
   if (cache && Date.now() - cache.at < 5 * 60_000) return NextResponse.json({ rows: cache.rows, updatedAt: cache.updatedAt, source: "NSE official MCP (live, delayed)" });
   try {
-    const j = await getAllEquities();
-    const rows = parseMarket(j);
+    const [main, sme] = await Promise.all([getAllEquities(), getAllEquities(undefined, "cm_get_sme_stocks").catch(() => ({ stocks: [] as Record<string, unknown>[], updatedAt: undefined }))]);
+    const j = main;
+    const rows = [...parseMarket(main), ...parseMarket(sme, "sme")];
     if (rows.length < 500) throw new Error("NSE returned too few stocks");
     cache = { at: Date.now(), rows, updatedAt: j.updatedAt };
     return NextResponse.json({ rows, updatedAt: j.updatedAt, source: "NSE official MCP (live, delayed)" });

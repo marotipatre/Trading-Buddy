@@ -1,7 +1,7 @@
 import type { MarketRow } from "./market";
 
-export type Bucket = "penny" | "small" | "micro" | "other";
-export const BUCKET_LABEL: Record<Bucket, string> = { penny: "Penny (under ₹50)", small: "Small cap", micro: "Micro cap", other: "Other listed" };
+export type Bucket = "penny" | "small" | "micro" | "other" | "sme";
+export const BUCKET_LABEL: Record<Bucket, string> = { penny: "Penny (under ₹50)", small: "Small cap", micro: "Micro cap", other: "Other listed", sme: "SME (Emerge)" };
 
 /** Penny = priced under ₹50 whatever the company size; otherwise by the Nifty list it sits in, or "other listed" if in none. */
 export function bucketOf(price: number, cap?: "large" | "mid" | "small" | "micro"): Bucket {
@@ -22,7 +22,8 @@ export function stage1(rows: MarketRow[], capOf: (symbol: string) => "large" | "
   for (const r of rows) {
     const cap = capOf(r.symbol);
     if (cap === "large" || cap === "mid") continue;
-    if (r.price < minPrice || r.valueCr < minValueCr || r.series === "BE" && r.valueCr < 0.5) continue;
+    const sme = r.segment === "sme";
+    if (r.price < minPrice || r.valueCr < (sme ? 0.02 : minValueCr) || r.series === "BE" && r.valueCr < 0.5) continue;
     const range = r.high52 - r.low52;
     if (range <= 0) continue;
     const pos = (r.price - r.low52) / range; // 0 at the low, 1 at the high
@@ -34,7 +35,7 @@ export function stage1(rows: MarketRow[], capOf: (symbol: string) => "large" | "
     if (r.chg30d !== null && r.chg30d > 5) { pre += Math.min(20, r.chg30d); why.push(`Up ${r.chg30d.toFixed(0)}% in 30 days`); }
     if (r.price / r.low52 >= 1.5) { pre += 8; why.push(`${((r.price / r.low52 - 1) * 100).toFixed(0)}% above its 52-week low`); }
     pre += Math.min(10, Math.log10(Math.max(1, r.valueCr * 100)) * 3); // a little credit for being easier to trade
-    out.push({ row: r, cap, bucket: bucketOf(r.price, cap), pre, why });
+    out.push({ row: r, cap, bucket: sme ? "sme" : bucketOf(r.price, cap), pre, why });
   }
   return out.sort((a, b) => b.pre - a.pre);
 }
