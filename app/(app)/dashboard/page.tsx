@@ -68,10 +68,6 @@ export default function ExplorePage() {
         <Button variant="ghost" size="icon" aria-label="Refresh prices" onClick={() => { idx.refresh(); watch.refresh(); movers.refresh(); }}><RefreshCw /></Button>
       </div>
 
-      <GettingStarted />
-      <TodayCard />
-      <TopIdeas />
-
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {INDEX_SYMBOLS.map((i) => {
           const q = idx.quotes[i.symbol];
@@ -92,6 +88,10 @@ export default function ExplorePage() {
           );
         })}
       </div>
+
+      <TodayCard />
+      <TopIdeas />
+      <GettingStarted />
 
       <div className="space-y-3">
         <div className="flex items-end justify-between">

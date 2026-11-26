@@ -33,6 +33,16 @@ export function GettingStarted() {
   ];
   const n = steps.filter((s) => s.done).length;
   if (n === steps.length) return null;
+  const todo = steps.filter((s) => !s.done);
+  // Once you are past the first steps, shrink to one slim line of what is left instead of a big card.
+  if (n >= 3) return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/25 bg-primary/[0.04] px-3.5 py-2.5 text-sm">
+      <span className="font-medium">{n} of {steps.length} steps done.</span>
+      <span className="text-muted-foreground">Next:</span>
+      {todo.map((t) => <Link key={t.label} href={t.href} title={t.hint} className="rounded-full border bg-card px-3 py-1 text-xs font-medium hover:bg-accent">{t.label}</Link>)}
+      <button type="button" aria-label="Hide getting started" className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-accent" onClick={() => { try { localStorage.setItem(DISMISS, "1"); } catch { /* ignore */ } setFlags({ ...flags, dismissed: true }); }}><X className="size-4" /></button>
+    </div>
+  );
   return (
     <Card className="border-primary/30 bg-primary/[0.03]">
       <CardHeader>
