@@ -20,7 +20,8 @@ const STALE_MS = 6 * 3600_000;
 const nameOf = (s: string) => s;
 
 const read = (): Saved | null => { try { const v = JSON.parse(localStorage.getItem(KEY) ?? "null") as Saved | null; return v?.items?.length ? v : null; } catch { return null; } };
-const rank = (a: Candidate, b: Candidate) => (b.score ?? -1) - (a.score ?? -1) || b.ta.score - a.ta.score;
+const TIER: Record<Call, number> = { strong: 3, watch: 2, avoid: 1, pending: 0 };
+const rank = (a: Candidate, b: Candidate) => TIER[b.call] - TIER[a.call] || (b.score ?? -1) - (a.score ?? -1) || b.ta.score - a.ta.score;
 
 /**
  * Whole-market hunt for small, micro and penny stocks. Stage 1 reads every listed stock from NSE and keeps the tradable
@@ -76,8 +77,9 @@ export function useMultibagger() {
           for (const c of batch) {
             const f = (d.data?.[c.symbol] ?? null) as Fundamentals | null;
             c.fa = f; c.faScore = f ? scoreFundamentals(f) : null; c.faState = f ? "ok" : "none";
-            const m = combine(c.faScore, c.ta); c.score = m.score; c.call = c.faState === "none" ? "avoid" : m.call;
-            if (c.faState === "none") c.call = "pending";
+            const m = combine(c.faScore, c.ta); c.score = m.score; c.call = c.faState === "none" ? "pending" : m.call;
+            // SME-platform stocks trade in fixed lots, very thinly and with lighter disclosure: never a "strong" call.
+            if (c.bucket === "sme") { if (!c.ta.flags.some((x) => x.startsWith("SME"))) c.ta.flags.push("SME-platform listing: trades in fixed lots, very thinly, with lighter disclosure than the main board"); if (c.call === "strong") c.call = "watch"; }
           }
         } catch { for (const c of batch) c.faState = "none"; }
         fd += batch.length;
