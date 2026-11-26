@@ -80,33 +80,41 @@ export function IntradayProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pushRemote]);
 
-  // Load the newer of the browser copy and the Supabase copy, then settle anything left over from an earlier session.
+  // Show the browser copy at once (the page never waits on the network), then reconcile with Supabase and settle
+  // anything left over from an earlier session in the background.
   useEffect(() => {
     let dead = false;
+    const local = loadIntraday();
+    ref.current = local;
+    seen.current = Math.max(0, ...(local?.state.events ?? []).map((e) => e.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- show the saved account immediately after mount
+    setAcc(local);
+    setReady(true);
     (async () => {
-      const local = loadIntraday();
       let remote: Awaited<ReturnType<typeof loadRemote>> = { acc: null, missing: false };
-      try { remote = await loadRemote(supabase); } catch { /* offline: use the browser copy */ }
+      try { remote = await loadRemote(supabase); } catch { /* offline: keep the browser copy */ }
       if (dead) return;
       if (remote.missing) { remoteOk.current = false; setLocalOnly(true); }
-      let a = newer(local, remote.acc);
+      let a = newer(ref.current, remote.acc);
       if (a) {
         const today = istStartOfDay(nowSec());
         const stale = a.state.positions.filter((p) => p.product === "intraday" && p.entryTime < today);
         if (stale.length) {
           const bars: Record<string, Awaited<ReturnType<typeof fetchCandles>>> = {};
           for (const sym of new Set(stale.map((p) => p.symbol))) { try { bars[sym] = await fetchCandles(sym, 40, "5m"); } catch { /* handled as no data */ } }
+          if (dead) return;
           const r = settleStale(a.state, bars, nowSec());
           a = { ...a, state: expireOrders(r.state, nowSec()) };
           if (r.settled) toast.info(`Closed ${r.settled} position${r.settled > 1 ? "s" : ""} from an earlier session at its 3:15 pm price${r.noData.length ? ` (no candles for ${r.noData.join(", ")}: closed at entry)` : ""}.`);
         }
       }
-      if (dead) return;
+      if (!dead && !remote.acc && !remote.missing && ref.current) pushRemote(); // first backup of an existing local account
+      if (dead || !a || a === ref.current) return;
       ref.current = a;
-      seen.current = Math.max(0, ...(a?.state.events ?? []).map((e) => e.id));
+      seen.current = Math.max(seen.current, ...(a.state.events ?? []).map((e) => e.id));
       setAcc(a);
-      if (a) { saveIntraday(a); if (a !== local) pushRemote(); }
-      setReady(true);
+      saveIntraday(a);
+      pushRemote();
     })();
     return () => { dead = true; };
   }, [supabase, pushRemote]);
