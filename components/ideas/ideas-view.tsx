@@ -20,6 +20,7 @@ import { MarketStrip } from "./market-strip";
 import { DEFAULT_PLAN, PlanBar, type PlanState } from "./plan-bar";
 import { PortfolioPlan, type Expectation } from "./portfolio-plan";
 import { RealityCheck } from "./reality-check";
+import { FactorLabCard } from "./factor-lab-card";
 import { SectorMap } from "./sector-map";
 import { SectorOutlook } from "./sector-outlook";
 import { useSectors } from "./use-sectors";
@@ -170,6 +171,7 @@ export function IdeasView() {
               {METHODS.find((m) => m.id === method)?.evidence && <p className="mt-2 rounded bg-muted/60 p-2 text-xs"><b>Backtest evidence:</b> {METHODS.find((m) => m.id === method)!.evidence}</p>}
               {PRESET_OF[method] && <p className="mt-2 text-xs"><Link className="underline" href={`/strategies?preset=${PRESET_OF[method]}&mode=group`}>Backtest this method on a group of stocks</Link></p>}
             </div>
+            <FactorLabCard />
             <RealityCheck />
           </div>
         )}
