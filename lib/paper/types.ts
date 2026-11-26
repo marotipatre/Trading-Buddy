@@ -28,12 +28,22 @@ export interface PaperPosition {
   note?: string;
 }
 
+export type OrderKind = "limit" | "stop";
+/** Day orders lapse at the end of the next session; GTT ("good till triggered") orders last up to a year. */
+export type Validity = "day" | "gtt";
+
 export interface PendingOrder {
   id: number;
   symbol: string;
   side: "buy" | "sell";
   qty: number;
+  /** The limit price (kind "limit") or the trigger price (kind "stop"). */
   limitPrice: number;
+  /** Missing on orders saved before stop orders existed: treated as "limit". */
+  kind?: OrderKind;
+  validity?: Validity;
+  /** Unix seconds after which the order is cancelled automatically. */
+  expiresAt?: number;
   product: Product;
   stop?: number;
   target?: number;
@@ -84,9 +94,19 @@ export interface PaperState {
   /** Net money ever moved into the trading pot (initial + deposits - withdrawals). Returns are measured against this. */
   tradingCapital?: number;
   transfers?: Transfer[];
+  events?: OrderEvent[];
 }
 
 export type Pot = "trading" | "bank";
+
+/** Things that happened to your orders: triggered, cancelled, expired, rejected. */
+export interface OrderEvent {
+  id: number;
+  time: number;
+  symbol: string;
+  kind: "filled" | "cancelled" | "expired" | "rejected" | "updated";
+  text: string;
+}
 
 export interface Transfer {
   id: number;
@@ -102,8 +122,11 @@ export interface OrderRequest {
   symbol: string;
   side: "buy" | "sell";
   qty: number;
-  type: "market" | "limit";
+  type: "market" | "limit" | "stop";
   limitPrice?: number;
+  /** For type "stop": the price that triggers a market order. */
+  triggerPrice?: number;
+  validity?: Validity;
   product: Product;
   /** Absolute protective stop price (set on the entry). */
   stop?: number;
