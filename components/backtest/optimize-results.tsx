@@ -23,7 +23,7 @@ export interface OptimizeOutput {
   warnings: string[];
 }
 
-const fmtVal = (p: ParamKey, v: number) => (p === "stopPct" || p === "targetPct" ? `${v}%` : p === "stopAtr" ? `${v}×ATR` : `${v} days`);
+export const fmtVal = (p: ParamKey, v: number) => (p === "stopPct" || p === "targetPct" ? `${v}%` : p === "stopAtr" ? `${v}×ATR` : `${v} days`);
 
 export function verdictFor(o: OptimizeOutput): { tone: "up" | "warn" | "down"; title: string; body: string } {
   const r = o.robust.robust;

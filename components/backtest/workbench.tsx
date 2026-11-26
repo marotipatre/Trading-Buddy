@@ -20,7 +20,11 @@ import { StrategyDef } from "@/lib/engine/strategy";
 import { useUniverse } from "@/components/use-universe";
 import { GroupPicker, type GroupCap } from "./group-picker";
 import { ScanResults } from "./scan-results";
-import { OptimizeResults, type OptimizeOutput } from "./optimize-results";
+import { fmtVal, OptimizeResults, type OptimizeOutput } from "./optimize-results";
+import { SaveRunBar } from "./save-run-bar";
+import { SavedRuns } from "./saved-runs";
+import { useSavedRuns } from "./use-saved-runs";
+import { summaryFromAnalysis, summaryFromOptimize, summaryFromScan, type SavedConfig, type Summary } from "@/lib/saved-backtests";
 import { NumberField } from "./number-field";
 import { RiskForm } from "./risk-form";
 import { BacktestResults } from "./results";
@@ -51,6 +55,7 @@ export function Workbench() {
   const [optParam, setOptParam] = useState<ParamKey>("stopPct");
   const [optObjective, setOptObjective] = useState<Objective>("expectancy");
   const [optOut, setOptOut] = useState<OptimizeOutput | null>(null);
+  const saved = useSavedRuns();
   const showGroup = mode === "group" || (mode === "optimize" && optScope === "group");
   const [cap, setCap] = useState<GroupCap>("large");
   const [sector, setSector] = useState("all");
@@ -83,6 +88,46 @@ export function Workbench() {
     if (!p) return;
     setPresetId(id);
     setStrategy(p.strategy);
+  }
+
+  function currentConfig(): SavedConfig | null {
+    const parsed = StrategyDef.safeParse(strategy);
+    if (!parsed.success) return null;
+    return {
+      mode, symbol: mode === "group" || (mode === "optimize" && optScope === "group") ? undefined : symbol, years: Number(years), strategy: parsed.data,
+      slippageBps, zeroBrokerage, group: { cap, sector, count: Number(count) }, optimize: { scope: optScope, param: optParam, objective: optObjective },
+    };
+  }
+
+  function loadConfig(c: SavedConfig) {
+    setMode(c.mode);
+    if (c.symbol) setSymbol(c.symbol);
+    setYears(String(c.years));
+    setStrategy(c.strategy);
+    setPresetId("custom");
+    setSlippageBps(c.slippageBps);
+    setZeroBrokerage(c.zeroBrokerage);
+    if (c.group) { setCap(c.group.cap); setSector(c.group.sector); setCount(String(c.group.count)); }
+    if (c.optimize) { setOptScope(c.optimize.scope); setOptParam(c.optimize.param); setOptObjective(c.optimize.objective); }
+    toast.success("Settings loaded. Press the run button to test again on fresh data.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const hasResult = (mode === "one" && !!out) || (mode === "group" && !!scanOut) || (mode === "optimize" && !!optOut);
+  const resultLabel = mode === "optimize" ? optOut?.label : mode === "group" ? scanOut?.label : out?.label;
+
+  async function saveCurrent(name: string): Promise<{ error?: string }> {
+    const cfg = currentConfig();
+    if (!cfg) return { error: "The strategy is not valid yet" };
+    let summary: Summary;
+    if (mode === "one" && out) summary = summaryFromAnalysis(out.analysis, out.label);
+    else if (mode === "group" && scanOut) summary = summaryFromScan(scanOut.summary, scanOut.label);
+    else if (mode === "optimize" && optOut) {
+      const r = optOut.robust.robust;
+      const unseen = r ? optOut.outSample.find((p) => p.value === r.value) : undefined;
+      summary = summaryFromOptimize(optOut.label, r ? fmtVal(optOut.param, r.value) : null, unseen && unseen.trades ? unseen.expectancyPct : null, unseen?.trades ?? 0, optOut.stocks);
+    } else return { error: "Run a test first" };
+    return saved.save(name, cfg, summary);
   }
 
   async function loadSeries(symbols: { symbol: string }[], strat: StrategyDef): Promise<{ series: Series[]; failed: number }> {
@@ -384,7 +429,8 @@ export function Workbench() {
         </div>
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 space-y-4">
+        {hasResult && <SaveRunBar defaultName={resultLabel ?? "My backtest"} onSave={saveCurrent} />}
         {mode === "optimize" && optOut ? (
           <OptimizeResults o={optOut} />
         ) : mode === "group" && scanOut ? (
@@ -408,6 +454,7 @@ export function Workbench() {
             </CardContent>
           </Card>
         )}
+        <SavedRuns runs={saved.runs} ready={saved.ready} localOnly={saved.localOnly} onLoad={loadConfig} onRemove={saved.remove} />
       </div>
     </div>
   );
