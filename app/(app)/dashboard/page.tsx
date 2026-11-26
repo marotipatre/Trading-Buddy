@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SymbolSearch } from "@/components/symbol-search";
 import { isMarketOpen } from "@/lib/market-hours";
 import type { Quote, SymbolHit } from "@/lib/data/types";
@@ -90,52 +93,59 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Watchlist</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Watchlist</h1>
+          <p className="text-sm text-muted-foreground">Live prices for the symbols you follow</p>
+        </div>
         <SymbolSearch onPick={add} placeholder="Add symbol…" />
       </div>
-      {error && <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-300">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-line bg-panel">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted">
-            <tr>
-              <th className="px-4 py-2">Symbol</th>
-              <th className="px-4 py-2 text-right">LTP</th>
-              <th className="px-4 py-2 text-right">Change</th>
-              <th className="px-4 py-2 text-right">Day range</th>
-              <th className="w-10" />
-            </tr>
-          </thead>
-          <tbody>
+      {error && (
+        <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{error}</p>
+      )}
+      <Card className="py-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-4">Symbol</TableHead>
+              <TableHead className="text-right">LTP</TableHead>
+              <TableHead className="text-right">Change</TableHead>
+              <TableHead className="text-right">Day range</TableHead>
+              <TableHead className="w-10" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {items.map((i) => {
               const q = quotes[i.symbol];
               const up = (q?.change ?? 0) >= 0;
               return (
-                <tr key={i.id} className="border-t border-line hover:bg-background/40">
-                  <td className="px-4 py-2">
-                    <Link href={`/trade?symbol=${encodeURIComponent(i.symbol)}`} className="font-medium hover:text-accent">
+                <TableRow key={i.id}>
+                  <TableCell className="pl-4">
+                    <Link href={`/trade?symbol=${encodeURIComponent(i.symbol)}`} className="font-medium hover:text-primary">
                       {i.symbol}
                     </Link>
-                    <div className="text-xs text-muted">{i.name}</div>
-                  </td>
-                  <td className="px-4 py-2 text-right font-mono">{q ? q.price.toFixed(2) : "—"}</td>
-                  <td className={`px-4 py-2 text-right font-mono ${up ? "text-up" : "text-down"}`}>
+                    <div className="text-xs text-muted-foreground">{i.name}</div>
+                  </TableCell>
+                  <TableCell className="text-right font-mono">{q ? q.price.toFixed(2) : "—"}</TableCell>
+                  <TableCell className={`text-right font-mono ${up ? "text-up" : "text-down"}`}>
                     {q ? `${up ? "+" : ""}${q.change.toFixed(2)} (${q.changePct.toFixed(2)}%)` : "—"}
-                  </td>
-                  <td className="px-4 py-2 text-right font-mono text-xs text-muted">
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
                     {q ? `${q.dayLow.toFixed(2)} – ${q.dayHigh.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="px-2">
-                    <button onClick={() => remove(i.id)} className="text-muted hover:text-down" aria-label="Remove">
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="pr-2">
+                    <Button variant="ghost" size="icon-sm" onClick={() => remove(i.id)} aria-label={`Remove ${i.symbol}`}>
+                      <Trash2 />
+                    </Button>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-xs text-muted">Prices come from Yahoo Finance (unofficial, may be delayed up to a few minutes).</p>
+          </TableBody>
+        </Table>
+      </Card>
+      <p className="text-xs text-muted-foreground">
+        Prices come from Yahoo Finance (unofficial, may be delayed by a few minutes).
+      </p>
     </div>
   );
 }
