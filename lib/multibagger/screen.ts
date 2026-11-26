@@ -41,3 +41,22 @@ export function stage1(rows: MarketRow[], capOf: (symbol: string) => Cap | undef
   }
   return out.sort((a, b) => b.pre - a.pre);
 }
+
+/**
+ * Pure: pick `total` stocks from a ranked list while keeping every category (sector) represented: at most `perSector`
+ * from any one sector (and `unclassifiedMax` from stocks with no sector), filled in rank order. Falls back to plain rank
+ * order if that leaves the list short.
+ */
+export function diversify<T>(ranked: T[], sectorOf: (x: T) => string, total: number, perSector: number, unclassifiedMax = perSector * 3): T[] {
+  const used = new Map<string, number>();
+  const out: T[] = [];
+  for (const x of ranked) {
+    if (out.length >= total) break;
+    const sec = sectorOf(x), cap = sec === "Unclassified" ? unclassifiedMax : perSector;
+    if ((used.get(sec) ?? 0) >= cap) continue;
+    used.set(sec, (used.get(sec) ?? 0) + 1);
+    out.push(x);
+  }
+  if (out.length < total) for (const x of ranked) { if (out.length >= total) break; if (!out.includes(x)) out.push(x); }
+  return out;
+}

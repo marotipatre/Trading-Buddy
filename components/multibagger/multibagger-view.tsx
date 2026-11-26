@@ -17,7 +17,8 @@ const CALL: Record<Call, { label: string; cls: string }> = {
   pending: { label: "Checking…", cls: "bg-muted text-muted-foreground" },
 };
 const PHASE = { market: "Reading every listed stock from NSE…", charts: "Drawing and scoring charts…", fundamentals: "Reading company financials…", done: "Done" } as const;
-const f1 = (n?: number | null, suffix = "") => (n === undefined || n === null || !Number.isFinite(n) ? "-" : `${n.toFixed(n >= 100 ? 0 : 1)}${suffix}`);
+// Growth rates off a tiny base can be absurd (1,755%); show them as ">500%" rather than as a precise-looking number.
+const f1 = (n?: number | null, suffix = "") => (n === undefined || n === null || !Number.isFinite(n) ? "-" : suffix === "%" && n > 500 ? ">500%" : `${n.toFixed(n >= 100 ? 0 : 1)}${suffix}`);
 
 function Ring({ value }: { value: number | null }) {
   const v = value ?? 0, r = 15, c = 2 * Math.PI * r;
@@ -43,6 +44,7 @@ function Row({ c }: { c: Candidate }) {
         <Ring value={c.score} />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5"><b className="font-mono">{c.symbol}</b><span className={cn("rounded px-1.5 py-0.5 text-[11px] font-semibold", CALL[c.call].cls)}>{CALL[c.call].label}</span></div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground sm:hidden">{[fa?.profit3y !== undefined && `Profit ${f1(fa.profit3y, "%")}`, fa?.roce !== undefined && `ROCE ${f1(fa.roce, "%")}`, ta.ret6m !== null && `6m ${ta.ret6m >= 0 ? "+" : ""}${ta.ret6m.toFixed(0)}%`].filter(Boolean).join(" · ")}</div>
           <div className="truncate text-xs text-muted-foreground">{fa?.name ?? c.name} · {BUCKET_LABEL[c.bucket]} · ₹{c.row.price.toLocaleString("en-IN")}</div>
         </div>
         <div className="contents">
@@ -87,8 +89,15 @@ export function MultibaggerView() {
   const [bucket, setBucket] = useState<Bucket | "all">("all");
   const [show, setShow] = useState<"ranked" | "all">("ranked");
   const [q, setQ] = useState("");
+  const [layout, setLayout] = useState<"list" | "category">("list");
   const anyScored = mb.items.some((c) => c.score !== null);
   const shown = useMemo(() => mb.items.filter((c) => (bucket === "all" || c.bucket === bucket) && (show === "all" || !anyScored || c.score !== null) && (!q || `${c.symbol} ${c.name}`.toLowerCase().includes(q.toLowerCase()))), [mb.items, bucket, show, q, anyScored]);
+  const groups = useMemo(() => {
+    const m = new Map<string, Candidate[]>();
+    for (const c of shown) m.set(c.sector ?? "Unclassified", [...(m.get(c.sector ?? "Unclassified") ?? []), c]);
+    return [...m.entries()].map(([name, items]) => ({ name, items, strong: items.filter((i) => i.call === "strong").length, watch: items.filter((i) => i.call === "watch").length, best: Math.max(...items.map((i) => i.score ?? 0)) }))
+      .sort((a, b) => b.strong - a.strong || b.watch - a.watch || b.best - a.best || b.items.length - a.items.length);
+  }, [shown]);
   const strong = mb.items.filter((c) => c.call === "strong").length;
   const p = mb.progress;
   return (
@@ -113,6 +122,10 @@ export function MultibaggerView() {
         ))}
         <span className="mx-1 h-4 w-px bg-border" />
         <button type="button" onClick={() => setShow(show === "ranked" ? "all" : "ranked")} className="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground">{show === "ranked" ? "Showing: fully checked only" : "Showing: all charted"}</button>
+        <span className="mx-1 h-4 w-px bg-border" />
+        {(["list", "category"] as const).map((k) => (
+          <button key={k} type="button" aria-pressed={layout === k} onClick={() => setLayout(k)} className={cn("rounded-full border px-3 py-1 text-xs font-medium", layout === k ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{k === "list" ? "Ranked list" : "By category"}</button>
+        ))}
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search" className="ml-auto h-8 w-40 rounded-lg border bg-background px-2.5 text-sm" />
       </div>
       {strong > 0 && <p className="text-sm text-muted-foreground"><b className="text-up">{strong}</b> strong candidate{strong > 1 ? "s" : ""} right now. &quot;Strong&quot; needs good financials and a healthy chart and at most one red flag.</p>}
@@ -120,7 +133,24 @@ export function MultibaggerView() {
       {mb.items.length === 0 ? (
         <div className="space-y-2">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[4.5rem] w-full rounded-xl" />)}</div>
       ) : shown.length === 0 ? <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Nothing matches these filters yet. {mb.busy ? "Results are still arriving." : "Try another group."}</p>
-        : <ul className="space-y-2">{shown.map((c) => <Row key={c.symbol} c={c} />)}</ul>}
+        : layout === "list" ? <ul className="space-y-2">{shown.map((c) => <Row key={c.symbol} c={c} />)}</ul>
+        : (
+          <div className="space-y-3">
+            {groups.map((g, gi) => (
+              <details key={g.name} open={gi < 3} className="rounded-xl border bg-card/50">
+                <summary className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
+                  <span className="font-semibold">{g.name}</span>
+                  <span className="text-xs text-muted-foreground">{g.items.length} stock{g.items.length > 1 ? "s" : ""}</span>
+                  {g.strong > 0 && <span className="rounded bg-up/15 px-1.5 py-0.5 text-[11px] font-semibold text-up">{g.strong} strong</span>}
+                  {g.watch > 0 && <span className="rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold text-warn">{g.watch} watch</span>}
+                  <span className="ml-auto text-xs text-muted-foreground">best score {g.best || "-"}</span>
+                </summary>
+                <ul className="space-y-2 p-3 pt-0">{g.items.map((c) => <Row key={c.symbol} c={c} />)}</ul>
+              </details>
+            ))}
+            <p className="text-xs text-muted-foreground">Categories are NSE&apos;s industry groups. Stocks outside the Nifty 500 and Microcap 250 have no industry data here and are grouped as Unclassified. The scan keeps at most 8 charted and 4 fully checked stocks per category so no single sector crowds out the rest.</p>
+          </div>
+        )}
 
       <details className="rounded-xl border bg-card p-4 text-sm">
         <summary className="cursor-pointer font-medium">How the score works</summary>

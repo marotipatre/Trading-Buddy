@@ -5,17 +5,17 @@ import { useUniverse } from "@/components/use-universe";
 import { fetchCandles, pool, prefetchDaily } from "@/lib/analysis/candle-cache";
 import { scoreFundamentals, type FaScore, type Fundamentals } from "@/lib/multibagger/fa";
 import { parseMarket, type MarketRow } from "@/lib/multibagger/market";
-import { stage1, type Bucket } from "@/lib/multibagger/screen";
+import { diversify, stage1, type Bucket } from "@/lib/multibagger/screen";
 import { analyseTa, combine, type Call, type Ta } from "@/lib/multibagger/ta";
 
 export interface Candidate {
-  symbol: string; name: string; bucket: Bucket; row: MarketRow; why: string[];
+  symbol: string; name: string; sector: string; bucket: Bucket; row: MarketRow; why: string[];
   ta: Ta; fa: Fundamentals | null; faScore: FaScore | null; faState: "pending" | "ok" | "none";
   score: number | null; call: Call;
 }
 export interface MbProgress { phase: "market" | "charts" | "fundamentals" | "done"; done: number; total: number; screened: number }
 interface Saved { at: number; screened: number; total: number; items: Candidate[] }
-const KEY = "tb.multibagger.v1";
+const KEY = "tb.multibagger.v2";
 const STALE_MS = 6 * 3600_000;
 const nameOf = (s: string) => s;
 
@@ -50,7 +50,9 @@ export function useMultibagger() {
       const names = new Map(stocks.map((s) => [s.symbol.replace(/\.NS$/, ""), s.name]));
       const s1 = stage1(rows, (sym) => capMap.get(sym));
       setTotal(rows.length);
-      const shortlist = s1.slice(0, 120);
+      const sectors = new Map(stocks.map((s) => [s.symbol.replace(/\.NS$/, ""), s.sector]));
+      // 120 to chart, spread across categories so every sector with a candidate is represented, not just the loudest ones.
+      const shortlist = diversify(s1, (x) => sectors.get(x.row.symbol) ?? "Unclassified", 120, 8, 25);
 
       const base: Candidate[] = [];
       let done = 0;
@@ -60,11 +62,11 @@ export function useMultibagger() {
         try {
           const candles = await fetchCandles(`${s.row.symbol}.NS`, 520);
           const ta = analyseTa(candles);
-          if (ta) base.push({ symbol: s.row.symbol, name: names.get(s.row.symbol) ?? nameOf(s.row.symbol), bucket: s.bucket, row: s.row, why: s.why, ta, fa: null, faScore: null, faState: "pending", score: null, call: "pending" });
+          if (ta) base.push({ symbol: s.row.symbol, sector: sectors.get(s.row.symbol) ?? "Unclassified", name: names.get(s.row.symbol) ?? nameOf(s.row.symbol), bucket: s.bucket, row: s.row, why: s.why, ta, fa: null, faScore: null, faState: "pending", score: null, call: "pending" });
         } catch { /* no history for this one */ }
         if (++done % 10 === 0 || done === shortlist.length) { setProgress({ phase: "charts", done, total: shortlist.length, screened: rows.length }); setItems([...base].sort(rank)); }
       });
-      const top = [...base].filter((c) => c.ta.score >= 45).sort((a, b) => b.ta.score - a.ta.score).slice(0, 36);
+      const top = diversify([...base].filter((c) => c.ta.score >= 45).sort((a, b) => b.ta.score - a.ta.score), (c) => c.sector, 36, 4, 8);
       const topSet = new Set(top.map((t) => t.symbol));
       for (const c of base) if (!topSet.has(c.symbol)) c.faState = "none";
       setItems([...base].sort(rank));

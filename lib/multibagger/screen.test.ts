@@ -32,3 +32,18 @@ describe("stage1 universe", () => {
     expect(out.map((x) => x.row.symbol)).toEqual(["REAL"]);
   });
 });
+
+describe("diversify", () => {
+  const items = [..."aaaaaabbbc"].map((s, i) => ({ id: i, s }));
+  it("keeps every category in the list instead of letting one sector fill it", async () => {
+    const { diversify } = await import("./screen");
+    const out = diversify(items, (x) => x.s, 6, 2);
+    expect(out.slice(0, 5).map((x) => x.s).join("")).toBe("aabbc"); // one pass: two a, two b, the only c
+    expect(out).toHaveLength(6);
+  });
+  it("fills up from the ranking when categories run out", async () => {
+    const { diversify } = await import("./screen");
+    expect(diversify(items, (x) => x.s, 9, 2)).toHaveLength(9);
+    expect(diversify(items, (x) => x.s, 4, 1).map((x) => x.s)).toEqual(["a", "b", "c", "a"]);
+  });
+});
