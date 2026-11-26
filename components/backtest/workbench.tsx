@@ -12,6 +12,7 @@ import type { Candle } from "@/lib/data/types";
 import { parseCandlesCsv } from "@/lib/data/csv";
 import { analyze, type Analysis } from "@/lib/engine/analyze";
 import { sampleEvenly, scanSymbol, summarizeScan, type ScanRow, type ScanSummary } from "@/lib/engine/scan";
+import { evalStrategy, GRIDS, PARAM_LABEL, pickRobust, sweepParam, walkForward, type Objective, type ParamKey, type Series } from "@/lib/engine/optimize";
 import { filterUniverse } from "@/lib/universe-lists";
 import { DEFAULT_COSTS, DELIVERY_ZERO_BROKERAGE } from "@/lib/engine/costs";
 import { PRESETS, getPreset } from "@/lib/engine/presets";
@@ -19,6 +20,7 @@ import { StrategyDef } from "@/lib/engine/strategy";
 import { useUniverse } from "@/components/use-universe";
 import { GroupPicker, type GroupCap } from "./group-picker";
 import { ScanResults } from "./scan-results";
+import { OptimizeResults, type OptimizeOutput } from "./optimize-results";
 import { NumberField } from "./number-field";
 import { RiskForm } from "./risk-form";
 import { BacktestResults } from "./results";
@@ -44,7 +46,12 @@ export function Workbench() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // "Group of stocks" mode: run the same strategy over many stocks and pool the results.
-  const [mode, setMode] = useState<"one" | "group">("one");
+  const [mode, setMode] = useState<"one" | "group" | "optimize">("one");
+  const [optScope, setOptScope] = useState<"one" | "group">("one");
+  const [optParam, setOptParam] = useState<ParamKey>("stopPct");
+  const [optObjective, setOptObjective] = useState<Objective>("expectancy");
+  const [optOut, setOptOut] = useState<OptimizeOutput | null>(null);
+  const showGroup = mode === "group" || (mode === "optimize" && optScope === "group");
   const [cap, setCap] = useState<GroupCap>("large");
   const [sector, setSector] = useState("all");
   const [count, setCount] = useState("20");
@@ -76,6 +83,69 @@ export function Workbench() {
     if (!p) return;
     setPresetId(id);
     setStrategy(p.strategy);
+  }
+
+  async function loadSeries(symbols: { symbol: string }[], strat: StrategyDef): Promise<{ series: Series[]; failed: number }> {
+    void strat;
+    const series: Series[] = [];
+    let failed = 0;
+    for (let i = 0; i < symbols.length && !stopRef.current; i++) {
+      setProgress({ done: i, total: symbols.length, current: symbols[i].symbol });
+      try {
+        const res = await fetch(`/api/candles?symbol=${encodeURIComponent(symbols[i].symbol)}&interval=1d&days=${Number(years) * 365}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "no data");
+        if ((json.candles as Candle[]).length < 300) throw new Error("too little history");
+        series.push({ symbol: symbols[i].symbol, candles: json.candles });
+      } catch {
+        failed++;
+      }
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    return { series, failed };
+  }
+
+  async function runOptimize() {
+    const parsed = StrategyDef.safeParse(strategy);
+    if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Invalid strategy"); return; }
+    const group = optScope === "group";
+    const picks = group ? sampleEvenly(matching, Number(count)) : [{ symbol }];
+    if (!picks.length) { toast.error("No stocks match this choice"); return; }
+    const strat = parsed.data;
+    const costs = { ...DEFAULT_COSTS, ...(zeroBrokerage && strat.product === "delivery" ? DELIVERY_ZERO_BROKERAGE : {}), slippageBps };
+    stopRef.current = false;
+    setRunning(true);
+    try {
+      const { series, failed } = await loadSeries(picks, strat);
+      if (!series.length) throw new Error("No price history could be loaded. Check your connection and try again.");
+      setProgress(null);
+      await new Promise((r) => setTimeout(r, 30));
+      const values = GRIDS[optParam];
+      const minTrades = group ? 15 : 8;
+      const inSample = sweepParam(series, strat, optParam, values, costs, { objective: optObjective, minTrades, slice: [0, 0.7] });
+      const outSample = sweepParam(series, strat, optParam, values, costs, { objective: optObjective, minTrades: 1, slice: [0.7, 1] });
+      const robust = pickRobust(inSample);
+      const baselineOut = evalStrategy(series, strat, costs, { objective: optObjective, minTrades: 1, slice: [0.7, 1] });
+      const bars = series[0].candles.length;
+      const walk = !group && bars >= 1250 ? walkForward(series[0].candles, strat, optParam, values, costs, { train: 750, test: 250, step: 250, objective: optObjective, minTrades: 6, symbol: series[0].symbol }) : null;
+      const current = optParam === "stopPct" ? (strat.stopLoss?.type === "percent" ? strat.stopLoss.value : null)
+        : optParam === "stopAtr" ? (strat.stopLoss?.type === "atr" ? strat.stopLoss.value : null)
+        : optParam === "maxHold" ? strat.maxHoldBars ?? null : (strat.target?.type === "percent" ? strat.target.value : null);
+      const warnings: string[] = [];
+      if (!group) warnings.push("One stock is a small sample. Run it on a group of stocks before trusting a result.");
+      if (failed) warnings.push(`${failed} stock${failed > 1 ? "s" : ""} could not be loaded and were skipped.`);
+      if (!group && !walk) warnings.push("Walk-forward needs at least 5 years of history; pick a longer period.");
+      setOptOut({
+        label: `${strat.name}: ${PARAM_LABEL[optParam]} on ${group ? `${series.length} stocks` : symbol}`,
+        param: optParam, stocks: series.length, inSample, outSample, robust, baselineOut, currentValue: current, walk, warnings,
+      });
+      toast.success("Optimization finished");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRunning(false);
+      setProgress(null);
+    }
   }
 
   async function runScan() {
@@ -124,6 +194,7 @@ export function Workbench() {
 
   async function run() {
     if (mode === "group") return runScan();
+    if (mode === "optimize") return runOptimize();
     const parsed = StrategyDef.safeParse(strategy);
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Invalid strategy");
@@ -160,15 +231,15 @@ export function Workbench() {
   return (
     <div className="grid gap-6 xl:grid-cols-[440px_minmax(0,1fr)]">
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="What to test">
-          {([["one", "One stock"], ["group", "Group of stocks"]] as const).map(([m, label]) => (
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="What to do">
+          {([["one", "One stock"], ["group", "Group"], ["optimize", "Optimize"]] as const).map(([m, label]) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} disabled={running} onClick={() => setMode(m)}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${mode === m ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
               {label}
             </button>
           ))}
         </div>
-        {mode === "group" ? (
+        {showGroup ? (
           <Card>
             <CardHeader>
               <CardTitle>1 · Group &amp; history</CardTitle>
@@ -182,6 +253,11 @@ export function Workbench() {
                 <SimpleSelect className="w-full" value={years} options={YEARS} onChange={setYears} />
               </div>
             </CardContent>
+          </Card>
+        ) : mode === "optimize" ? (
+          <Card>
+            <CardHeader><CardTitle>1 · History</CardTitle><CardDescription>Optimizing needs plenty of history: 8 to 12 years is best.</CardDescription></CardHeader>
+            <CardContent><SimpleSelect className="w-full" value={years} options={YEARS} onChange={setYears} /></CardContent>
           </Card>
         ) : (
         <Card>
@@ -217,6 +293,32 @@ export function Workbench() {
             </div>
           </CardContent>
         </Card>
+        )}
+
+        {mode === "optimize" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>What to optimize</CardTitle>
+              <CardDescription>Tries each value on the earlier 70% of history, then checks the winner on the later 30% it has never seen.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Test on</Label>
+                  <SimpleSelect className="w-full" value={optScope} onChange={setOptScope} options={[{ value: "one", label: "One stock (+ walk-forward)" }, { value: "group", label: "A group (recommended)" }]} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Setting</Label>
+                  <SimpleSelect className="w-full" value={optParam} onChange={setOptParam} options={(Object.keys(GRIDS) as ParamKey[]).map((k) => ({ value: k, label: PARAM_LABEL[k] }))} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs text-muted-foreground">Goal</Label>
+                  <SimpleSelect className="w-full" value={optObjective} onChange={setOptObjective} options={[{ value: "expectancy", label: "Best average result per trade" }, { value: "profitFactor", label: "Best profit factor" }]} />
+                </div>
+              </div>
+              {optScope === "one" && <div className="space-y-1"><Label className="text-xs text-muted-foreground">Stock</Label><div className="flex items-center justify-between gap-3"><span className="font-mono text-lg font-semibold">{symbol}</span><SymbolSearch onPick={(h) => setSymbol(h.symbol)} placeholder="Change stock…" className="w-56" /></div></div>}
+            </CardContent>
+          </Card>
         )}
 
         <Card>
@@ -266,7 +368,7 @@ export function Workbench() {
         </Card>
 
         <div className="sticky bottom-20 space-y-2 md:bottom-4">
-          {running && mode === "group" && progress && (
+          {running && progress && (
             <div className="rounded-lg border bg-card p-3 text-xs shadow-lg" role="status">
               <div className="mb-1.5 flex justify-between"><span>Testing <b>{progress.current.replace(/\.NS$/, "")}</b></span><span className="font-mono">{progress.done}/{progress.total}</span></div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>
@@ -275,15 +377,17 @@ export function Workbench() {
           <div className="flex gap-2">
             <Button size="lg" className="flex-1 shadow-lg" onClick={run} disabled={running}>
               {running ? <Loader2 className="animate-spin" /> : <Play />}
-              {running ? (mode === "group" ? "Scanning…" : "Running backtest…") : mode === "group" ? `Scan ${Math.min(Number(count), matching.length || Number(count))} stocks` : "Run backtest"}
+              {running ? (mode === "one" ? "Running backtest…" : mode === "group" ? "Scanning…" : "Optimizing…") : mode === "group" ? `Scan ${Math.min(Number(count), matching.length || Number(count))} stocks` : mode === "optimize" ? "Find the best setting" : "Run backtest"}
             </Button>
-            {running && mode === "group" && <Button size="lg" variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
+            {running && mode !== "one" && <Button size="lg" variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
           </div>
         </div>
       </div>
 
       <div className="min-w-0">
-        {mode === "group" && scanOut ? (
+        {mode === "optimize" && optOut ? (
+          <OptimizeResults o={optOut} />
+        ) : mode === "group" && scanOut ? (
           <ScanResults summary={scanOut.summary} rows={scanOut.rows} failed={scanOut.failed} label={scanOut.label} />
         ) : mode === "one" && out ? (
           <div className="space-y-3">
@@ -293,9 +397,11 @@ export function Workbench() {
         ) : (
           <Card className="grid min-h-96 place-items-center text-center">
             <CardContent className="max-w-sm space-y-2">
-              <div className="text-lg font-semibold">{mode === "group" ? "Test it on a whole group" : "Test a strategy on real history"}</div>
+              <div className="text-lg font-semibold">{mode === "optimize" ? "Find settings that hold up" : mode === "group" ? "Test it on a whole group" : "Test a strategy on real history"}</div>
               <p className="text-sm text-muted-foreground">
-                {mode === "group"
+                {mode === "optimize"
+                  ? "Pick a setting such as the stop-loss distance. The app tries many values on past data, recommends one that works across a range of values, and shows how it did on data it never saw. A big gap means overfitting."
+                  : mode === "group"
                   ? "Choose a size class and sector, then scan. You will see the pooled win probability with a confidence range, how many stocks actually made money, whether it beat simply holding, and whether the edge survives in the later part of history."
                   : "Pick a stock and a preset, then run. You will see the win probability with a confidence range, whether your stop-loss helps, and how lucky or unlucky the result may be."}
               </p>
