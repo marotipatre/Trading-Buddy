@@ -1,7 +1,7 @@
 import type { Candle, Interval } from "./types";
 
 export interface HistoryProvider {
-  name: "moneycontrol" | "yahoo";
+  name: "upstox" | "moneycontrol" | "yahoo";
   supports: (symbol: string) => boolean;
   fetch: (symbol: string, interval: Interval, fromSec: number, toSec: number) => Promise<Candle[]>;
 }

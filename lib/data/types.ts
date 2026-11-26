@@ -21,7 +21,7 @@ export interface Quote {
   marketState: string;
   time: number;
   /** Which provider produced this quote. */
-  source?: "yahoo" | "google";
+  source?: "yahoo" | "google" | "upstox";
 }
 
 export interface SymbolHit {

@@ -1,7 +1,7 @@
 import type { Quote } from "./types";
 
 export interface QuoteProvider {
-  name: "yahoo" | "google";
+  name: "yahoo" | "google" | "upstox";
   fetch: (symbol: string) => Promise<Quote>;
 }
 
