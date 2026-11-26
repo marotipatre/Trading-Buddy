@@ -12,7 +12,9 @@ import { ChangePill } from "@/components/change-pill";
 import { usePaper } from "@/components/paper/paper-provider";
 import { StockRow } from "@/components/stock-row";
 import { useQuotes } from "@/components/use-quotes";
+import { useUniverse } from "@/components/use-universe";
 import { useWatchlist } from "@/components/use-watchlist";
+import { CAP_LABEL, type Cap } from "@/lib/universe-lists";
 import { fmtInr } from "@/lib/format";
 import { companyName, displaySymbol } from "@/lib/symbols";
 import { INDICES, POPULAR_STOCKS } from "@/lib/universe";
@@ -33,6 +35,7 @@ function RowSkeleton() {
 export default function ExplorePage() {
   const open = useMarketOpen();
   const wl = useWatchlist();
+  const { stocks, sectors } = useUniverse();
   const { state, equity, quotes: heldQuotes } = usePaper();
   const watchSymbols = useMemo(() => wl.items.map((i) => i.symbol), [wl.items]);
   const idx = useQuotes(INDEX_SYMBOLS.map((i) => i.symbol));
@@ -81,6 +84,32 @@ export default function ExplorePage() {
             </Link>
           );
         })}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-end justify-between">
+          <h2 className="text-lg font-semibold tracking-tight">Browse by size and sector</h2>
+          <Link href="/stocks" className="text-sm text-primary hover:underline">All stocks</Link>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {(["large", "mid", "small"] as Cap[]).map((c) => (
+            <Link key={c} href={`/stocks?cap=${c}`}>
+              <Card className="transition-colors hover:bg-accent/40">
+                <CardContent className="space-y-0.5">
+                  <div className="text-sm font-semibold">{CAP_LABEL[c]}</div>
+                  <div className="text-xs text-muted-foreground">{stocks ? `${stocks.filter((s) => s.cap === c).length} stocks` : "\u00a0"}</div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+          {(sectors ?? []).slice(0, 12).map((s) => (
+            <Link key={s.name} href={`/stocks?sector=${encodeURIComponent(s.name)}`} className="shrink-0 rounded-full border px-3 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
+              {s.name} <span className="opacity-60">{s.count}</span>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {state.positions.length > 0 && (
