@@ -1,6 +1,7 @@
 import { computeMetrics, type Metrics } from "@/lib/engine/metrics";
 import { equityFromTrades } from "@/lib/engine/analyze";
 import type { Trade } from "@/lib/engine/types";
+import { capitalOf } from "./funds";
 import type { ClosedTrade, PaperState } from "./types";
 
 /** Adapt a journalled paper trade to the engine's Trade so the same metrics apply. */
@@ -31,6 +32,7 @@ export function toEngineTrade(t: ClosedTrade): Trade {
 
 export function paperMetrics(state: PaperState): Metrics {
   const trades = state.trades.map(toEngineTrade);
-  const { equity, finalEquity } = equityFromTrades(trades, state.initialCapital);
-  return computeMetrics({ trades, equity, initialCapital: state.initialCapital, finalEquity });
+  const capital = capitalOf(state);
+  const { equity, finalEquity } = equityFromTrades(trades, capital);
+  return computeMetrics({ trades, equity, initialCapital: capital, finalEquity });
 }

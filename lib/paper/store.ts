@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { newAccount } from "./broker";
+import { normalizeState } from "./funds";
 import type { PaperState } from "./types";
 
 const LOCAL_KEY = "trading-buddy:paper-account:v1";
@@ -37,11 +38,11 @@ export function isMissingTable(err: { code?: string; message?: string } | null):
 export async function loadAccount(supabase: SupabaseClient): Promise<Loaded> {
   const { data, error } = await supabase.from("paper_accounts").select("id,state").limit(1).maybeSingle();
   if (error) {
-    if (isMissingTable(error)) return { state: readLocal() ?? newAccount(), localOnly: true };
+    if (isMissingTable(error)) return { state: normalizeState(readLocal() ?? newAccount()), localOnly: true };
     throw new Error(error.message);
   }
-  if (data) return { id: data.id as string, state: data.state as PaperState, localOnly: false };
-  const fresh = readLocal() ?? newAccount();
+  if (data) return { id: data.id as string, state: normalizeState(data.state as PaperState), localOnly: false };
+  const fresh = normalizeState(readLocal() ?? newAccount());
   const ins = await supabase.from("paper_accounts").insert({ state: fresh }).select("id").single();
   if (ins.error) throw new Error(ins.error.message);
   return { id: ins.data.id as string, state: fresh, localOnly: false };
