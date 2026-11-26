@@ -14,12 +14,15 @@ import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
 import { newsMood } from "@/lib/analysis/sentiment";
 import { pnlByDay } from "@/lib/intraday/account";
 import { dayStatus, DEFAULT_LIMITS, type Limits } from "@/lib/intraday/limits";
+import { cleanShare, MISTAKE_TAGS, mistakeCounts, pickDateOf, userNote, withUserNote } from "@/lib/intraday/journal";
 import { loadBatches, saveBatch, type PickBatch } from "@/lib/intraday/log";
 import { intradaySize, scoreIntraday, topPicks, type IntradayPick } from "@/lib/intraday/picks";
 import { evaluatePick, summarize, type PickResult } from "@/lib/intraday/scorecard";
 import { fmtInr, fmtPct } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
+import { AccountEquityChart } from "@/components/paper/account-equity-chart";
+import { capitalOf } from "@/lib/paper/funds";
 import { IntradayProvider, useIntraday } from "./intraday-provider";
 
 const istToday = () => new Date(Date.now() + 19800_000).toISOString().slice(0, 10);
@@ -30,7 +33,7 @@ export function IntradayView() {
 }
 
 function Inner() {
-  const { acc, ready, view, create, topUp, reset } = useIntraday();
+  const { acc, ready, view, create, topUp, reset, localOnly } = useIntraday();
   const [potInput, setPotInput] = useState(100000);
   const [add, setAdd] = useState(25000);
   const [limits, setLimits] = useState<Limits>(DEFAULT_LIMITS);
@@ -80,8 +83,12 @@ function Inner() {
           {status.locked ? <span className="w-full font-medium text-down">{status.reason} New orders are switched off. <Link className="underline" href="/playbook?book=intraday">Read the rule book</Link>.</span> : <span className="text-xs text-up">Within limits</span>}
         </CardContent>
       </Card>
+      {localOnly && (
+        <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">Your intraday account is saved only in this browser. Run <code>supabase/migrations/0004_intraday_account.sql</code> in the Supabase SQL editor to back it up and keep it across devices.</p>
+      )}
       <Picks lock={status.reason ?? null} />
       <Open />
+      <EquityCard />
       <Results />
       <Scorecard />
       <p className="text-xs text-muted-foreground">Day trading on margin loses money for most people (SEBI&apos;s own studies of Indian traders say so). Read the <Link className="underline" href="/playbook?book=intraday">intraday rule book</Link> before you trade. Paper money only, for learning; picks are rule-based screens, not advice.</p>
@@ -179,7 +186,7 @@ function Picks({ lock }: { lock: string | null }) {
                     <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">{p.reasons.slice(0, 4).map((r) => <li key={r}>{r}</li>)}</ul>
                     <p className="text-xs text-muted-foreground"><b>Skip it if</b> it opens above {(p.plan.entry * 1.01).toFixed(2)} or below {p.plan.stop.toFixed(2)}. Exit by 3:15 pm if neither level is hit.</p>
                     <Button size="sm" disabled={size.qty < 1 || !!lock} title={lock ?? undefined} onClick={async () => {
-                      const r = await place({ symbol: p.symbol, side: "buy", qty: size.qty, type: "stop", triggerPrice: p.plan.entry, validity: "day", stop: p.plan.stop, target: p.plan.target1 });
+                      const r = await place({ symbol: p.symbol, side: "buy", qty: size.qty, type: "stop", triggerPrice: p.plan.entry, validity: "day", stop: p.plan.stop, target: p.plan.target1, note: `pick:${p.forDate}` });
                       if (r.error) toast.error(r.error); else toast.success(`Order placed: buys ${size.qty} ${displaySymbol(p.symbol)} if it trades up to ${p.plan.entry.toFixed(2)}`);
                     }}>Place order (buy-stop, SL and TP attached)</Button>
                   </div>
@@ -225,24 +232,111 @@ function Open() {
   );
 }
 
-function Results() {
+function EquityCard() {
   const { acc } = useIntraday();
-  const days = useMemo(() => (acc ? pnlByDay(acc.state) : []), [acc]);
-  if (!acc || !days.length) return null;
-  const trades = [...acc.state.trades].sort((a, b) => b.exitTime - a.exitTime).slice(0, 30);
-  const total = acc.state.trades.length, wins = acc.state.trades.filter((t) => t.netPnl > 0).length;
+  const h = acc?.state.equityHistory ?? [];
+  if (!acc || h.length < 2) return null;
   return (
     <Card>
-      <CardHeader><CardTitle>Your results</CardTitle><CardDescription>{total} trades, {total ? ((wins / total) * 100).toFixed(0) : 0}% winners. Charges and slippage are included.</CardDescription></CardHeader>
-      <CardContent className="grid gap-6 lg:grid-cols-2">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1">Day</th><th className="text-right">Trades</th><th className="text-right">Wins</th><th className="text-right">P&amp;L</th></tr></thead>
-          <tbody className="divide-y">{days.slice(0, 20).map((d) => <tr key={d.date}><td className="py-1">{d.date}</td><td className="tabular text-right font-mono">{d.trades}</td><td className="tabular text-right font-mono">{d.wins}</td><td className={cn("tabular text-right font-mono", d.pnl >= 0 ? "text-up" : "text-down")}>{fmtInr(d.pnl, { sign: true })}</td></tr>)}</tbody>
-        </table>
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1">Stock</th><th>How it ended</th><th className="text-right">P&amp;L</th></tr></thead>
-          <tbody className="divide-y">{trades.map((t) => <tr key={t.id}><td className="py-1 font-mono">{displaySymbol(t.symbol)}</td><td className="text-xs text-muted-foreground">{t.reason === "target" ? "Target" : t.reason === "stop" ? "Stop" : t.reason === "squareoff" ? "3:15 close" : "Exited"}</td><td className={cn("tabular text-right font-mono", t.netPnl >= 0 ? "text-up" : "text-down")}>{fmtInr(t.netPnl, { sign: true })}</td></tr>)}</tbody>
-        </table>
+      <CardHeader><CardTitle>Profit and loss over time</CardTitle><CardDescription>Your intraday pot&apos;s result, in rupees, on its own.</CardDescription></CardHeader>
+      <CardContent><AccountEquityChart history={h} initial={capitalOf(acc.state)} /></CardContent>
+    </Card>
+  );
+}
+
+function Results() {
+  const { acc, annotate } = useIntraday();
+  const now = useNow(60_000);
+  const [vs, setVs] = useState<Record<number, PickResult | null>>({});
+  const [busy, setBusy] = useState(false);
+  const days = useMemo(() => (acc ? pnlByDay(acc.state) : []), [acc]);
+  if (!acc || !days.length) return null;
+  const all = acc.state.trades;
+  const trades = [...all].sort((a, b) => b.exitTime - a.exitTime).slice(0, 30);
+  const total = all.length, wins = all.filter((t) => t.netPnl > 0).length;
+  const monthAgo = now - 30 * 86400;
+  const breaks = mistakeCounts(all, monthAgo);
+  const clean = cleanShare(all.filter((t) => t.exitTime >= monthAgo));
+  const fromPicks = all.filter((t) => pickDateOf(t));
+
+  async function compare() {
+    setBusy(true);
+    try {
+      const next: Record<number, PickResult | null> = {};
+      for (const t of fromPicks) {
+        const d = pickDateOf(t)!;
+        const pick = loadBatches().find((b) => b.forDate === d)?.picks.find((p) => p.symbol === t.symbol);
+        if (!pick) { next[t.id] = null; continue; }
+        try { next[t.id] = evaluatePick(pick, await fetchCandles(t.symbol, 40, "5m")); } catch { next[t.id] = null; }
+      }
+      setVs(next);
+    } finally { setBusy(false); }
+  }
+  const yourR = fromPicks.reduce((s, t) => s + (t.rMultiple ?? 0), 0);
+  const pickR = fromPicks.reduce((s, t) => s + (vs[t.id]?.r ?? 0), 0);
+  const compared = fromPicks.filter((t) => vs[t.id]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Your results</CardTitle>
+        <CardDescription>{total} trades, {total ? ((wins / total) * 100).toFixed(0) : 0}% winners. Charges and slippage are included. Tag mistakes honestly: the count shows which rule you break most.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1">Day</th><th className="text-right">Trades</th><th className="text-right">Wins</th><th className="text-right">P&amp;L</th></tr></thead>
+            <tbody className="divide-y">{days.slice(0, 15).map((d) => <tr key={d.date}><td className="py-1">{d.date}</td><td className="tabular text-right font-mono">{d.trades}</td><td className="tabular text-right font-mono">{d.wins}</td><td className={cn("tabular text-right font-mono", d.pnl >= 0 ? "text-up" : "text-down")}>{fmtInr(d.pnl, { sign: true })}</td></tr>)}</tbody>
+          </table>
+          <div className="space-y-2 text-sm">
+            <div className="font-medium">Rule breaks in the last 30 days</div>
+            {breaks.length === 0 ? <p className="text-muted-foreground">None tagged. Tag a trade below if you broke a rule.</p> : (
+              <ul className="space-y-1">{breaks.map((b) => <li key={b.tag} className="flex justify-between"><span>{b.tag}</span><span className="font-mono">{b.count}</span></li>)}</ul>
+            )}
+            <p className="text-xs text-muted-foreground">Clean trades: <b className="text-foreground">{(clean * 100).toFixed(0)}%</b> (goal 95% or more).{" "}
+              <Link className="underline" href="/playbook?book=intraday">Rule book</Link></p>
+          </div>
+        </div>
+
+        {fromPicks.length > 0 && (
+          <div className="space-y-2 rounded-lg border p-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <b className="text-sm">Picks you took vs what the pick would have done</b>
+              <Button size="sm" variant="outline" onClick={compare} disabled={busy}>{busy && <Loader2 className="animate-spin" />}Compare</Button>
+            </div>
+            {compared.length > 0 ? (
+              <p className="text-sm">On {compared.length} traded pick{compared.length > 1 ? "s" : ""}, you made <b className={yourR >= 0 ? "text-up" : "text-down"}>{yourR >= 0 ? "+" : ""}{yourR.toFixed(2)}R</b> and following the pick exactly would have made <b className={pickR >= 0 ? "text-up" : "text-down"}>{pickR >= 0 ? "+" : ""}{pickR.toFixed(2)}R</b>. {pickR - yourR > 0.5 ? "The gap is your execution: check your tags." : yourR - pickR > 0.5 ? "You beat the pick, perhaps with better exits." : "Close to the pick."}</p>
+            ) : <p className="text-xs text-muted-foreground">{fromPicks.length} trade{fromPicks.length > 1 ? "s" : ""} came from picks. Press Compare once those sessions have finished.</p>}
+          </div>
+        )}
+
+        <div className="divide-y">
+          {trades.map((t) => {
+            const d = pickDateOf(t);
+            const r = vs[t.id];
+            return (
+              <div key={t.id} className="space-y-1.5 py-2.5 text-sm">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <b className="min-w-20 font-mono">{displaySymbol(t.symbol)}</b>
+                  {d && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">pick {d}</span>}
+                  <span className="text-xs text-muted-foreground">{t.reason === "target" ? "Target" : t.reason === "stop" ? "Stop" : t.reason === "squareoff" ? "3:15 close" : "Exited"}</span>
+                  <span className={cn("tabular font-mono", t.netPnl >= 0 ? "text-up" : "text-down")}>{fmtInr(t.netPnl, { sign: true })}</span>
+                  {t.rMultiple !== undefined && Number.isFinite(t.rMultiple) && <span className="tabular font-mono text-xs text-muted-foreground">{t.rMultiple >= 0 ? "+" : ""}{t.rMultiple.toFixed(2)}R</span>}
+                  {r && <span className="text-xs text-muted-foreground">pick: {OUTCOME[r.outcome]}{r.r ? ` ${r.r > 0 ? "+" : ""}${r.r.toFixed(2)}R` : ""}</span>}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {MISTAKE_TAGS.map((tag) => {
+                    const on = (t.tags ?? []).includes(tag);
+                    return <button key={tag} type="button" aria-pressed={on} onClick={() => annotate(t.id, { tags: on ? (t.tags ?? []).filter((x) => x !== tag) : [...(t.tags ?? []), tag] })}
+                      className={cn("rounded-md border px-1.5 py-0.5 text-[11px]", on ? "border-down/50 bg-down/10 text-down" : "text-muted-foreground hover:text-foreground")}>{tag}</button>;
+                  })}
+                </div>
+                <input defaultValue={userNote(t)} placeholder="Note: why you took it, what you would change" onBlur={(e) => { if (e.target.value !== userNote(t)) annotate(t.id, { note: withUserNote(t, e.target.value) }); }}
+                  className="h-8 w-full rounded-md border bg-background px-2 text-xs" aria-label="Trade note" />
+              </div>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );
