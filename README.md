@@ -9,10 +9,14 @@ It answers two questions honestly:
 
 ## Features
 
-- **Backtester** (`lib/engine`): visual rule builder plus six swing presets (EMA cross, RSI pullback, 20-day breakout, Bollinger reversion, MACD + trend, Supertrend). Signals are read at the close and filled at the next open, with pessimistic stop/target ordering, gap handling, trailing stops, time stops, slippage and Indian transaction charges (STT, stamp duty, exchange, SEBI, GST, DP).
-- **Paper trading** (`lib/paper`): market and limit orders, delivery and intraday, bracket stops/targets, trailing stops, intraday square-off at 15:15 IST, and catch-up of stops/targets that triggered while the app was closed. Uses the same cost model as the backtester.
-- **Data** (`lib/data`): free, unofficial Yahoo Finance feed with retry/backoff, a Supabase candle cache, stale-cache fallback and CSV import.
-- **Trade journal and analytics** on your paper trades, using the same metrics code as backtests.
+- **Explore** (home): index cards, a live watchlist with one-tap Buy/Sell, and top movers among popular stocks. Prices paint instantly from the last session, then update.
+- **Trade**: a chart-free stock page with live quote, day range, your position, a watchlist star and the order ticket (market and limit, delivery and intraday, stop-loss, target, trailing stop, live risk preview).
+- **Portfolio**: Holdings, Positions, Orders, Funds and Analysis tabs, laid out like a broker app. Two money pots (Trading and Bank) with add, move and withdraw; returns are measured against the money you put into trading, so deposits never look like profit.
+- **Analysis**: win rate with a 95% confidence interval, expectancy in R, stop usage, winners given back, MAE/MFE, tags and notes per trade, and plain-language findings about your own behaviour.
+- **Backtester** (`lib/engine`): visual rule builder plus six swing presets. Signals are read at the close and filled at the next open, with pessimistic stop/target ordering, gap handling, trailing and time stops, slippage and Indian transaction charges. Reports win probability, Monte Carlo, in/out-of-sample and a stop-loss study that holds the target fixed so only the stop changes.
+- **Paper broker** (`lib/paper`): shares the backtester's cost model. Stops and targets that triggered while the app was closed are replayed, and intraday positions square off at 15:15 IST.
+- **Data** (`lib/data`): live quotes from Yahoo with the Google Finance page as a verified fallback; price history from Moneycontrol (adjusted, up to ~12 years in one request) with Yahoo as the fallback; CSV import. Requests are spaced, deduplicated, cached in Supabase and served stale-while-revalidate.
+- Light and dark themes, a mobile bottom tab bar, loading, error and 404 screens.
 
 ## Setup
 
@@ -35,7 +39,8 @@ In Supabase, turn off *Confirm email* for local use, and turn off *Allow new use
 
 ## Limits to keep in mind
 
-- All free market data here is unofficial. Yahoo can throttle (HTTP 429), delay or change without notice. Upload a CSV on the Backtest page if a feed is down.
+- All free market data here is unofficial (Yahoo, Google Finance page, Moneycontrol). Any of them can throttle, delay, change or block without notice, and scraping may be against a site's terms; keep usage personal and low-volume. Upload a CSV on the Backtest page if every feed is down.
+- The Google Finance fallback prices stocks only. Index quotes depend on Yahoo, and the app shows "Unavailable" rather than a wrong number.
 - Free intraday history is short (about 59 days for 5m/15m, 7 days for 1m), so swing backtests use daily candles.
 - No free historical option data exists, so F&O is not backtested.
 - Backtests ignore survivorship bias (today's index members only), liquidity and circuit limits. A small number of trades is statistical noise; the app warns below 30.
@@ -45,7 +50,7 @@ In Supabase, turn off *Confirm email* for local use, and turn off *Allow new use
 ## Layout
 
 ```
-app/(app)/            dashboard, trade (live quote + order ticket), backtest workbench, portfolio
+app/(app)/            explore, trade, backtest workbench, portfolio
 app/api/              candles, quotes, symbols route handlers (proxy to data providers)
 components/backtest/  rule builder, risk form, charts, result panels
 components/paper/     provider, order ticket, positions, journal, portfolio view
