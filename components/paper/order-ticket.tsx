@@ -32,6 +32,7 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol
   const [targetPct, setTargetPct] = useState(10);
   const [trailing, setTrailing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [riskInput, setRiskInput] = useState(1);
   const [planApplied, setPlanApplied] = useState(false);
   // A plan from Ideas fills the stop and target once, as percentages of the live price, so the ticket matches the plan.
   useEffect(() => {
@@ -128,6 +129,15 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Quantity</Label>
             <NumberField min={1} value={qty} onChange={(v) => setQty(Math.max(1, Math.round(v)))} />
+          </div>
+          <div className="col-span-2 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Size it:</span>
+            {[10, 25, 50].map((p) => <Button key={p} size="xs" variant="outline" disabled={!ref || closing} onClick={() => setQty(Math.max(1, Math.floor((state.cash * p) / 100 / ref)))}>{p}% of cash</Button>)}
+            <Button size="xs" variant="outline" disabled={!ref || closing || stop === undefined || Math.abs(ref - (stop ?? ref)) <= 0}
+              title="Shares so that being stopped out costs this share of your cash" onClick={() => { const d = Math.abs(ref - (stop ?? ref)); if (d > 0) setQty(Math.max(1, Math.floor((state.cash * riskInput) / 100 / d))); }}>
+              Risk
+            </Button>
+            <input type="number" min={0.1} max={5} step={0.25} value={riskInput} onChange={(e) => setRiskInput(Math.max(0.1, Number(e.target.value) || 1))} aria-label="Risk percent of cash" className="h-6 w-14 rounded-md border bg-background px-1.5 text-xs" /><span className="text-xs text-muted-foreground">% of cash</span>
           </div>
           {type !== "market" && (
             <div className="space-y-1">
