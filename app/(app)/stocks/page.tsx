@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { StocksBrowser } from "@/components/stocks/stocks-browser";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata = { title: "Stocks — Trading Buddy" };
@@ -7,11 +8,8 @@ export const metadata = { title: "Stocks — Trading Buddy" };
 export default function StocksPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Stocks</h1>
-        <p className="text-sm text-muted-foreground">Browse every stock listed on NSE, by size and sector</p>
-      </div>
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <PageHeader title="Stocks" description="Every stock listed on NSE in one table. Sort by today's move, the 30-day move or how much traded, and open any row to chart it and paper trade." />
+      <Suspense fallback={<Skeleton className="h-96 w-full rounded-2xl" />}>
         <StocksBrowser />
       </Suspense>
     </div>

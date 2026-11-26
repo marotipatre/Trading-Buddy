@@ -1,55 +1,66 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { ArrowDown, ArrowUp, Search, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SimpleSelect } from "@/components/backtest/simple-select";
-import { StockRow } from "@/components/stock-row";
-import { useBatchedQuotes } from "@/components/use-batched-quotes";
 import { useUniverse } from "@/components/use-universe";
 import { useWatchlist } from "@/components/use-watchlist";
-import { CAP_LABEL, CAP_ORDER, filterUniverse, type Cap } from "@/lib/universe-lists";
+import { CAP_LABEL, CAP_ORDER, CAP_SHORT, filterUniverse, type UniverseStock } from "@/lib/universe-lists";
+import type { MarketRow } from "@/lib/multibagger/market";
+import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
+import { useMarketFeed } from "./use-market-feed";
 
 const CAPS = ["all", ...CAP_ORDER] as const;
-const PAGE = 20;
-const SORT_OPTIONS = [
-  { value: "name", label: "Name (A–Z)" },
-  { value: "gainers", label: "Top gainers" },
-  { value: "losers", label: "Top losers" },
-] as const;
-type Sort = (typeof SORT_OPTIONS)[number]["value"];
-/** Sorting by day change needs every price in the list, so it is only offered for groups this small. */
-const MAX_FOR_MOVERS = 120;
+const PAGE = 100;
+type SortKey = "name" | "price" | "chg" | "chg30" | "high" | "turnover";
+const COLS: { key: SortKey; label: string; hide?: string }[] = [
+  { key: "name", label: "Stock" }, { key: "price", label: "Price" }, { key: "chg", label: "Today" },
+  { key: "chg30", label: "30 days", hide: "hidden md:table-cell" }, { key: "high", label: "52-week range", hide: "hidden lg:table-cell" }, { key: "turnover", label: "Traded today", hide: "hidden xl:table-cell" },
+];
+const pct = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? "-" : `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`);
+const tone = (n: number | null | undefined) => (n === null || n === undefined ? "" : n >= 0 ? "text-up" : "text-down");
+const crore = (n: number) => (n * 100 < 1 ? "under ₹1 lakh" : n >= 100 ? `₹${Math.round(n).toLocaleString("en-IN")} cr` : n >= 1 ? `₹${n.toFixed(1)} cr` : `₹${(n * 100).toFixed(0)} lakh`);
 
+function RangeBar({ r }: { r: MarketRow }) {
+  const span = r.high52 - r.low52;
+  if (!(span > 0)) return <span className="text-muted-foreground">-</span>;
+  const p = Math.min(100, Math.max(0, ((r.price - r.low52) / span) * 100));
+  return (
+    <div className="w-40" title={`52-week low ${r.low52} · high ${r.high52}`}>
+      <div className="relative h-1.5 rounded-full bg-muted"><span className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card" style={{ left: `${p}%` }} /></div>
+      <div className="mt-1 flex justify-between text-[11px] text-muted-foreground"><span>{r.low52.toLocaleString("en-IN")}</span><span>{r.high52.toLocaleString("en-IN")}</span></div>
+    </div>
+  );
+}
+
+/** Every NSE stock in one sortable table, with price, change, 52-week range and turnover from NSE's market feed. */
 export function StocksBrowser() {
   const router = useRouter();
   const params = useSearchParams();
   const cap = (CAPS as readonly string[]).includes(params.get("cap") ?? "") ? (params.get("cap") as (typeof CAPS)[number]) : "all";
   const sector = params.get("sector") ?? "all";
   const q = params.get("q") ?? "";
-  const sort = (SORT_OPTIONS.map((o) => o.value) as string[]).includes(params.get("sort") ?? "") ? (params.get("sort") as Sort) : "name";
+  const sort = (COLS.map((c) => c.key) as string[]).includes(params.get("sort") ?? "") ? (params.get("sort") as SortKey) : "name";
+  const dir = params.get("dir") === "desc" || (sort !== "name" && params.get("dir") !== "asc") ? "desc" : "asc";
   const pages = Math.max(1, Number(params.get("pages")) || 1);
 
   const { stocks, sectors, loading, error } = useUniverse();
+  const feed = useMarketFeed();
   const wl = useWatchlist();
 
   const set = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
-    for (const [k, v] of Object.entries(patch)) {
-      if (v === null || v === "" || v === "all" || (k === "sort" && v === "name") || (k === "pages" && v === "1")) next.delete(k);
-      else next.set(k, v);
-    }
+    for (const [k, v] of Object.entries(patch)) { if (v === null || v === "" || v === "all") next.delete(k); else next.set(k, v); }
     if (!("pages" in patch)) next.delete("pages");
     const qs = next.toString();
     router.replace(`/stocks${qs ? `?${qs}` : ""}`, { scroll: false });
   };
 
-  // Sector counts reflect the chosen size class.
   const inCap = useMemo(() => filterUniverse(stocks ?? [], { cap }), [stocks, cap]);
   const sectorCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -57,79 +68,101 @@ export function StocksBrowser() {
     return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [inCap]);
   const filtered = useMemo(() => filterUniverse(stocks ?? [], { cap, sector, q }), [stocks, cap, sector, q]);
-  const moversOk = filtered.length <= MAX_FOR_MOVERS;
-  const effectiveSort: Sort = sort !== "name" && !moversOk ? "name" : sort;
 
-  const sortedByName = useMemo(() => [...filtered].sort((a, b) => a.name.localeCompare(b.name)), [filtered]);
-  // Quotes needed: everything when sorting by change, otherwise just the rows on screen.
-  const wanted = useMemo(() => (effectiveSort === "name" ? sortedByName.slice(0, PAGE * pages) : sortedByName), [effectiveSort, sortedByName, pages]);
-  const { quotes, done, total } = useBatchedQuotes(useMemo(() => wanted.map((s) => s.symbol), [wanted]));
+  const sorted = useMemo(() => {
+    const rows = feed.rows;
+    const val = (s: UniverseStock): number | null => {
+      const r = rows?.get(s.symbol);
+      if (!r) return null;
+      return sort === "price" ? r.price : sort === "chg" ? r.chgPct : sort === "chg30" ? r.chg30d : sort === "turnover" ? r.valueCr : sort === "high" ? (r.high52 > 0 ? r.price / r.high52 : null) : null;
+    };
+    const out = [...filtered];
+    if (sort === "name") out.sort((a, b) => a.name.localeCompare(b.name));
+    else out.sort((a, b) => { const x = val(a), y = val(b); if (x === null && y === null) return 0; if (x === null) return 1; if (y === null) return -1; return dir === "desc" ? y - x : x - y; });
+    if (sort === "name" && dir === "desc") out.reverse();
+    return out;
+  }, [filtered, feed.rows, sort, dir]);
+  const shown = sorted.slice(0, PAGE * pages);
 
-  const rows = useMemo(() => {
-    if (effectiveSort === "name") return sortedByName.slice(0, PAGE * pages);
-    const withQ = sortedByName.filter((s) => quotes[s.symbol]);
-    withQ.sort((a, b) => (effectiveSort === "gainers" ? quotes[b.symbol].changePct - quotes[a.symbol].changePct : quotes[a.symbol].changePct - quotes[b.symbol].changePct));
-    return withQ.slice(0, PAGE * pages);
-  }, [effectiveSort, sortedByName, quotes, pages]);
-  const available = effectiveSort === "name" ? sortedByName.length : sortedByName.filter((s) => quotes[s.symbol]).length;
-  const more = available > rows.length;
-
-  if (error && !stocks) {
-    return <Card><p className="px-6 py-10 text-center text-sm text-muted-foreground">{error}</p></Card>;
-  }
+  if (error && !stocks) return <p className="rounded-2xl border bg-card px-6 py-10 text-center text-sm text-muted-foreground">{error}</p>;
 
   const count = (c: (typeof CAPS)[number]) => (c === "all" ? stocks?.length : stocks?.filter((s) => s.cap === c).length);
-  const chip = (active: boolean) => cn("shrink-0 rounded-full border px-3 py-1 text-xs transition-colors", active ? "border-primary bg-primary/15 text-foreground" : "text-muted-foreground hover:text-foreground");
+  const chip = (active: boolean) => cn("shrink-0 rounded-full border px-3 py-1 text-xs transition-colors", active ? "border-primary bg-primary/10 font-medium text-primary" : "bg-card text-muted-foreground hover:text-foreground");
+  const headClick = (k: SortKey) => set({ sort: k === "name" ? null : k, dir: k === sort ? (dir === "desc" ? "asc" : "desc") : null });
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {CAPS.map((c) => (
-          <Button key={c} size="sm" variant={cap === c ? "default" : "outline"} onClick={() => set({ cap: c, sector: null })}>
-            {c === "all" ? "All stocks" : CAP_LABEL[c as Cap]}
-            {count(c) !== undefined ? <span className="ml-1 opacity-70">{count(c)}</span> : null}
-          </Button>
+          <button key={c} type="button" onClick={() => set({ cap: c, sector: null })} className={cn("rounded-full border px-3.5 py-1.5 text-sm transition-colors", cap === c ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground")}>
+            {c === "all" ? "All" : CAP_LABEL[c]}{count(c) !== undefined && <span className="ml-1.5 opacity-70">{count(c)?.toLocaleString("en-IN")}</span>}
+          </button>
         ))}
       </div>
 
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         <button type="button" onClick={() => set({ sector: null })} className={chip(sector === "all")}>All sectors</button>
         {(sectors ? sectorCounts : []).map((s) => (
-          <button key={s.name} type="button" onClick={() => set({ sector: s.name })} className={chip(sector === s.name)}>
-            {s.name} <span className="opacity-60">{s.count}</span>
-          </button>
+          <button key={s.name} type="button" onClick={() => set({ sector: s.name })} className={chip(sector === s.name)}>{s.name} <span className="opacity-60">{s.count}</span></button>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full sm:w-72">
-          <Search className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
-          <Input className="pl-8" placeholder="Search by name or ticker" defaultValue={q} key={`${cap}|${sector}`} onChange={(e) => set({ q: e.target.value })} />
+        <div className="relative w-full sm:w-80">
+          <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
+          <Input className="h-9 rounded-[10px] pl-9" placeholder="Search by name or ticker" defaultValue={q} key={`${cap}|${sector}`} onChange={(e) => set({ q: e.target.value })} />
         </div>
-        <SimpleSelect className="w-44" value={effectiveSort} onChange={(v) => set({ sort: v })}
-          options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.value === "name" || moversOk ? o.label : `${o.label} (pick a sector)` }))} />
-        <span className="text-sm text-muted-foreground">{filtered.length} stock{filtered.length === 1 ? "" : "s"}</span>
-        {effectiveSort !== "name" && done < total && <span className="text-xs text-muted-foreground">Loading prices {done}/{total}…</span>}
+        <span className="text-sm text-muted-foreground">{sorted.length.toLocaleString("en-IN")} stock{sorted.length === 1 ? "" : "s"}{feed.rows ? "" : " · loading prices…"}</span>
+        <div className="ml-auto flex gap-1.5 md:hidden">
+          {(["chg", "turnover"] as const).map((k) => <button key={k} type="button" className={chip(sort === k)} onClick={() => headClick(k)}>{k === "chg" ? "Biggest movers" : "Most traded"}</button>)}
+        </div>
       </div>
-      {sort !== "name" && !moversOk && <p className="text-xs text-warn">Day-change sorting needs every price in the list, so choose a sector or a smaller size class first.</p>}
 
-      <Card className="py-0">
-        {loading ? Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
-            <div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-28" /><Skeleton className="h-3 w-44" /></div>
-            <Skeleton className="h-8 w-16" />
-          </div>
-        )) : rows.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-            {effectiveSort !== "name" && done < total ? "Loading prices…" : "No stocks match. Try another sector or clear the search."}
-          </p>
-        ) : rows.map((s) => (
-          <StockRow key={s.symbol} symbol={s.symbol} name={`${s.name} · ${s.sector}`} quote={quotes[s.symbol]}
-            watched={wl.has(s.symbol)} onToggleWatch={() => wl.toggle(s.symbol, s.name)} />
-        ))}
-      </Card>
-      {more && <div className="text-center"><Button variant="outline" onClick={() => set({ pages: String(pages + 1) })}>Show more</Button></div>}
-      <p className="text-xs text-muted-foreground">Size classes follow NSE&apos;s Nifty 100 (large), Midcap 150, Smallcap 250 and Microcap 250 lists. &quot;Other listed&quot; is any other mainboard stock, &quot;SME&quot; is NSE&apos;s SME platform, and both have no sector data (Unclassified). The <a className="underline" href="/multibagger">Multibagger tab</a> adds financial checks for the small end; sectors are NSE&apos;s industry classification.</p>
+      <div className="overflow-x-auto rounded-2xl border bg-card">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs text-muted-foreground">
+              {COLS.map((c) => (
+                <th key={c.key} className={cn("px-4 py-3 font-medium", c.key !== "name" && c.key !== "high" && "text-right", c.hide)} aria-sort={sort === c.key ? (dir === "desc" ? "descending" : "ascending") : "none"}>
+                  <button type="button" onClick={() => headClick(c.key)} className={cn("inline-flex items-center gap-1 hover:text-foreground", sort === c.key && "text-foreground")}>
+                    {c.label}{sort === c.key && (dir === "desc" ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />)}
+                  </button>
+                </th>
+              ))}
+              <th className="w-10" />
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {loading ? Array.from({ length: 10 }, (_, i) => <tr key={i}><td colSpan={7} className="px-4 py-3"><Skeleton className="h-8 w-full" /></td></tr>)
+              : shown.length === 0 ? <tr><td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">No stocks match. Try another sector or clear the search.</td></tr>
+              : shown.map((s) => {
+                const r = feed.rows?.get(s.symbol);
+                return (
+                  <tr key={s.symbol} className="group transition-colors hover:bg-accent/40">
+                    <td className="px-4 py-2.5">
+                      <Link href={`/trade?symbol=${encodeURIComponent(s.symbol)}`} className="block min-w-0">
+                        <span className="font-semibold">{displaySymbol(s.symbol)}</span>
+                        <span className="mt-0.5 block max-w-[16rem] truncate text-xs text-muted-foreground">{s.name} · {CAP_SHORT[s.cap]}{s.sector !== "Unclassified" ? ` · ${s.sector}` : ""}</span>
+                      </Link>
+                    </td>
+                    <td className="figure px-4 py-2.5 text-right text-[15px]">{r ? r.price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
+                    <td className={cn("px-4 py-2.5 text-right font-mono font-medium", tone(r?.chgPct))}>{pct(r?.chgPct)}</td>
+                    <td className={cn("hidden px-4 py-2.5 text-right font-mono md:table-cell", tone(r?.chg30d))}>{pct(r?.chg30d)}</td>
+                    <td className="hidden px-4 py-2.5 lg:table-cell">{r ? <RangeBar r={r} /> : <span className="text-muted-foreground">-</span>}</td>
+                    <td className="hidden px-4 py-2.5 text-right font-mono text-muted-foreground xl:table-cell">{r ? crore(r.valueCr) : "-"}</td>
+                    <td className="pr-3 text-right">
+                      <button type="button" aria-label={wl.has(s.symbol) ? "Remove from watchlist" : "Add to watchlist"} onClick={() => wl.toggle(s.symbol, s.name)} className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted">
+                        <Star className={cn("size-4", wl.has(s.symbol) && "fill-warn text-warn")} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
+      {sorted.length > shown.length && <div className="text-center"><Button variant="outline" onClick={() => set({ pages: String(pages + 1) })}>Show {Math.min(PAGE, sorted.length - shown.length)} more</Button></div>}
+      <p className="text-xs leading-relaxed text-muted-foreground">Prices and changes come from NSE&apos;s official market feed (a minute or two behind during the session). Size classes follow NSE&apos;s Nifty 100 (large), Midcap 150, Smallcap 250 and Microcap 250 lists; &quot;Other listed&quot; is any other mainboard stock and &quot;SME&quot; is NSE&apos;s SME platform, both without sector data. Click a column to sort, for example by traded value to find the most active stocks.</p>
     </div>
   );
 }
