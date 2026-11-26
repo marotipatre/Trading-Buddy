@@ -19,7 +19,8 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
   const open = useMarketOpen();
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [product, setProduct] = useState<"delivery" | "intraday">("delivery");
-  const [type, setType] = useState<"market" | "limit">("market");
+  const [type, setType] = useState<"market" | "limit" | "stop">("market");
+  const [validity, setValidity] = useState<"day" | "gtt">("gtt");
   const [qty, setQty] = useState(10);
   const [limit, setLimit] = useState(0);
   const [useStop, setUseStop] = useState(true);
@@ -31,7 +32,7 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
 
   const held = state.positions.find((p) => p.symbol === symbol && p.direction === (side === "sell" ? "long" : "short"));
   const closing = !!held && product === held.product;
-  const ref = type === "limit" && limit > 0 ? limit : ltp ?? 0;
+  const ref = type !== "market" && limit > 0 ? limit : ltp ?? 0;
   const dir = side === "buy" ? 1 : -1;
   const stop = useStop && !closing && ref ? ref * (1 - (dir * stopPct) / 100) : undefined;
   const target = useTarget && !closing && ref ? ref * (1 + (dir * targetPct) / 100) : undefined;
@@ -42,15 +43,41 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
     return { value, risk, riskPct: risk !== undefined ? (risk / state.cash) * 100 : undefined };
   }, [qty, ref, stop, state.cash]);
 
+  // What this order will be called: exits of a position are take-profit / stop-loss.
+  const kindName = type === "market" ? "Market" : closing ? (type === "limit" ? "Take-profit" : "Stop-loss") : type === "limit" ? "Limit" : "Stop";
+  const nearestTick = (x: number) => Math.round(x * 20) / 20;
+
+  /** Sensible starting price for a resting order, on the side where it would NOT trigger immediately. */
+  function suggestPrice(t: "limit" | "stop"): number {
+    if (!ltp) return 0;
+    const exitLong = closing && held?.direction === "long";
+    const exitShort = closing && held?.direction === "short";
+    const above = t === "limit" ? (exitLong || (!closing && side === "sell")) : (exitShort || (!closing && side === "buy"));
+    return nearestTick(ltp * (above ? (t === "limit" ? 1.05 : 1.03) : t === "limit" ? 0.97 : 0.97));
+  }
+  function changeType(t: "market" | "limit" | "stop") {
+    setType(t);
+    if (t !== "market") setLimit(suggestPrice(t));
+  }
+  const quickPcts = [3, 5, 10];
+  const quickPrice = (pct: number) => {
+    if (!ltp) return;
+    const sign = type === "limit" ? (held?.direction === "short" ? -1 : 1) : (held?.direction === "short" ? 1 : -1);
+    setLimit(nearestTick(ltp * (1 + (sign * pct) / 100)));
+  };
+
   async function submit() {
     setBusy(true);
     const r = await place({
-      symbol, side, qty, type, product, limitPrice: type === "limit" ? limit : undefined,
+      symbol, side, qty, type, product,
+      limitPrice: type === "limit" ? limit : undefined,
+      triggerPrice: type === "stop" ? limit : undefined,
+      validity: product === "intraday" ? "day" : validity,
       stop, target, trailing: trailing && stop !== undefined,
     });
     setBusy(false);
     if (r.error) toast.error(r.error);
-    else toast.success(r.filled ? `${side === "buy" ? "Bought" : "Sold"} ${qty} ${displaySymbol(symbol)}` : `Limit order placed for ${displaySymbol(symbol)}`);
+    else toast.success(r.filled ? `${side === "buy" ? "Bought" : "Sold"} ${qty} ${displaySymbol(symbol)}` : `${kindName} order placed for ${displaySymbol(symbol)}. It executes when the price reaches ${limit.toFixed(2)}.`);
   }
 
   return (
@@ -77,20 +104,47 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Order type</Label>
-            <SimpleSelect className="w-full" value={type} onChange={setType}
-              options={[{ value: "market", label: "Market" }, { value: "limit", label: "Limit" }]} />
+            <SimpleSelect className="w-full" value={type} onChange={changeType}
+              options={[
+                { value: "market", label: "Market" },
+                { value: "limit", label: closing ? "Take-profit (limit)" : "Limit" },
+                { value: "stop", label: closing ? "Stop-loss (trigger)" : "Stop (trigger)" },
+              ]} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Quantity</Label>
             <NumberField min={1} value={qty} onChange={(v) => setQty(Math.max(1, Math.round(v)))} />
           </div>
-          {type === "limit" && (
+          {type !== "market" && (
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Limit price</Label>
+              <Label className="text-xs text-muted-foreground">{type === "limit" ? "Limit price" : "Trigger price"}</Label>
               <NumberField min={0} step={0.05} value={limit} onChange={setLimit} />
             </div>
           )}
+          {type !== "market" && product === "delivery" && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Valid for</Label>
+              <SimpleSelect className="w-full" value={validity} onChange={setValidity}
+                options={[{ value: "gtt", label: "Until triggered (1 year)" }, { value: "day", label: "Today only" }]} />
+            </div>
+          )}
         </div>
+        {type !== "market" && closing && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">{type === "limit" ? "Take profit at" : "Stop loss at"}</span>
+            {quickPcts.map((pc) => (
+              <Button key={pc} size="xs" variant="outline" onClick={() => quickPrice(pc)}>{type === "limit" ? "+" : "−"}{pc}%</Button>
+            ))}
+          </div>
+        )}
+        {type !== "market" && (
+          <p className="rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">
+            {type === "limit"
+              ? `Waits until the price ${side === "buy" ? "falls to" : "rises to"} ${limit ? limit.toFixed(2) : "your limit"}, then fills at that price or better.`
+              : `Waits until the price ${side === "buy" ? "rises to" : "falls to"} ${limit ? limit.toFixed(2) : "your trigger"}, then sells${side === "buy" ? "/buys" : ""} at market.`}
+            {" "}It runs while this app is open; anything that triggered while you were away is applied when you next open it.
+          </p>
+        )}
 
         {!closing && (
           <div className="space-y-2.5 rounded-lg border p-3">
@@ -130,7 +184,7 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: stri
         )}
         {closing && <p className="text-xs text-muted-foreground">This closes your existing {held!.qty}-share {held!.direction} position.</p>}
         <Button className="w-full" disabled={!ready || busy || !ltp} onClick={submit}>
-          {busy ? "Placing…" : `${closing ? "Close" : side === "buy" ? "Buy" : "Sell"} ${qty} × ${displaySymbol(symbol)}`}
+          {busy ? "Placing…" : type !== "market" ? `Place ${kindName.toLowerCase()} order` : `${closing ? "Close" : side === "buy" ? "Buy" : "Sell"} ${qty} × ${displaySymbol(symbol)}`}
         </Button>
       </CardContent>
     </Card>
