@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
-import { CandlestickChart, LineChart, MousePointer2, Minus, Ruler, Trash2, TrendingUp } from "lucide-react";
+import { Activity, CandlestickChart, LineChart, X, MousePointer2, Minus, Ruler, Trash2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +17,7 @@ import { loadDrawings, saveDrawings, type Drawing } from "@/lib/drawings";
 import type { Tool } from "./drawing-layer";
 import { PriceChart, type ChartLine, type ChartMarker, type Hover, type ScaleMode } from "./price-chart";
 import { useChartData } from "./use-chart-data";
+import { computeIndicators, loadSpecs, PRESETS, saveSpecs, specId, specLabel, INDICATOR_LABEL, type IndicatorKind, type IndicatorSpec } from "@/lib/chart-indicators";
 
 const compact = (n: number) => (n >= 1e7 ? `${(n / 1e7).toFixed(2)}Cr` : n >= 1e5 ? `${(n / 1e5).toFixed(2)}L` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(Math.round(n)));
 
@@ -29,6 +30,16 @@ export function StockChart({ symbol }: { symbol: string }) {
   const [tool, setTool] = useState<Tool>("cursor");
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [loadedFor, setLoadedFor] = useState("");
+  const [specs, setSpecs] = useState<IndicatorSpec[]>([]);
+  const [menu, setMenu] = useState(false);
+  const [custom, setCustom] = useState<{ kind: IndicatorKind; period: number }>({ kind: "ema", period: 21 });
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- indicators are remembered in this browser
+  useEffect(() => { setSpecs(loadSpecs()); }, []);
+  const toggleSpec = (sp: IndicatorSpec) => {
+    const next = specs.some((x) => x.id === sp.id) ? specs.filter((x) => x.id !== sp.id) : [...specs, sp].slice(0, 10);
+    setSpecs(next);
+    saveSpecs(next);
+  };
   // Drawings are remembered per stock, in this browser.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load this stock's saved drawings after mount
@@ -41,6 +52,7 @@ export function StockChart({ symbol }: { symbol: string }) {
   const { state } = usePaper();
   const { candles, loading, error, timeframe } = useChartData(symbol, tfId);
   const intraday = timeframe.intraday;
+  const indicatorLines = useMemo(() => computeIndicators(candles, specs), [candles, specs]);
 
   const lines = useMemo<ChartLine[]>(() => {
     const out: ChartLine[] = [];
@@ -106,6 +118,28 @@ export function StockChart({ symbol }: { symbol: string }) {
               <Icon /> <span className="hidden sm:inline">{label}</span>
             </Button>
           ))}
+          <div className="relative">
+            <Button size="sm" variant={menu ? "secondary" : "ghost"} aria-expanded={menu} onClick={() => setMenu((m) => !m)}><Activity /> <span className="hidden sm:inline">Indicators</span></Button>
+            {menu && (
+              <div className="absolute left-0 top-9 z-40 w-72 space-y-3 rounded-lg border bg-popover p-3 shadow-xl">
+                <div className="flex flex-wrap gap-1.5">
+                  {PRESETS.map((sp) => {
+                    const on = specs.some((x) => x.id === sp.id);
+                    return <button key={sp.id} type="button" aria-pressed={on} onClick={() => toggleSpec(sp)}
+                      className={cn("rounded-md border px-2 py-1 text-xs", on ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:text-foreground")}>{specLabel(sp)}</button>;
+                  })}
+                </div>
+                <div className="flex items-center gap-1.5 border-t pt-2.5">
+                  <select value={custom.kind} onChange={(e) => setCustom({ ...custom, kind: e.target.value as IndicatorKind })} className="h-8 rounded-md border bg-background px-1.5 text-xs">
+                    {(["ema", "sma", "rsi"] as const).map((k) => <option key={k} value={k}>{INDICATOR_LABEL[k]}</option>)}
+                  </select>
+                  <input type="number" min={2} max={500} value={custom.period} onChange={(e) => setCustom({ ...custom, period: Math.round(Number(e.target.value)) })} className="h-8 w-16 rounded-md border bg-background px-2 text-xs" aria-label="Length" />
+                  <Button size="sm" variant="outline" disabled={!(custom.period >= 2 && custom.period <= 500)} onClick={() => { const id = specId(custom.kind, custom.period); if (!specs.some((x) => x.id === id)) toggleSpec({ id, kind: custom.kind, period: custom.period }); }}>Add</Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Indicators are calculated on the candles you see, so they change with the timeframe.</p>
+              </div>
+            )}
+          </div>
           {drawings.length > 0 && (
             <Button size="sm" variant="ghost" className="text-muted-foreground" title="Remove all drawings on this stock" onClick={() => updateDrawings([])}><Trash2 /> Clear ({drawings.length})</Button>
           )}
@@ -124,6 +158,17 @@ export function StockChart({ symbol }: { symbol: string }) {
           ) : null}
         </div>
 
+        {specs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 text-xs" aria-label="Active indicators">
+            {indicatorLines.filter((l) => !/ (upper|lower)$/.test(l.label)).map((l) => (
+              <span key={l.label} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono">
+                <span className="size-2 rounded-full" style={{ background: l.color }} />{l.label.replace(/ mid$/, "")}
+                <b className="text-foreground">{l.points.at(-1)?.value.toFixed(2) ?? "—"}</b>
+              </span>
+            ))}
+            {specs.map((sp) => <button key={sp.id} type="button" aria-label={`Remove ${specLabel(sp)}`} title={`Remove ${specLabel(sp)}`} onClick={() => toggleSpec(sp)} className="inline-flex items-center rounded-md px-1 text-muted-foreground hover:text-foreground"><X className="size-3" />{sp.kind === "bb" ? "BB" : sp.kind.toUpperCase()}{sp.period}</button>)}
+          </div>
+        )}
         <div className="relative">
           {error && candles.length === 0 ? (
             <div className="grid h-[360px] place-items-center rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground sm:h-[420px]">
@@ -133,7 +178,7 @@ export function StockChart({ symbol }: { symbol: string }) {
             <>
               <PriceChart candles={candles} intraday={intraday} mode={mode} dark={resolvedTheme !== "light"} lines={lines} markers={markers}
                 resetKey={`${symbol}|${tfId}`} onHover={setHover}
-                scale={scale} tool={tool} onToolChange={setTool} drawings={drawings} onDrawingsChange={updateDrawings} />
+                scale={scale} tool={tool} onToolChange={setTool} drawings={drawings} onDrawingsChange={updateDrawings} overlays={indicatorLines} />
               {loading && candles.length === 0 && <Skeleton className="absolute inset-0" />}
               {!loading && candles.length === 0 && <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">No price data for this period.</div>}
             </>
