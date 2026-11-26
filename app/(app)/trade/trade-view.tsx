@@ -13,6 +13,7 @@ import type { Quote } from "@/lib/data/types";
 import { fmtPct } from "@/lib/format";
 import { isMarketOpen } from "@/lib/market-hours";
 import { loadRecent, pushRecent } from "@/lib/recent-symbols";
+import { useMarketOpen } from "@/components/use-market-open";
 
 export function TradeView() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export function TradeView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [recent, setRecent] = useState<string[]>([]);
+  const open = useMarketOpen();
 
   // Remember the symbols you trade so switching between them is one click.
   useEffect(() => {
@@ -122,7 +124,7 @@ export function TradeView() {
                 </div>
                 <div className="flex justify-between pt-1 text-xs text-muted-foreground">
                   <span>Previous close <span className="font-mono text-foreground">{q.prevClose.toFixed(2)}</span></span>
-                  <span>{isMarketOpen() ? "Market open" : "Market closed — showing the last traded price"}</span>
+                  <span>{open === null ? "" : open ? "Market open" : "Market closed — showing the last traded price"}</span>
                 </div>
               </div>
             )}

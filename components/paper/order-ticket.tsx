@@ -9,13 +9,14 @@ import { Switch } from "@/components/ui/switch";
 import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { fmtInr, fmtPct } from "@/lib/format";
-import { isMarketOpen } from "@/lib/market-hours";
 import { bankOf } from "@/lib/paper/funds";
 import { usePaper } from "./paper-provider";
 import { displaySymbol } from "@/lib/symbols";
+import { useMarketOpen } from "@/components/use-market-open";
 
 export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
   const { state, place, ready, transfer } = usePaper();
+  const open = useMarketOpen();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [product, setProduct] = useState<"delivery" | "intraday">("delivery");
   const [type, setType] = useState<"market" | "limit">("market");
@@ -60,7 +61,7 @@ export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
           <span className="font-mono text-sm font-normal text-muted-foreground">{ltp ? ltp.toFixed(2) : "—"}</span>
         </CardTitle>
         <CardDescription>
-          {isMarketOpen() ? "Market open — fills at the live price" : "Market closed — fills at the last traded price"}
+          {open === null ? "\u00a0" : open ? "Market open — fills at the live price" : "Market closed — fills at the last traded price"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

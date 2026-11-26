@@ -14,9 +14,9 @@ import { StockRow } from "@/components/stock-row";
 import { useQuotes } from "@/components/use-quotes";
 import { useWatchlist } from "@/components/use-watchlist";
 import { fmtInr } from "@/lib/format";
-import { isMarketOpen } from "@/lib/market-hours";
 import { companyName, displaySymbol } from "@/lib/symbols";
 import { INDICES, POPULAR_STOCKS } from "@/lib/universe";
+import { useMarketOpen } from "@/components/use-market-open";
 
 const INDEX_SYMBOLS = INDICES.slice(0, 3);
 const MOVERS = POPULAR_STOCKS.slice(0, 14);
@@ -31,12 +31,14 @@ function RowSkeleton() {
 }
 
 export default function ExplorePage() {
+  const open = useMarketOpen();
   const wl = useWatchlist();
   const { state, equity, quotes: heldQuotes } = usePaper();
   const watchSymbols = useMemo(() => wl.items.map((i) => i.symbol), [wl.items]);
   const idx = useQuotes(INDEX_SYMBOLS.map((i) => i.symbol));
   const watch = useQuotes(watchSymbols);
-  const movers = useQuotes(MOVERS.map((m) => m.symbol), { openMs: 30_000, closedMs: 300_000 });
+  // Movers are secondary: load them after the watchlist so the lists you care about appear first.
+  const movers = useQuotes(MOVERS.map((m) => m.symbol), { openMs: 30_000, closedMs: 300_000, enabled: wl.ready && !watch.loading });
 
   const ranked = useMemo(
     () => MOVERS.flatMap((m) => (movers.quotes[m.symbol] ? [{ ...m, q: movers.quotes[m.symbol] }] : [])).sort((a, b) => b.q.changePct - a.q.changePct),
@@ -55,7 +57,7 @@ export default function ExplorePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Explore</h1>
-          <p className="text-sm text-muted-foreground">{isMarketOpen() ? "Markets are open" : "Markets are closed. Prices are from the last session."}</p>
+          <p className="text-sm text-muted-foreground">{open === null ? "\u00a0" : open ? "Markets are open" : "Markets are closed. Prices are from the last session."}</p>
         </div>
         <Button variant="ghost" size="icon" aria-label="Refresh prices" onClick={() => { idx.refresh(); watch.refresh(); movers.refresh(); }}><RefreshCw /></Button>
       </div>
