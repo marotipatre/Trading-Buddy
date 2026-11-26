@@ -75,6 +75,13 @@ export const StrategyDef = z
     if (s.target?.type === "rr" && !s.stopLoss) {
       ctx.addIssue({ code: "custom", path: ["target"], message: "An R-multiple target needs a stop-loss" });
     }
+    if (s.direction === "short" && s.product !== "intraday") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["direction"],
+        message: "NSE cash equity shorts must be intraday; use F&O for swing shorts",
+      });
+    }
     if (s.sizing.type === "risk_percent" && !s.stopLoss) {
       ctx.addIssue({ code: "custom", path: ["sizing"], message: "Risk-based sizing needs a stop-loss" });
     }
