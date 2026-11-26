@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped Yahoo JSON */
 import { getJsonWithRetry } from "./http";
+import { createSpacer, dedupe } from "./spacer";
 import type { Candle, Interval, Quote, SymbolHit } from "./types";
 
 // Unofficial Yahoo Finance endpoints. Server-side only.
@@ -9,8 +10,20 @@ const HEADERS = {
   Accept: "application/json",
 };
 
-function yget(path: string): Promise<any> {
-  return getJsonWithRetry(path, { hosts: HOSTS, headers: HEADERS });
+// All Yahoo traffic goes through one queue (>= 350 ms between requests) and identical
+// concurrent requests share one call, so we never burst into a rate limit.
+const spaced = createSpacer({ minGapMs: 350 });
+const shared = dedupe<any>();
+
+/** `fast` fails quickly (for live quotes, where a fallback source exists); history waits longer. */
+function yget(path: string, opts: { fast?: boolean } = {}): Promise<any> {
+  return shared(`${opts.fast ? "f" : "s"}:${path}`, () =>
+    spaced(() =>
+      getJsonWithRetry(path, opts.fast
+        ? { hosts: HOSTS, headers: HEADERS, retries: 1, baseDelayMs: 300 }
+        : { hosts: HOSTS, headers: HEADERS, retries: 4, baseDelayMs: 800, maxDelayMs: 6000 }),
+    ),
+  );
 }
 
 /** Max history Yahoo serves per interval (days). */
@@ -56,15 +69,11 @@ export async function fetchCandles(
   return out;
 }
 
-const QUOTE_TTL_MS = 8000;
-const QUOTE_CONCURRENCY = 3;
-const quoteCache = new Map<string, { q: Quote; at: number }>();
-
-async function fetchOneQuote(symbol: string): Promise<Quote> {
-  // Chart meta gives a live price without needing Yahoo's crumb/cookie dance.
-  const json = await yget(`/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`);
+/** One live quote from Yahoo's chart metadata (no crumb/cookie needed). */
+export async function fetchYahooQuote(symbol: string): Promise<Quote> {
+  const json = await yget(`/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`, { fast: true });
   const m = json?.chart?.result?.[0]?.meta;
-  if (!m) throw new Error("no meta");
+  if (!m || typeof m.regularMarketPrice !== "number") throw new Error(`${symbol}: no price from Yahoo`);
   const price = m.regularMarketPrice as number;
   const prev = (m.chartPreviousClose ?? m.previousClose) as number;
   return {
@@ -77,34 +86,8 @@ async function fetchOneQuote(symbol: string): Promise<Quote> {
     dayLow: m.regularMarketDayLow ?? price,
     marketState: m.marketState ?? "",
     time: m.regularMarketTime ?? 0,
+    source: "yahoo",
   };
-}
-
-/** Quotes with a short TTL cache and bounded concurrency so polling never floods Yahoo. */
-export async function fetchQuotes(symbols: string[]): Promise<Quote[]> {
-  const now = Date.now();
-  const out = new Map<string, Quote>();
-  const todo: string[] = [];
-  for (const s of symbols) {
-    const hit = quoteCache.get(s);
-    if (hit && now - hit.at < QUOTE_TTL_MS) out.set(s, hit.q);
-    else todo.push(s);
-  }
-  for (let i = 0; i < todo.length; i += QUOTE_CONCURRENCY) {
-    const batch = todo.slice(i, i + QUOTE_CONCURRENCY);
-    const results = await Promise.allSettled(batch.map(fetchOneQuote));
-    results.forEach((r, k) => {
-      const sym = batch[k];
-      if (r.status === "fulfilled") {
-        quoteCache.set(sym, { q: r.value, at: Date.now() });
-        out.set(sym, r.value);
-      } else {
-        const stale = quoteCache.get(sym); // serve the last known price rather than a blank row
-        if (stale) out.set(sym, stale.q);
-      }
-    });
-  }
-  return symbols.flatMap((s) => (out.has(s) ? [out.get(s)!] : []));
 }
 
 export async function searchSymbols(query: string): Promise<SymbolHit[]> {
