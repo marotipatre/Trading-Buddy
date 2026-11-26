@@ -17,14 +17,17 @@ export interface Hover { time: number; open: number; high: number; low: number; 
 
 // The chart library cannot parse the app's oklch theme colours, so it gets explicit values per theme.
 const PALETTE = {
-  light: { text: "#5b6472", grid: "rgba(15,23,42,0.06)", up: "#0f9d73", down: "#e5484d", primary: "#0f9d73", muted: "#8b94a3", volUp: "rgba(15,157,115,0.28)", volDown: "rgba(229,72,77,0.28)" },
-  dark: { text: "#9aa3b2", grid: "rgba(255,255,255,0.07)", up: "#3ecf8e", down: "#f2555a", primary: "#3ecf8e", muted: "#7b8494", volUp: "rgba(62,207,142,0.28)", volDown: "rgba(242,85,90,0.28)" },
+  light: { text: "#5b6472", grid: "rgba(15,23,42,0.06)", up: "#0f9d73", down: "#e5484d", primary: "#2d55e0", muted: "#8b94a3", volUp: "rgba(15,157,115,0.28)", volDown: "rgba(229,72,77,0.28)" },
+  dark: { text: "#9aa3b2", grid: "rgba(255,255,255,0.07)", up: "#3ecf8e", down: "#f2555a", primary: "#7b97ff", muted: "#7b8494", volUp: "rgba(62,207,142,0.28)", volDown: "rgba(242,85,90,0.28)" },
 } as const;
 
 export type ScaleMode = "price" | "percent" | "log";
 const SCALE: Record<ScaleMode, PriceScaleMode> = { price: PriceScaleMode.Normal, percent: PriceScaleMode.Percentage, log: PriceScaleMode.Logarithmic };
 
-export function PriceChart({ candles, intraday, mode, dark, lines, markers, resetKey, onHover, scale, tool, onToolChange, drawings, onDrawingsChange, overlays }: {
+export function PriceChart({ candles, intraday, mode, dark, lines, markers, resetKey, onHover, scale, tool, onToolChange, drawings, onDrawingsChange, overlays, magnet, stay, hidden }: {
+  magnet?: boolean;
+  stay?: boolean;
+  hidden?: boolean;
   candles: Candle[];
   intraday: boolean;
   mode: "candles" | "line";
@@ -141,7 +144,7 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
       <div ref={box} className="absolute inset-0" />
       {handles && tool && onToolChange && drawings && onDrawingsChange && (
         <DrawingLayer chart={handles.chart} series={handles.main} candles={candles} drawings={drawings} onChange={onDrawingsChange}
-          tool={tool} onToolChange={onToolChange} colors={{ up: pal.up, down: pal.down }} />
+          tool={tool} onToolChange={onToolChange} colors={{ up: pal.up, down: pal.down }} magnet={magnet} stay={stay} hidden={hidden} />
       )}
     </div>
   );

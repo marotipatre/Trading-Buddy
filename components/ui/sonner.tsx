@@ -8,7 +8,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
 
   return (
-    <Sonner
+    <Sonner hotkey={["ctrlKey", "shiftKey", "KeyN"]}
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{

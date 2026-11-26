@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Info } from "@/components/ui/info";
 import { Check } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { graduation } from "@/lib/graduation";
 import type { ClosedTrade } from "@/lib/paper/types";
 import { cn } from "@/lib/utils";

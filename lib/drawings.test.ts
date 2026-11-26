@@ -103,3 +103,49 @@ describe("two-point horizontal lines", () => {
     expect(DrawingSchema.safeParse({ id: "a", kind: "trend", points: [p] }).success).toBe(false);
   });
 });
+
+describe("new drawing tools", () => {
+  it("places one-click tools from a single point", async () => {
+    const { placeOnce, DrawingSchema: S } = await import("./drawings");
+    const at = { time: 1_700_000_000, price: 100 };
+    const h = placeOnce("hline", at, { span: 3600 });
+    expect(h.points).toHaveLength(1);
+    expect(S.safeParse(h).success).toBe(true);
+    const t = placeOnce("text", at, { span: 3600, text: "Breakout" });
+    expect(t.text).toBe("Breakout");
+  });
+  it("builds a long or short position box with its stop and target on the right sides", async () => {
+    const { placeOnce, positionStats, DrawingSchema: S } = await import("./drawings");
+    const at = { time: 1_700_000_000, price: 200 };
+    const long = placeOnce("long", at, { span: 86400, stopPct: 2, targetPct: 4 });
+    expect(long.points[1].price).toBeCloseTo(196); expect(long.points[2].price).toBeCloseTo(208);
+    expect(long.points[1].time).toBe(long.points[2].time);
+    expect(positionStats(long)!.rr).toBeCloseTo(2);
+    const short = placeOnce("short", at, { span: 86400, stopPct: 2, targetPct: 4 });
+    expect(short.points[1].price).toBeCloseTo(204); expect(short.points[2].price).toBeCloseTo(192);
+    expect(positionStats(short)!.rr).toBeCloseTo(2);
+    expect(S.safeParse(long).success && S.safeParse(short).success).toBe(true);
+  });
+  it("computes fibonacci levels from the first point (1) to the second (0)", async () => {
+    const { fibPrices } = await import("./drawings");
+    const l = fibPrices({ time: 1, price: 100 }, { time: 2, price: 200 });
+    expect(l[0]).toEqual({ level: 0, price: 200 });
+    expect(l.at(-1)).toEqual({ level: 1, price: 100 });
+    expect(l.find((x) => x.level === 0.5)!.price).toBeCloseTo(150);
+  });
+  it("needs the right number of points for each kind and a valid colour", async () => {
+    const { DrawingSchema: S } = await import("./drawings");
+    const p = (n: number) => Array.from({ length: n }, (_, i) => ({ time: 100 + i, price: 10 + i }));
+    expect(S.safeParse({ id: "a", kind: "channel", points: p(2) }).success).toBe(false);
+    expect(S.safeParse({ id: "a", kind: "channel", points: p(3) }).success).toBe(true);
+    expect(S.safeParse({ id: "a", kind: "rect", points: p(2), color: "#3b82f6", width: 3, dashed: true }).success).toBe(true);
+    expect(S.safeParse({ id: "a", kind: "rect", points: p(2), color: "red" }).success).toBe(false);
+    expect(S.safeParse({ id: "a", kind: "vline", points: p(2) }).success).toBe(false);
+  });
+  it("treats a horizontal ray as a level and a ray like a trendline for price lookups", async () => {
+    const { drawingPriceAt } = await import("./drawings");
+    const times = [0, 1, 2, 3, 4].map((i) => i * 86400);
+    expect(drawingPriceAt({ id: "h", kind: "hray", points: [{ time: 0, price: 50 }] }, times, 3)).toBe(50);
+    expect(drawingPriceAt({ id: "r", kind: "ray", points: [{ time: 0, price: 100 }, { time: 2 * 86400, price: 110 }] }, times, 4)).toBeCloseTo(120);
+  });
+});

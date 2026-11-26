@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
-import { Activity, CandlestickChart, LineChart, X, MousePointer2, Minus, Ruler, Trash2, TrendingUp } from "lucide-react";
+import { Activity, CandlestickChart, LineChart, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +14,7 @@ import { fmtDate } from "@/lib/format";
 import { orderLabel } from "@/lib/paper/broker";
 import { cn } from "@/lib/utils";
 import { loadDrawings, saveDrawings, type Drawing } from "@/lib/drawings";
+import { DrawingRail } from "./drawing-rail";
 import type { Tool } from "./drawing-layer";
 import { PriceChart, type ChartLine, type ChartMarker, type Hover, type ScaleMode } from "./price-chart";
 import { useChartData } from "./use-chart-data";
@@ -29,6 +30,9 @@ export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: n
   const [scale, setScale] = useState<ScaleMode>("price");
   const [tool, setTool] = useState<Tool>("cursor");
   const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [magnet, setMagnet] = useState(true);
+  const [stay, setStay] = useState(false);
+  const [hideDraw, setHideDraw] = useState(false);
   const [loadedFor, setLoadedFor] = useState("");
   const [specs, setSpecs] = useState<IndicatorSpec[]>([]);
   const [menu, setMenu] = useState(false);
@@ -119,11 +123,6 @@ export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: n
         </div>
 
         <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Drawing tools">
-          {([["cursor", MousePointer2, "Cursor"], ["hline", Minus, "Horizontal line"], ["trend", TrendingUp, "Trendline"], ["measure", Ruler, "Measure % change"]] as const).map(([id, Icon, label]) => (
-            <Button key={id} size="sm" variant={tool === id ? "secondary" : "ghost"} aria-pressed={tool === id} title={label} onClick={() => setTool(id)}>
-              <Icon /> <span className="hidden sm:inline">{label}</span>
-            </Button>
-          ))}
           <div className="relative">
             <Button size="sm" variant={menu ? "secondary" : "ghost"} aria-expanded={menu} onClick={() => setMenu((m) => !m)}><Activity /> <span className="hidden sm:inline">Indicators</span></Button>
             {menu && (
@@ -146,9 +145,6 @@ export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: n
               </div>
             )}
           </div>
-          {drawings.length > 0 && (
-            <Button size="sm" variant="ghost" className="text-muted-foreground" title="Remove all drawings on this stock" onClick={() => updateDrawings([])}><Trash2 /> Clear ({drawings.length})</Button>
-          )}
         </div>
 
         <div className="tabular flex min-h-5 flex-wrap items-center gap-x-4 gap-y-0.5 font-mono text-xs text-muted-foreground">
@@ -179,7 +175,8 @@ export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: n
             })}
           </div>
         )}
-        <div className="relative">
+        <div className="relative pl-[3.25rem]">
+          <DrawingRail tool={tool} onTool={setTool} magnet={magnet} onMagnet={() => setMagnet((m) => !m)} stay={stay} onStay={() => setStay((v) => !v)} hidden={hideDraw} onHidden={() => setHideDraw((v) => !v)} count={drawings.length} onClear={() => updateDrawings([])} />
           {error && candles.length === 0 ? (
             <div className="grid h-[360px] place-items-center rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground sm:h-[420px]">
               <div className="space-y-2"><p>{error}</p><Button size="sm" variant="outline" onClick={() => setTfId((x) => x)}>Try again</Button></div>
@@ -188,7 +185,7 @@ export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: n
             <>
               <PriceChart candles={candles} intraday={intraday} mode={mode} dark={resolvedTheme !== "light"} lines={allLines} markers={markers}
                 resetKey={`${symbol}|${tfId}`} onHover={setHover}
-                scale={scale} tool={tool} onToolChange={setTool} drawings={drawings} onDrawingsChange={updateDrawings} overlays={indicatorLines} />
+                scale={scale} tool={tool} onToolChange={setTool} drawings={drawings} onDrawingsChange={updateDrawings} overlays={indicatorLines} magnet={magnet} stay={stay} hidden={hideDraw} />
               {loading && candles.length === 0 && <Skeleton className="absolute inset-0" />}
               {!loading && candles.length === 0 && <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">No price data for this period.</div>}
             </>
