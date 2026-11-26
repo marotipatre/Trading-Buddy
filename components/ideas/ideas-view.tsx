@@ -195,9 +195,14 @@ export function IdeasView() {
 
   const focusSectors = new Set(sectors.filter((s) => s.stance === "focus").map((s) => s.sector));
   // Only setups that have paid off on average over this holding period in their own history go into the portfolio.
-  const mix = useMemo(() => buildMixedPortfolio(
-    ideas.filter((i) => (i.hz?.expectancyPct ?? 0) > 0).map((i) => ({ symbol: i.stock.symbol, name: i.stock.name, sector: i.stock.sector, view: i.view, edge: i.hz?.expectancyPct })),
-    capital, riskPct * (regime?.sizeFactor ?? 1)), [ideas, capital, riskPct, regime]);
+  const mix = useMemo(() => {
+    // Skip sectors the map marks Avoid, and give Focus sectors a small edge, so the portfolio agrees with the sector view.
+    const avoid = new Set(sectors.filter((x) => x.stance === "avoid").map((x) => x.sector));
+    const focus = new Set(sectors.filter((x) => x.stance === "focus").map((x) => x.sector));
+    return buildMixedPortfolio(
+      ideas.filter((i) => (i.hz?.expectancyPct ?? 0) > 0 && !avoid.has(i.stock.sector)).map((i) => ({ symbol: i.stock.symbol, name: i.stock.name, sector: i.stock.sector, view: i.view, edge: (i.hz?.expectancyPct ?? 0) + (focus.has(i.stock.sector) ? 0.5 : 0) })),
+      capital, riskPct * (regime?.sizeFactor ?? 1));
+  }, [ideas, capital, riskPct, regime, sectors]);
   const expectation = useMemo(() => {
     const rows = mix.picks.flatMap((p) => { const hz = ideas.find((i) => i.stock.symbol === p.symbol)?.hz; return hz ? [{ p, hz }] : []; });
     const invested = rows.reduce((s, r) => s + r.p.value, 0);
@@ -316,7 +321,7 @@ export function IdeasView() {
         <Card>
           <CardHeader>
             <CardTitle>Mixed portfolio · {ranMethod === "trend" ? `${FRAME_LABEL[ranFrame].toLowerCase()} view` : METHODS.find((m) => m.id === ranMethod)!.label}</CardTitle>
-            <CardDescription>The best buy setups spread over sectors: at most 2 per sector, each sized to risk {riskPct}% of {fmtInr(capital)}, 10% kept as cash.</CardDescription>
+            <CardDescription>The best buy setups spread over sectors (skipping sectors marked Avoid): at most 2 per sector, each sized to risk {riskPct}% of {fmtInr(capital)}, 10% kept as cash.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="overflow-x-auto">
