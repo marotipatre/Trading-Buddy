@@ -29,6 +29,8 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
   const [cursor, setCursor] = useState<DrawPoint | null>(null);
   const times = useMemo(() => candles.map((c) => c.time), [candles]);
   const lastClose = candles.at(-1)?.close ?? 0;
+  /** Bar counts are only meaningful when both points lie inside the loaded candles; otherwise they are extrapolated. */
+  const inData = (pts: DrawPoint[]) => times.length > 1 && pts.every((p) => p.time >= times[0] && p.time <= times[times.length - 1]);
   const lastIdx = candles.length - 1;
 
   const redraw = useCallback(() => {
@@ -141,7 +143,8 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
       let ex = b.x, ey = b.y;
       if (d.extend && b.x !== a.x) { ex = Math.max(w, b.x); ey = a.y + ((b.y - a.y) * (ex - a.x)) / (b.x - a.x); }
       const now = lastIdx >= 0 ? drawingPriceAt(d, times, lastIdx) : null;
-      const label = `${m.dPct >= 0 ? "▲" : "▼"} ${pct(m.dPct)} · ${Math.round(m.bars)} bars${now ? ` · now ${now.toFixed(2)} (${pct(pctFrom(now, lastClose))})` : ""}`;
+      const span = inData(d.points) ? `${Math.round(m.bars)} bars` : formatSpan(m.seconds);
+      const label = `${m.dPct >= 0 ? "▲" : "▼"} ${pct(m.dPct)} · ${span}${now ? ` · now ${now.toFixed(2)} (${pct(pctFrom(now, lastClose))})` : ""}`;
       return (
         <g key={d.id} opacity={op}>
           <line x1={a.x} y1={a.y} x2={ex} y2={ey} stroke="#3b82f6" strokeWidth={1.75} strokeDasharray={preview ? "4 4" : undefined} />
@@ -157,7 +160,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
         <rect x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} fill={col} fillOpacity={0.12} stroke={col} strokeWidth={1} strokeDasharray="3 3" />
         <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={col} strokeWidth={1.5} />
         <circle cx={a.x} cy={a.y} r={3} fill={col} /><circle cx={b.x} cy={b.y} r={3} fill={col} />
-        {chip((a.x + b.x) / 2 - 90, (a.y + b.y) / 2, `${sign(m.dPrice)}${Math.abs(m.dPrice).toFixed(2)} (${pct(m.dPct)}) · ${Math.round(m.bars)} bars · ${formatSpan(m.seconds)}`, col, preview ? undefined : () => remove(d.id))}
+        {chip((a.x + b.x) / 2 - 90, (a.y + b.y) / 2, `${sign(m.dPrice)}${Math.abs(m.dPrice).toFixed(2)} (${pct(m.dPct)}) · ${inData(d.points) ? `${Math.round(m.bars)} bars · ` : ""}${formatSpan(m.seconds)}`, col, preview ? undefined : () => remove(d.id))}
       </g>
     );
   };
@@ -167,7 +170,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
   return (
     <svg
       ref={svg}
-      className="absolute inset-0 size-full"
+      className="absolute inset-0 z-10 size-full"
       style={{ pointerEvents: tool === "cursor" ? "none" : "auto", cursor: tool === "cursor" ? "default" : "crosshair" }}
       onPointerDown={onPointerDown}
       onPointerMove={(e) => { if (pending) setCursor(pointFrom(e)); }}
