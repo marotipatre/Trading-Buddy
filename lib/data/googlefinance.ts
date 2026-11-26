@@ -31,24 +31,38 @@ export function toGoogleSymbol(yahoo: string): string | null {
 
 const NUM = "(-?\\d+(?:\\.\\d+)?(?:E-?\\d+)?)";
 
-/** Extract a quote from the HTML of a Google Finance quote page. Pure; returns null if the shape is unknown. */
+/** "TICKER:EXCH" exactly as Google writes it in the page data (`&` is not escaped there). */
+function expectedKey(yahooSymbol: string): string | null {
+  const g = toGoogleSymbol(yahooSymbol);
+  return g ? decodeURIComponent(g) : null;
+}
+
+/**
+ * Extract the quote for `yahooSymbol` from a Google Finance quote page. Pure.
+ * A page lists many instruments (a market ribbon, related stocks, peers), so only a price block
+ * whose ticker and exchange match the requested symbol is accepted. Anything else returns null
+ * instead of guessing: a wrong price is worse than no price.
+ */
 export function parseGoogleQuote(html: string, yahooSymbol: string): Quote | null {
-  // Full block: ...,open,"/g/id",LOW,HIGH,PRICE,2,CHANGE,2,PCT,2,"CUR","TICKER:EXCH","Name",PREVCLOSE,...
-  const full = html.match(
-    new RegExp(`null,${NUM},"/[gm]/[^"]+",${NUM},${NUM},${NUM},\\d,${NUM},\\d,${NUM},\\d,"[A-Z]{3}","[^"]+","[^"]*",${NUM}`),
-  );
+  const want = expectedKey(yahooSymbol);
+  if (!want) return null;
   const time = html.match(/\[(\d{9,10})\],"Asia\/Calcutta"/);
   const t = time ? Number(time[1]) : Math.floor(Date.now() / 1000);
-  if (full) {
-    const [, , low, high, price, change, pct, prev] = full.map(Number);
+
+  // Full block: ...,open,"/g/id",LOW,HIGH,PRICE,2,CHANGE,2,PCT,2,"CUR","TICKER:EXCH","Name",PREVCLOSE,...
+  const full = new RegExp(`null,${NUM},"/[gm]/[^"]+",${NUM},${NUM},${NUM},\\d,${NUM},\\d,${NUM},\\d,"[A-Z]{3}","([^"]+)","[^"]*",${NUM}`, "g");
+  for (const m of html.matchAll(full)) {
+    if (m[7] !== want) continue; // groups: 1 open, 2 low, 3 high, 4 price, 5 change, 6 pct, 7 ticker, 8 prev close
+    const [low, high, price, change, pct, prev] = [m[2], m[3], m[4], m[5], m[6], m[8]].map(Number);
     if ([low, high, price, change, pct, prev].every(Number.isFinite) && price > 0) {
       return { symbol: yahooSymbol, price, prevClose: prev, change, changePct: pct, dayHigh: high, dayLow: low, marketState: "", time: t };
     }
   }
-  // Smaller tuple: "TICKER","EXCH"],"Name",0,"INR",[PRICE,CHANGE,PCT,...],null,PREVCLOSE
-  const tuple = html.match(new RegExp(`\\["[^"]+","[A-Z]+"\\],"[^"]*",\\d,"[A-Z]{3}",\\[${NUM},${NUM},${NUM},[^\\]]*\\],null,${NUM}`));
-  if (tuple) {
-    const [, price, change, pct, prev] = tuple.map(Number);
+  // Smaller tuple: ["TICKER","EXCH"],"Name",0,"INR",[PRICE,CHANGE,PCT,...],null,PREVCLOSE
+  const tuple = new RegExp(`\\["([^"]+)","([A-Z]+)"\\],"[^"]*",\\d,"[A-Z]{3}",\\[${NUM},${NUM},${NUM},[^\\]]*\\],null,${NUM}`, "g");
+  for (const m of html.matchAll(tuple)) {
+    if (`${m[1]}:${m[2]}` !== want) continue;
+    const [price, change, pct, prev] = [m[3], m[4], m[5], m[6]].map(Number);
     if ([price, change, pct, prev].every(Number.isFinite) && price > 0) {
       return { symbol: yahooSymbol, price, prevClose: prev, change, changePct: pct, dayHigh: price, dayLow: price, marketState: "", time: t };
     }
