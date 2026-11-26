@@ -93,3 +93,11 @@ export async function getAllEquities(f?: typeof fetch, tool: "cm_get_equity_stoc
   await Promise.all(Array.from({ length: 4 }, async () => { for (let p = queue.shift(); p !== undefined; p = queue.shift()) await grab(p); }));
   return { updatedAt, stocks: [...seen.values()] };
 }
+
+/** Official end-of-day quote (from NSE's bhavcopy) for one stock. */
+export interface EodQuote { symbol: string; open: number; high: number; low: number; close: number; prev_close: number; volume: number; pct_change?: number; date: string }
+/** The tool accepts at most 50 symbols per call. Returns the latest end-of-day figures, each with its own date. */
+export async function getBulkQuotes(symbols: string[], f?: typeof fetch): Promise<EodQuote[]> {
+  const r = await callTool<{ quotes?: EodQuote[] }>("eod", "get_bulk_quote", { symbols: symbols.slice(0, 50) }, f);
+  return r.quotes ?? [];
+}

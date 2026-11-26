@@ -22,7 +22,8 @@ export function stage1(rows: MarketRow[], capOf: (symbol: string) => Cap | undef
   const out: Stage1[] = [];
   for (const r of rows) {
     const cap = capOf(r.symbol);
-    if (cap === "large" || cap === "mid") continue;
+    // Only stocks in the app's own universe (which already leaves out ETFs and funds), so every tab agrees on what exists.
+    if (cap === undefined || cap === "large" || cap === "mid") continue;
     const sme = r.segment === "sme";
     if (r.price < minPrice || r.valueCr < (sme ? 0.02 : minValueCr) || r.series === "BE" && r.valueCr < 0.5) continue;
     const range = r.high52 - r.low52;

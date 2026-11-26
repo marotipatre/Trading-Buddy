@@ -19,8 +19,16 @@ describe("buckets", () => {
 
 describe("stage1", () => {
   const rows = parseMarket({ stocks: [row({ symbol: "GOOD" }), row({ symbol: "LARGE" }), row({ symbol: "LOWS", lastTradedPrice: 52 }), row({ symbol: "THIN", value: 0.01 }), row({ symbol: "TINY", lastTradedPrice: 3 })] });
-  const cap = (s: string) => (s === "LARGE" ? "large" as const : s === "GOOD" ? "small" as const : undefined);
+  const cap = (s: string) => (s === "LARGE" ? "large" as const : s === "GOOD" ? "small" as const : s === "GHOST" ? undefined : "other" as const);
   const out = stage1(rows, cap);
   it("drops large caps, near-lows, thin and sub-5-rupee stocks", () => { expect(out.map((x) => x.row.symbol)).toEqual(["GOOD"]); });
   it("explains why a stock passed", () => { expect(out[0].why.length).toBeGreaterThan(0); expect(out[0].bucket).toBe("small"); });
+});
+
+describe("stage1 universe", () => {
+  it("ignores symbols that are not in the app's universe", () => {
+    const rows = parseMarket({ stocks: [row({ symbol: "GHOST" }), row({ symbol: "REAL" })] });
+    const out = stage1(rows, (s) => (s === "GHOST" ? undefined : "small"));
+    expect(out.map((x) => x.row.symbol)).toEqual(["REAL"]);
+  });
 });

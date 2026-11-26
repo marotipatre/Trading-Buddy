@@ -5,7 +5,7 @@ export interface MarketRow {
   valueCr: number; high52: number; low52: number; chg30d: number | null;
 }
 
-const FUND_LIKE = /(BEES|ETF|IETF|LIQUID|GILT|GOLD|SILVER|NIFTY|SENSEX|BANKEX|MON100|MOM100|MAFANG|JUNIOR|MIDCAP\d|SMALLCAP\d|^NV20|^HDFC[A-Z]*(ETF|IETF)|FUND)/;
+const FUND_LIKE = /(BEES|ETF|IETF|LIQUID|GILT|NIFTY|SENSEX|BANKEX|MON100|MOM100|MAFANG|^NV20|^HDFC[A-Z]*(ETF|IETF)|FUND)/;
 const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
 
 /** Pure: keep ordinary equity (series EQ, BE, BL, BT, IL, IQ) and drop ETFs and index funds. */

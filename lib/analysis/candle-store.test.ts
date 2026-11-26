@@ -28,3 +28,13 @@ describe("usableFromDb", () => {
     expect(usableFromDb(mk(10, 1), 5, now)).toBe(false);
   });
 });
+
+describe("usableFromDb with a known latest session", () => {
+  it("rejects history that misses the newest official close", async () => {
+    const { usableFromDb } = await import("./candle-cache");
+    const now = Date.UTC(2026, 10, 27, 6) / 1000, day = 86400;
+    const bars = (lastDate: string, n = 900) => { const end = Date.parse(lastDate + "T03:45:00Z") / 1000; return Array.from({ length: n }, (_, i) => ({ time: end - (n - 1 - i) * day, open: 1, high: 1, low: 1, close: 1, volume: 1 })); };
+    expect(usableFromDb(bars("2026-11-26"), 800, now, "2026-11-26")).toBe(true);
+    expect(usableFromDb(bars("2026-11-25"), 800, now, "2026-11-26")).toBe(false);
+  });
+});

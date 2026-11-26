@@ -48,10 +48,22 @@ export function peekCandles(symbol: string, days: number, interval = "1d"): Cand
 }
 
 /** Pure: can candles from our database stand in for a fresh download of `days` days? Needs the full window and a recent last bar. */
-export function usableFromDb(candles: Candle[], days: number, nowSec: number): boolean {
+export function usableFromDb(candles: Candle[], days: number, nowSec: number, latestDate?: string): boolean {
   if (candles.length < 30) return false;
   const first = candles[0].time, last = candles[candles.length - 1].time;
-  return first <= nowSec - days * 86400 + 25 * 86400 && nowSec - last <= 5 * 86400;
+  if (first > nowSec - days * 86400 + 25 * 86400) return false;
+  // When we know the newest official session, the saved history must include it; otherwise it must be recent.
+  if (latestDate) return new Date((last + 19800) * 1000).toISOString().slice(0, 10) >= latestDate;
+  return nowSec - last <= 5 * 86400;
+}
+
+let daily: { at: number; date: string } | null = null;
+let dailyP: Promise<string> | null = null;
+/** Asks the server to save the latest official close for the whole market (cheap and idempotent). Returns the newest session date, or "" if unknown. */
+export function ensureDailyFresh(): Promise<string> {
+  if (daily && Date.now() - daily.at < 10 * 60_000) return Promise.resolve(daily.date);
+  dailyP ??= fetch("/api/daily-update", { method: "POST" }).then(async (r) => { const j = await r.json(); const date = r.ok && typeof j.date === "string" ? j.date : ""; daily = { at: Date.now(), date }; return date; }).catch(() => "").finally(() => { dailyP = null; });
+  return dailyP;
 }
 
 /**
@@ -59,6 +71,7 @@ export function usableFromDb(candles: Candle[], days: number, nowSec: number): b
  * scan only has to download the stocks we have never saved. Anything missing or too old is left for fetchCandles to handle.
  */
 export async function prefetchDaily(symbols: string[], days: number, stop: () => boolean = () => false): Promise<number> {
+  const latest = await ensureDailyFresh();
   const need: string[] = [];
   const nowSec = Math.floor(Date.now() / 1000);
   for (const s of symbols) {
@@ -79,7 +92,7 @@ export async function prefetchDaily(symbols: string[], days: number, stop: () =>
       const j = (await res.json()) as { candles: Record<string, number[][]> };
       for (const [sym, rows] of Object.entries(j.candles)) {
         const candles: Candle[] = rows.map((r) => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4], volume: r[5] }));
-        if (!usableFromDb(candles, days, nowSec)) continue;
+        if (!usableFromDb(candles, days, nowSec, latest || undefined)) continue;
         const key = `${sym}|1d|${days}`;
         cache.set(key, { at: Date.now(), candles });
         void writeSeries(key, candles);
