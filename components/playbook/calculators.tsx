@@ -64,7 +64,7 @@ function ExpectancyCalc() {
       <CardHeader><CardTitle>Expectancy</CardTitle><CardDescription>What your average trade earns, in R, before costs.</CardDescription></CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 gap-2.5">
-          <F label="Win rate (%)"><NumberField min={1} max={99} value={win} onChange={setWin} /></F>
+          <F label="You win this % of trades"><NumberField min={1} max={99} value={win} onChange={setWin} /></F>
           <F label="Average win (R)"><NumberField min={0.1} step={0.1} value={aw} onChange={setAw} /></F>
           <F label="Average loss (R)"><NumberField min={0.1} step={0.1} value={al} onChange={setAl} /></F>
         </div>
@@ -85,15 +85,15 @@ function StreakCalc() {
   const p = streakProbability(1 - win / 100, n, k);
   return (
     <Card>
-      <CardHeader><CardTitle>Losing streaks to expect</CardTitle><CardDescription>Chance of a run of losses somewhere in a series of trades, if each trade is independent.</CardDescription></CardHeader>
+      <CardHeader><CardTitle>How many losses in a row to expect</CardTitle><CardDescription>Type your win rate and see how likely a bad run is. Bad runs are normal, not a sign your method is broken.</CardDescription></CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 gap-2.5">
           <F label="Win rate (%)"><NumberField min={1} max={99} value={win} onChange={setWin} /></F>
-          <F label="Trades"><NumberField min={5} max={2000} value={n} onChange={(v) => setN(Math.round(v))} /></F>
-          <F label="Losses in a row"><NumberField min={2} max={30} value={k} onChange={(v) => setK(Math.round(v))} /></F>
+          <F label="Over this many trades"><NumberField min={5} max={2000} value={n} onChange={(v) => setN(Math.round(v))} /></F>
+          <F label="Losing this many in a row"><NumberField min={2} max={30} value={k} onChange={(v) => setK(Math.round(v))} /></F>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-sm">
-          <b className="font-mono text-lg">{(p * 100).toFixed(p < 0.01 ? 2 : 0)}%</b> chance of at least one run of {k} losses in {n} trades. Plan for it: size so that this streak does not threaten your account or your discipline.
+          <b className="font-mono text-lg">{(p * 100).toFixed(p < 0.01 ? 2 : 0)}%</b> chance that at some point in {n} trades you lose {k} in a row ({p >= 0.5 ? "more likely than not" : p >= 0.15 ? "it will probably happen once" : "unlikely, but possible"}). Plan for it: keep each trade small enough that this streak does not hurt your account or your nerve.
         </div>
       </CardContent>
     </Card>

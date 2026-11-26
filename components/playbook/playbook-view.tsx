@@ -1,5 +1,6 @@
 "use client";
 
+import { RichText } from "./rich-text";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -138,7 +139,7 @@ function BookView({ book }: { book: Book }) {
             <Card id="path" className="scroll-mt-24">
               <CardHeader><CardTitle>Your path: do not skip stages</CardTitle><CardDescription>Move to the next stage only when you pass the one you are on.</CardDescription></CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2">
-                {book.stages.map((st) => <div key={st.stage} className="space-y-0.5 rounded-lg border p-3 text-sm"><b>{st.stage}</b><p className="text-muted-foreground">{st.do}</p><p><span className="font-medium">Pass when: </span><span className="text-muted-foreground">{st.passWhen}</span></p></div>)}
+                {book.stages.map((st) => <div key={st.stage} className="space-y-0.5 rounded-lg border p-3 text-sm"><b>{st.stage}</b><p className="text-muted-foreground"><RichText text={st.do} /></p><p><span className="font-medium">Pass when: </span><span className="text-muted-foreground">{st.passWhen}</span></p></div>)}
               </CardContent>
             </Card>
           </>
@@ -149,12 +150,12 @@ function BookView({ book }: { book: Book }) {
           if (!rules.length) return null;
           return (
             <Card key={s.title} id={slug(s.title)} className="scroll-mt-24">
-              <CardHeader><CardTitle>{s.title}</CardTitle>{s.intro && <CardDescription>{s.intro}</CardDescription>}</CardHeader>
+              <CardHeader><CardTitle>{s.title}</CardTitle>{s.intro && <CardDescription><RichText text={s.intro} /></CardDescription>}</CardHeader>
               <CardContent className="divide-y">
                 {rules.map(({ r, code }) => (
                   <div key={r.rule} className="space-y-1 py-3 first:pt-0 last:pb-0">
-                    <p className="text-sm font-medium"><span className="mr-2 font-mono text-[11px] font-normal text-muted-foreground">{code}</span>{r.rule}</p>
-                    <p className="text-sm text-muted-foreground"><span className="font-medium text-foreground/80">Why: </span>{r.why}</p>
+                    <p className="text-sm font-medium"><span className="mr-2 font-mono text-[11px] font-normal text-muted-foreground">{code}</span><RichText text={r.rule} /></p>
+                    <p className="text-sm text-muted-foreground"><span className="font-medium text-foreground/80">Why: </span><RichText text={r.why} /></p>
                     {r.inApp && <Link href={r.inApp.href} className="inline-block text-xs text-primary underline">{r.inApp.label}</Link>}
                   </div>
                 ))}
@@ -171,11 +172,11 @@ function BookView({ book }: { book: Book }) {
                 {book.setups.map((st) => (
                   <div key={st.name} className="space-y-1 rounded-lg border p-3 text-sm">
                     <b>{st.name}</b>
-                    <p><span className="font-medium">When: </span><span className="text-muted-foreground">{st.when}</span></p>
-                    <p><span className="font-medium">Entry: </span><span className="text-muted-foreground">{st.entry}</span></p>
-                    <p><span className="font-medium text-down">Stop: </span><span className="text-muted-foreground">{st.stop}</span></p>
-                    <p><span className="font-medium text-up">Target: </span><span className="text-muted-foreground">{st.target}</span></p>
-                    <p><span className="font-medium">Avoid: </span><span className="text-muted-foreground">{st.avoid}</span></p>
+                    <p><span className="font-medium">When: </span><span className="text-muted-foreground"><RichText text={st.when} /></span></p>
+                    <p><span className="font-medium">Entry: </span><span className="text-muted-foreground"><RichText text={st.entry} /></span></p>
+                    <p><span className="font-medium text-down">Stop: </span><span className="text-muted-foreground"><RichText text={st.stop} /></span></p>
+                    <p><span className="font-medium text-up">Target: </span><span className="text-muted-foreground"><RichText text={st.target} /></span></p>
+                    <p><span className="font-medium">Avoid: </span><span className="text-muted-foreground"><RichText text={st.avoid} /></span></p>
                   </div>
                 ))}
               </CardContent>
@@ -185,7 +186,8 @@ function BookView({ book }: { book: Book }) {
               {book.tables.map((t) => (
                 <Card key={t.title}>
                   <CardHeader><CardTitle>{t.title}</CardTitle>{t.note && <CardDescription>{t.note}</CardDescription>}</CardHeader>
-                  <CardContent className="overflow-x-auto">
+                  <CardContent className="space-y-3 overflow-x-auto">
+                    {t.meaning && <p className="rounded-lg bg-primary/5 p-3 text-sm leading-relaxed"><b className="text-primary">In plain words: </b><RichText text={t.meaning} /></p>}
                     <table className="w-full text-sm">
                       <thead className="text-left text-xs text-muted-foreground"><tr>{t.head.map((h) => <th key={h} className="py-1 pr-3 font-medium">{h}</th>)}</tr></thead>
                       <tbody className="divide-y">{t.rows.map((r) => <tr key={r.join("|")}>{r.map((c, i) => <td key={i} className="py-1.5 pr-3 font-mono text-xs">{c}</td>)}</tr>)}</tbody>
