@@ -11,6 +11,9 @@ import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { NewsPanel } from "@/components/news/news-panel";
 import { useUniverse } from "@/components/use-universe";
+import { bullBear } from "@/lib/analysis/bullbear";
+import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
+import { latestPatterns } from "@/lib/analysis/patterns";
 import { moodOf } from "@/lib/analysis/mood";
 import { AiSentimentToggle } from "@/components/ai-sentiment";
 import { rankSectors, type SectorRow } from "@/lib/analysis/sectors";
@@ -27,18 +30,33 @@ import { displaySymbol } from "@/lib/symbols";
 import { CAP_LABEL, type Cap, type UniverseStock } from "@/lib/universe-lists";
 import { cn } from "@/lib/utils";
 
-interface Idea { stock: UniverseStock; view: StockView; hz?: HorizonStats; news?: { items: NewsItem[]; calls: AnalystCall[]; summary: Consensus } }
+interface Idea { stock: UniverseStock; view: StockView; hz?: HorizonStats; patterns?: { name: string; bias: "bullish" | "bearish" | "neutral" }[]; mood?: { score: number; source: "ai" | "words" }; news?: { items: NewsItem[]; calls: AnalystCall[]; summary: Consensus } }
 const ARROW = { up: "▲", down: "▼", flat: "▬" } as const;
 const TONE = { up: "text-up", down: "text-down", flat: "text-muted-foreground" } as const;
 const BADGE = { buy: "bg-up/15 text-up", watch: "bg-warn/15 text-warn", avoid: "bg-down/15 text-down" } as const;
 const VERDICT = { buy: "Buy setup", watch: "Watch", avoid: "Avoid" } as const;
 const STANCE = { focus: "bg-up/15 text-up", neutral: "bg-muted text-muted-foreground", avoid: "bg-down/15 text-down" } as const;
+function BullBearPanel({ i, regime, days, target, asOf }: { i: Idea; regime?: "bull" | "bear" | "sideways"; days: number; target: number; asOf?: number }) {
+  const bb = bullBear({ view: i.view, hz: i.hz, patterns: i.patterns, regime, days, target, asOf, news: { mood: i.mood?.score, moodSource: i.mood?.source } });
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm"><b>Both sides of the case</b><span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", bb.lean === "favours buying" ? "bg-up/15 text-up" : bb.lean === "favours caution" ? "bg-down/15 text-down" : "bg-muted text-muted-foreground")}>{bb.lean}</span></div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div><div className="mb-1 text-xs font-medium text-up">The bull case ({bb.bull.length})</div><ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">{bb.bull.length ? bb.bull.map((t) => <li key={t}>{t}</li>) : <li>Nothing strong</li>}</ul></div>
+        <div><div className="mb-1 text-xs font-medium text-down">The bear case ({bb.bear.length})</div><ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">{bb.bear.length ? bb.bear.map((t) => <li key={t}>{t}</li>) : <li>Nothing strong</li>}</ul></div>
+      </div>
+      {(i.patterns?.length ?? 0) > 0 && <p className="text-xs text-muted-foreground">Latest candle: {i.patterns!.map((p) => p.name).join(", ")}.</p>}
+      <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Where these numbers come from</summary><ul className="mt-1 list-disc space-y-0.5 pl-4">{bb.provenance.map((t) => <li key={t}>{t}</li>)}</ul></details>
+    </div>
+  );
+}
+
 const pct = (n: number) => (Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixed(1)}%` : "—");
 
 const candlesOf = (symbol: string, days: number) => fetchCandles(symbol, days);
 
 const LAST_KEY = "tb.ideas.last.v1";
-interface LastScan { at: number; ideas: Idea[]; sectors: SectorRow[]; bench: number | null; days: number; target: number; method: Method; frame: Frame }
+interface LastScan { at: number; ideas: Idea[]; sectors: SectorRow[]; bench: number | null; regime?: MarketRegime | null; days: number; target: number; method: Method; frame: Frame }
 function loadLast(): LastScan | null {
   try { const v = JSON.parse(localStorage.getItem(LAST_KEY) ?? "null") as LastScan | null; return v && Array.isArray(v.ideas) && v.ideas.length ? v : null; } catch { return null; }
 }
@@ -66,6 +84,7 @@ export function IdeasView() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [sectors, setSectors] = useState<SectorRow[]>([]);
   const [bench, setBench] = useState<number | null>(null);
+  const [regime, setRegime] = useState<MarketRegime | null>(null);
   const [asOf, setAsOf] = useState<number | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const stopRef = useRef(false);
@@ -76,7 +95,7 @@ export function IdeasView() {
     const last = loadLast();
     if (!last) return;
     /* eslint-disable react-hooks/set-state-in-effect -- restore the saved scan after mount */
-    setIdeas(last.ideas); setSectors(last.sectors); setBench(last.bench); setAsOf(last.at); setRestoredAt(last.at);
+    setIdeas(last.ideas); setSectors(last.sectors); setRegime(last.regime ?? null); setBench(last.bench); setAsOf(last.at); setRestoredAt(last.at);
     setRanCfg({ days: last.days, target: last.target }); setRanMethod(last.method); setRanFrame(last.frame);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -103,7 +122,8 @@ export function IdeasView() {
     try {
       let benchM1 = 0;
       try {
-        const nifty = await candlesOf("^NSEI", 120);
+        const nifty = await candlesOf("^NSEI", 500);
+        setRegime(marketRegime(nifty));
         benchM1 = nifty.length > 21 ? (nifty[nifty.length - 1].close / nifty[nifty.length - 22].close - 1) * 100 : 0;
       } catch { /* the market comparison is optional */ }
       setBench(benchM1);
@@ -117,7 +137,7 @@ export function IdeasView() {
           if (base) {
             const view = applyTarget(base, target);
             const hz = view.plan ? horizonStats(candles, days, target, view.plan.riskPct) ?? undefined : undefined;
-            found.push({ stock: s, view, hz });
+            found.push({ stock: s, view, hz, patterns: latestPatterns(candles).map((p) => ({ name: p.name, bias: p.bias })) });
           } else failed++;
         } catch { failed++; }
         done++;
@@ -146,7 +166,9 @@ export function IdeasView() {
           const j = await res.json();
           if (res.ok) {
             f.news = { items: j.news, calls: j.calls, summary: j.summary };
-            f.view = applyTarget(withOverlay(f.view, await moodOf(j.news), j.summary), target);
+            const mood = await moodOf(j.news);
+            f.mood = { score: mood.score, source: mood.source };
+            f.view = applyTarget(withOverlay(f.view, mood, j.summary), target);
             setIdeas([...found].sort(byEdge));
           }
         } catch { /* news is optional */ }
@@ -155,7 +177,7 @@ export function IdeasView() {
       setRestoredAt(null);
       try {
         const keep = [...found].sort(byEdge).slice(0, 150).map((f) => ({ ...f, news: undefined }));
-        localStorage.setItem(LAST_KEY, JSON.stringify({ at: Date.now(), ideas: keep, sectors: rankSectors(found.map((f) => ({ sector: f.stock.sector, view: f.view })), benchM1), bench: benchM1, days, target, method, frame } satisfies LastScan));
+        localStorage.setItem(LAST_KEY, JSON.stringify({ at: Date.now(), ideas: keep, sectors: rankSectors(found.map((f) => ({ sector: f.stock.sector, view: f.view })), benchM1), bench: benchM1, regime, days, target, method, frame } satisfies LastScan));
       } catch { /* storage full or unavailable */ }
       toast.success(`${found.length} stocks analysed${failed ? `, ${failed} skipped` : ""}`);
     } catch (e) {
@@ -170,7 +192,7 @@ export function IdeasView() {
   // Only setups that have paid off on average over this holding period in their own history go into the portfolio.
   const mix = useMemo(() => buildMixedPortfolio(
     ideas.filter((i) => (i.hz?.expectancyPct ?? 0) > 0).map((i) => ({ symbol: i.stock.symbol, name: i.stock.name, sector: i.stock.sector, view: i.view, edge: i.hz?.expectancyPct })),
-    capital, riskPct), [ideas, capital, riskPct]);
+    capital, riskPct * (regime?.sizeFactor ?? 1)), [ideas, capital, riskPct, regime]);
   const expectation = useMemo(() => {
     const rows = mix.picks.flatMap((p) => { const hz = ideas.find((i) => i.stock.symbol === p.symbol)?.hz; return hz ? [{ p, hz }] : []; });
     const invested = rows.reduce((s, r) => s + r.p.value, 0);
@@ -225,6 +247,14 @@ export function IdeasView() {
         <p className="rounded-lg border bg-muted/40 p-2.5 text-xs text-muted-foreground">Showing your last scan from {new Date(restoredAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Press Scan now to refresh prices and signals.</p>
       )}
       <AiSentimentToggle className="block" />
+      {regime && (
+        <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border p-3 text-sm", regime.regime === "bull" ? "border-up/40 bg-up/5" : regime.regime === "bear" ? "border-down/40 bg-down/5" : "border-warn/40 bg-warn/5")}>
+          <b>Market: {regime.regime === "bull" ? "uptrend" : regime.regime === "bear" ? "downtrend" : "choppy"}</b>
+          <span className="font-mono text-xs text-muted-foreground">Nifty {regime.vs200 >= 0 ? "+" : ""}{regime.vs200.toFixed(1)}% vs its 200-day average</span>
+          <span className="text-muted-foreground">{regime.advice}</span>
+          {regime.sizeFactor < 1 && <span className="font-medium">Position sizes below are scaled to {Math.round(regime.sizeFactor * 100)}%.</span>}
+        </div>
+      )}
       <RealityCheck />
 
       {sectors.length > 0 && (
@@ -375,6 +405,7 @@ export function IdeasView() {
                   )}
                   {isOpen && (
                     <div className="space-y-3 pt-1">
+                      <BullBearPanel i={i} regime={regime?.regime} days={ranCfg.days} target={ranCfg.target} asOf={asOf ?? undefined} />
                       <ul className="space-y-1 text-sm">
                         {v.reasons.map((r) => (
                           <li key={r.text} className="flex gap-2"><span className={cn("w-8 shrink-0 text-right font-mono", r.points >= 0 ? "text-up" : "text-down")}>{r.points > 0 ? "+" : ""}{r.points}</span><span>{r.text}</span></li>
