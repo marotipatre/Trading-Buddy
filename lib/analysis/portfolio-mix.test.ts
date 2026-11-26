@@ -27,3 +27,12 @@ describe("mixed portfolio", () => {
     expect(buildMixedPortfolio([item("A", "Banks", 40, "avoid")], 300000, 1).picks).toHaveLength(0);
   });
 });
+
+describe("small-cap cap", () => {
+  it("keeps at most two small caps in a mix", () => {
+    const items = ["A", "B", "C", "D", "E"].map((s, i) => ({ ...item(s, `Sector${i}`, 90 - i), cap: "small" }));
+    expect(buildMixedPortfolio(items, 300000, 1).picks).toHaveLength(2);
+    const mixed = [...items, { ...item("L", "SectorL", 50), cap: "large" }];
+    expect(buildMixedPortfolio(mixed, 300000, 1).picks.map((p) => p.symbol)).toContain("L");
+  });
+});

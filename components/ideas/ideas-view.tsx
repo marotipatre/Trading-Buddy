@@ -94,7 +94,7 @@ export function IdeasView() {
     const avoid = new Set(sectors.filter((x) => x.stance === "avoid").map((x) => x.sector));
     const focus = new Set(sectors.filter((x) => x.stance === "focus").map((x) => x.sector));
     return buildMixedPortfolio(
-      ideas.filter((i) => (i.hz?.expectancyPct ?? 0) > 0 && !avoid.has(i.sector)).map((i) => ({ symbol: i.symbol, name: i.name, sector: i.sector, view: i.v, edge: (i.hz?.expectancyPct ?? 0) + (focus.has(i.sector) ? 0.5 : 0) })),
+      ideas.filter((i) => (i.hz?.expectancyPct ?? 0) > 0 && !avoid.has(i.sector)).map((i) => ({ symbol: i.symbol, name: i.name, sector: i.sector, cap: i.cap, view: i.v, edge: (i.hz?.expectancyPct ?? 0) + (focus.has(i.sector) ? 0.5 : 0) })),
       plan.amount, riskEff);
   }, [ideas, sectors, plan.amount, riskEff]);
   const expectation = useMemo<Expectation | null>(() => {

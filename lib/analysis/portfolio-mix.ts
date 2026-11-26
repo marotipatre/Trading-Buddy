@@ -1,6 +1,6 @@
 import { positionSize, type StockView } from "./stock-view";
 
-export interface MixInput { symbol: string; name: string; sector: string; view: StockView; /** Optional historical edge (percent per trade); higher is picked first. */ edge?: number }
+export interface MixInput { symbol: string; name: string; sector: string; /** Company size class, used to cap how many small caps go in. */ cap?: string; view: StockView; /** Optional historical edge (percent per trade); higher is picked first. */ edge?: number }
 export interface MixPick extends MixInput { qty: number; value: number; risk: number; reward: number; weightPct: number }
 export interface Mix {
   picks: MixPick[];
@@ -15,8 +15,9 @@ export interface Mix {
  * A spread of buy setups across sectors: best score first, at most `maxPerSector` from one sector, each sized to risk
  * `riskPct` of capital, and a cash reserve kept back. This is arithmetic on the plans, not a prediction.
  */
-export function buildMixedPortfolio(items: MixInput[], capital: number, riskPct: number, opts: { maxPerSector?: number; maxNames?: number; maxPositionPct?: number; reservePct?: number } = {}): Mix {
-  const { maxPerSector = 2, maxNames = 8, maxPositionPct = 20, reservePct = 10 } = opts;
+export function buildMixedPortfolio(items: MixInput[], capital: number, riskPct: number, opts: { maxPerSector?: number; maxNames?: number; maxPositionPct?: number; reservePct?: number; maxSmall?: number } = {}): Mix {
+  const { maxPerSector = 2, maxNames = 8, maxPositionPct = 20, reservePct = 10, maxSmall = 2 } = opts;
+  let small = 0;
   const usable = capital * (1 - reservePct / 100);
   const perSector = new Map<string, number>();
   const picks: MixPick[] = [];
@@ -26,9 +27,11 @@ export function buildMixedPortfolio(items: MixInput[], capital: number, riskPct:
     const plan = it.view.plan;
     if (it.view.verdict !== "buy" || !plan) continue;
     if ((perSector.get(it.sector) ?? 0) >= maxPerSector) continue;
+    if (it.cap === "small" && small >= maxSmall) continue;
     const size = positionSize(capital, riskPct, maxPositionPct, plan);
     if (size.qty <= 0 || invested + size.value > usable) continue;
     invested += size.value;
+    if (it.cap === "small") small++;
     perSector.set(it.sector, (perSector.get(it.sector) ?? 0) + 1);
     picks.push({ ...it, ...size, reward: size.qty * (plan.target1 - plan.entry), weightPct: (size.value / capital) * 100 });
   }
