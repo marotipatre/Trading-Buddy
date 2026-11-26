@@ -27,6 +27,10 @@
   --up: oklch(0.74 0.19 150);
   --down: oklch(0.66 0.21 25);
   --warn: oklch(0.8 0.15 80);
+  /* Validated categorical series (dark surface, all-pairs CVD safe) */
+  --series-1: #338ced;
+  --series-2: #e76624;
+  --series-3: #00a888;
   --chart-1: oklch(0.7 0.17 275);
   --chart-2: oklch(0.74 0.19 150);
   --chart-3: oklch(0.8 0.15 80);
@@ -65,6 +69,9 @@
   --color-up: var(--up);
   --color-down: var(--down);
   --color-warn: var(--warn);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
