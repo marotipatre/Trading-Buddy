@@ -63,6 +63,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supabase = useMemo(() => createClient(), []);
 
+  const lastConflictToast = useRef(0);
   const seenEvent = useRef(0); // highest order-event id already shown to the user
 
   /** Tell the user when an order executed, expired or was rejected (not for changes they just made). */
@@ -89,7 +90,11 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
           const st = expireOrders(remote.state, Math.floor(Date.now() / 1000));
           stateRef.current = st;
           setState(st);
-          toast.warning("Your account was updated elsewhere (for example by the order watcher), so the latest version is shown.");
+          // Say it once in a while, not on every heartbeat, when another tab or the watcher keeps updating the account.
+          if (Date.now() - lastConflictToast.current > 10 * 60_000) {
+            lastConflictToast.current = Date.now();
+            toast.warning("Your account was updated elsewhere (another tab, or the order watcher), so the latest version is shown.");
+          }
           announce(st.events, "While you were away: ");
         })
         .catch((e: Error) => setError(`Could not save: ${e.message}`));
