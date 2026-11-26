@@ -1,5 +1,6 @@
 "use client";
 
+import { explainAnalysis } from "@/lib/engine/verdict";
 import { PeriodsPanel } from "./periods-panel";
 import { BacktestChart } from "./backtest-chart";
 import type { StrategyDef } from "@/lib/engine/strategy";
@@ -11,8 +12,17 @@ import { RobustnessPanel } from "./robustness-panel";
 import { StopLossPanel } from "./stoploss-panel";
 import { TradesPanel } from "./trades-panel";
 
+const TONE = { good: "border-up/40 bg-up/5", mixed: "border-warn/40 bg-warn/5", bad: "border-down/40 bg-down/5", thin: "border-border bg-muted/40" } as const;
+
 export function BacktestResults({ analysis, candles, strategy }: { analysis: Analysis; candles: Candle[]; strategy: StrategyDef }) {
+  const v = explainAnalysis(analysis);
   return (
+    <div className="space-y-4">
+    <div className={`rounded-xl border p-4 ${TONE[v.tone]}`}>
+      <div className="text-base font-semibold">{v.headline}</div>
+      <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm text-muted-foreground">{v.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      <p className="mt-2 text-xs text-muted-foreground">Plain-language reading of the numbers below. A backtest shows what would have happened, not what will.</p>
+    </div>
     <Tabs defaultValue="chart" className="space-y-4">
       <TabsList>
         <TabsTrigger value="chart">Chart</TabsTrigger>
@@ -29,5 +39,6 @@ export function BacktestResults({ analysis, candles, strategy }: { analysis: Ana
       <TabsContent value="robustness"><RobustnessPanel a={analysis} /></TabsContent>
       <TabsContent value="trades"><TradesPanel trades={analysis.result.trades} /></TabsContent>
     </Tabs>
+    </div>
   );
 }
