@@ -9,46 +9,40 @@ import { cn } from "@/lib/utils";
 
 const pct = (n: number, d = 1) => (Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixed(d)}%` : "—");
 const QUAD: Record<Quadrant, { label: string; cls: string; hint: string }> = {
-  leading: { label: "Leading", cls: "bg-up/15 text-up", hint: "Stronger than the market and still gaining" },
-  improving: { label: "Improving", cls: "bg-primary/15 text-primary", hint: "Still behind the market but gaining fast: early rotation in" },
-  weakening: { label: "Weakening", cls: "bg-warn/15 text-warn", hint: "Stronger than the market but losing steam" },
-  lagging: { label: "Lagging", cls: "bg-down/15 text-down", hint: "Behind the market and still falling back" },
+  leading: { label: "Strong and rising", cls: "bg-up/15 text-up", hint: "Stronger than the market and still gaining" },
+  improving: { label: "Weak but recovering", cls: "bg-primary/15 text-primary", hint: "Still behind the market but gaining fast: early rotation in" },
+  weakening: { label: "Strong but fading", cls: "bg-warn/15 text-warn", hint: "Stronger than the market but losing steam" },
+  lagging: { label: "Weak and falling", cls: "bg-down/15 text-down", hint: "Behind the market and still falling back" },
 };
 const STANCE = { overweight: "bg-up/15 text-up", neutral: "bg-muted text-muted-foreground", underweight: "bg-down/15 text-down" } as const;
 
-function Rrg({ sectors, selected, onSelect }: { sectors: Outlook[]; selected: string | null; onSelect: (i: string | null) => void }) {
-  // Zoom to where most sectors sit (the 90th percentile of their distance from the centre) so the cluster is readable; outliers are held at the edge.
-  const ends = sectors.map((s) => s.rrg[s.rrg.length - 1]).filter(Boolean);
-  const dev = ends.map((p) => Math.max(Math.abs(p.ratio - 100), Math.abs(p.momentum - 100))).sort((a, b) => a - b);
-  const span = Math.max(3, (dev[Math.floor(dev.length * 0.9)] ?? 4) * 1.25);
-  const W = 560, H = 480, pad = 34;
-  const cl = (v: number) => Math.max(-span, Math.min(span, v - 100));
-  const x = (r: number) => pad + ((cl(r) + span) / (2 * span)) * (W - 2 * pad);
-  const y = (m: number) => H - pad - ((cl(m) + span) / (2 * span)) * (H - 2 * pad);
-  const color = (q: Quadrant) => (q === "leading" ? "var(--up)" : q === "improving" ? "var(--primary)" : q === "weakening" ? "var(--warn)" : "var(--down)");
+/** A plain ranked chart: how much each sector beat (or lagged) the market over 3 months, with a one-word trend. */
+function SectorBars({ sectors, selected, onSelect }: { sectors: Outlook[]; selected: string | null; onSelect: (i: string | null) => void }) {
+  const max = Math.max(5, ...sectors.map((s) => Math.abs(s.vsBench.m3))) * 1.05;
+  const rows = [...sectors].sort((a, b) => b.vsBench.m3 - a.vsBench.m3);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full rounded-xl border bg-card" role="img" aria-label="Relative rotation graph of sectors">
-      <rect x={x(100)} y={pad} width={W - pad - x(100)} height={y(100) - pad} fill="var(--up)" opacity={0.07} />
-      <rect x={pad} y={pad} width={x(100) - pad} height={y(100) - pad} fill="var(--primary)" opacity={0.07} />
-      <rect x={x(100)} y={y(100)} width={W - pad - x(100)} height={H - pad - y(100)} fill="var(--warn)" opacity={0.07} />
-      <rect x={pad} y={y(100)} width={x(100) - pad} height={H - pad - y(100)} fill="var(--down)" opacity={0.07} />
-      <line x1={x(100)} x2={x(100)} y1={pad} y2={H - pad} stroke="var(--border)" /><line x1={pad} x2={W - pad} y1={y(100)} y2={y(100)} stroke="var(--border)" />
-      {([["Improving", pad + 6, pad + 14], ["Leading", W - pad - 52, pad + 14], ["Lagging", pad + 6, H - pad - 8], ["Weakening", W - pad - 70, H - pad - 8]] as const).map(([t, tx, ty]) => <text key={t} x={tx} y={ty} fontSize={11} fill="var(--muted-foreground)">{t}</text>)}
-      <text x={W / 2} y={H - 6} fontSize={10} textAnchor="middle" fill="var(--muted-foreground)">Relative strength (100 = on its trend) →</text>
-      <text x={10} y={H / 2} fontSize={10} fill="var(--muted-foreground)" transform={`rotate(-90 10 ${H / 2})`} textAnchor="middle">Momentum ↑</text>
-      {sectors.map((s) => {
-        const on = selected === s.index, dim = selected && !on;
-        const tail = s.rrg.slice(-5).map((p) => `${x(p.ratio)},${y(p.momentum)}`).join(" ");
-        const end = s.rrg[s.rrg.length - 1];
-        return (
-          <g key={s.index} opacity={dim ? 0.25 : 1} style={{ cursor: "pointer" }} onClick={() => onSelect(on ? null : s.index)}>
-            <polyline points={tail} fill="none" stroke={color(s.quadrant)} strokeWidth={on ? 2 : 1} opacity={0.55} />
-            <circle cx={x(end.ratio)} cy={y(end.momentum)} r={on ? 6 : 4.5} fill={color(s.quadrant)} stroke="var(--card)" strokeWidth={1.5} />
-            <text x={x(end.ratio) + 7} y={y(end.momentum) + 3} fontSize={on ? 11 : 9.5} fill="var(--foreground)">{s.label}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="text-sm font-semibold">Who is beating the market?</h3>
+      <p className="mb-3 text-xs text-muted-foreground">Each bar is a sector&apos;s 3-month return minus the market&apos;s. Right (green) means it did better than the market, left (red) means worse.</p>
+      <ul className="space-y-1">
+        {rows.map((s) => {
+          const v = s.vsBench.m3, w = (Math.abs(v) / max) * 50, on = selected === s.index;
+          return (
+            <li key={s.index}>
+              <button type="button" onClick={() => onSelect(on ? null : s.index)} className={cn("grid w-full grid-cols-[6.5rem_1fr_3.2rem] items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-accent/50", on && "bg-accent/60")}>
+                <span className="truncate font-medium">{s.label}</span>
+                <span className="relative h-3.5 rounded-sm bg-muted/60">
+                  <span className="absolute inset-y-0 left-1/2 w-px bg-border" />
+                  <span className={cn("absolute inset-y-0 rounded-sm", v >= 0 ? "bg-up" : "bg-down")} style={v >= 0 ? { left: "50%", width: `${w}%` } : { right: "50%", width: `${w}%` }} />
+                </span>
+                <span className={cn("tabular text-right font-mono", v >= 0 ? "text-up" : "text-down")}>{pct(v)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-3 text-xs text-muted-foreground">Tap a sector for the reasons. &quot;Rising&quot; sectors are gaining on the market right now, &quot;Fading&quot; ones are losing ground.</p>
+    </div>
   );
 }
 
@@ -85,8 +79,7 @@ export function SectorOutlook({ data, loading, error, onShowStocks }: { data: Se
           </table>
         </div>
         <div className="space-y-3">
-          <Rrg sectors={data.sectors} selected={selected} onSelect={setSelected} />
-          <p className="text-xs text-muted-foreground">Relative Rotation Graph: each dot is a sector, with its last 8 weeks as a tail. Money tends to rotate clockwise: <b>Improving → Leading → Weakening → Lagging</b>. Favour sectors in Leading or Improving.</p>
+          <SectorBars sectors={data.sectors} selected={selected} onSelect={setSelected} />
         </div>
       </div>
 

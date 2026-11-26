@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CircleHelp, Compass, FlaskConical, Layers, Lightbulb, MoreHorizontal, Wallet, Zap } from "lucide-react";
+import { BookOpen, CircleHelp, Compass, FlaskConical, Layers, Lightbulb, MoreHorizontal, Rocket, Wallet, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAIN = [
@@ -13,6 +13,7 @@ const MAIN = [
   { href: "/intraday", label: "Intraday", icon: Zap },
 ];
 const MORE = [
+  { href: "/multibagger", label: "Multibagger", icon: Rocket, hint: "Small and penny stocks with strong fundamentals" },
   { href: "/portfolio", label: "Portfolio", icon: Wallet, hint: "Holdings, orders, funds, review" },
   { href: "/strategies", label: "Backtest", icon: FlaskConical, hint: "Test a strategy on history" },
   { href: "/playbook", label: "Rule books", icon: BookOpen, hint: "Swing and intraday rules" },
