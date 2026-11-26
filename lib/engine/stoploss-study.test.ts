@@ -84,3 +84,32 @@ describe("summarize", () => {
     expect(s.profitFactor).toBeCloseTo(150 / 300);
   });
 });
+
+describe("stopLossStudy isolates the stop", () => {
+  // Rises 2/day with dips under 0.5%: a 2R target (10%) is reached long before any stop in the grid is touched.
+  const climb = (): Candle[] => {
+    const c = [...flat(6)];
+    for (let i = 0; i < 12; i++) {
+      const o = 100 + i * 2;
+      c.push(bar(o, o + 2.5, o - 0.4, o + 2));
+    }
+    return c;
+  };
+  const rrStrat = () =>
+    StrategyDef.parse({
+      name: "t",
+      entry: { conditions: [{ left: { kind: "price", field: "close" }, op: ">", right: { kind: "number", value: 0 } }] },
+      stopLoss: { type: "percent", value: 5 },
+      target: { type: "rr", value: 2 },
+    });
+
+  it("holds the R-multiple target fixed across every variant", () => {
+    const s = stopLossStudy(climb(), rrStrat(), [5], zero);
+    const everyone = [s.none, s.user!, ...s.grid];
+    for (const v of everyone) {
+      expect(v.stoppedOut).toBe(0);
+      expect(v.totalPnl).toBeCloseTo(s.user!.totalPnl, 6); // identical exit => identical P&L
+    }
+    expect(s.caveats.join(" ")).not.toContain("cannot be defined");
+  });
+});
