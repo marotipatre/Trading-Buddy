@@ -12,7 +12,7 @@ import type { Candle } from "@/lib/data/types";
 
 export interface ChartLine { price: number; label: string; tone: "primary" | "up" | "down" | "muted"; dashed?: boolean }
 export interface ChartMarker { time: number; position: "aboveBar" | "belowBar"; shape: "arrowUp" | "arrowDown" | "circle"; tone: "up" | "down" | "primary"; text: string }
-export interface ChartOverlay { label: string; color: string; points: { time: number; value: number }[] }
+export interface ChartOverlay { label: string; color: string; points: { time: number; value: number; color?: string }[]; pane?: number; levels?: number[]; dashed?: boolean }
 export interface Hover { time: number; open: number; high: number; low: number; close: number; volume?: number }
 
 // The chart library cannot parse the app's oklch theme colours, so it gets explicit values per theme.
@@ -123,11 +123,17 @@ export function PriceChart({ candles, intraday, mode, dark, lines, markers, rese
     if (!chart || !overlays?.length) return;
     const t = (s: number) => toChartTime(s, intraday) as UTCTimestamp;
     const made = overlays.map((o) => {
-      const s = chart.addSeries(LineSeries, { color: o.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: o.label });
-      s.setData(o.points.map((p) => ({ time: t(p.time), value: p.value })));
+      const s = chart.addSeries(LineSeries, {
+        color: o.color, lineWidth: o.pane ? 2 : 1, lineStyle: o.dashed ? LineStyle.Dashed : LineStyle.Solid,
+        priceLineVisible: false, lastValueVisible: !!o.pane, crosshairMarkerVisible: false,
+      }, o.pane ?? 0);
+      s.setData(o.points.map((p) => ({ time: t(p.time), value: p.value, ...(p.color ? { color: p.color } : {}) })));
+      for (const lv of o.levels ?? []) s.createPriceLine({ price: lv, color: pal.muted, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
       return s;
     });
+    try { const panes = chart.panes(); if (panes[1]) panes[1].setHeight(130); } catch { /* single pane */ }
     return () => { for (const s of made) { try { chart.removeSeries(s); } catch { /* chart already disposed */ } } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- palette follows `dark`, which rebuilds the chart and handles
   }, [handles, overlays, intraday]);
 
   return (
