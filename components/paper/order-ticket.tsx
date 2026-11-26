@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { fmtInr, fmtPct } from "@/lib/format";
+import { tradeChecks } from "@/lib/paper/trade-check";
+import { useNow } from "@/components/use-now";
 import { bankOf } from "@/lib/paper/funds";
 import { usePaper } from "./paper-provider";
 import { displaySymbol } from "@/lib/symbols";
@@ -17,6 +19,7 @@ import { useMarketOpen } from "@/components/use-market-open";
 export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol: string; ltp?: number; initialSide?: "buy" | "sell"; plan?: { entry: number; stop: number; target: number } | null }) {
   const { state, place, ready, transfer } = usePaper();
   const open = useMarketOpen();
+  const nowSec = useNow(60_000);
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [product, setProduct] = useState<"delivery" | "intraday">("delivery");
   const [type, setType] = useState<"market" | "limit" | "stop">("market");
@@ -182,6 +185,15 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol
           )}
           <div className="flex justify-between"><dt className="text-muted-foreground">Available cash</dt><dd className="font-mono">{fmtInr(state.cash)}</dd></div>
         </dl>
+        {!closing && side === "buy" && (() => {
+          const rr = stop !== undefined && target !== undefined && ref > stop ? (target - ref) / (ref - stop) : undefined;
+          const checks = tradeChecks({ closing, hasStop: stop !== undefined, riskPctOfCash: est.riskPct, rr, positionPctOfCash: state.cash > 0 ? (est.value / state.cash) * 100 : 0, product, minutesIst: Math.floor(((nowSec + 19800) % 86400) / 60) });
+          return checks.length > 0 ? (
+            <ul className="space-y-1 rounded-lg border p-2.5 text-xs" aria-label="Trade check">
+              {checks.map((c) => <li key={c.text} className={c.level === "ok" ? "text-muted-foreground" : "font-medium text-warn"}><span aria-hidden>{c.level === "ok" ? "✓" : "!"}</span> {c.text}</li>)}
+            </ul>
+          ) : null;
+        })()}
         {!closing && side === "buy" && est.value > state.cash && (
           <div className="space-y-1.5 rounded-lg border border-warn/40 bg-warn/10 p-2.5 text-xs text-warn">
             <p>Order value is {fmtInr(est.value - state.cash)} more than your available trading balance.</p>
