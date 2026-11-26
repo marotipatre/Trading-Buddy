@@ -16,6 +16,8 @@ export interface IntradayAccount {
   /** Your own money in the pot (before profits and losses). */
   pot: number;
   state: PaperState;
+  /** Milliseconds when this copy was last saved; the newer of the browser and Supabase copies wins. */
+  savedAt?: number;
 }
 
 export function newIntradayAccount(pot: number, leverage = LEVERAGE): IntradayAccount {

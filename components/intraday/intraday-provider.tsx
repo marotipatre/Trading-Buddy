@@ -2,15 +2,22 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 import type { Quote } from "@/lib/data/types";
-import { cancelOrder, closePosition, expireOrders, intradayDue, onPrice, placeOrder, squareOffIntraday } from "@/lib/paper/broker";
+import { fetchCandles } from "@/lib/analysis/candle-cache";
+import { cancelOrder, closePosition, equity as equityOf, expireOrders, intradayDue, onPrice, placeOrder, squareOffIntraday, istStartOfDay } from "@/lib/paper/broker";
+import { annotateTrade, recordEquity } from "@/lib/paper/journal";
 import { isMarketOpen } from "@/lib/market-hours";
 import { addToPot, loadIntraday, newIntradayAccount, potView, saveIntraday, type IntradayAccount, type PotView } from "@/lib/intraday/account";
+import { settleStale } from "@/lib/intraday/replay";
+import { loadRemote, newer, saveRemote } from "@/lib/intraday/sync";
 import type { OrderRequest } from "@/lib/paper/types";
 
 interface Ctx {
   acc: IntradayAccount | null;
   ready: boolean;
+  /** True when migration 0004 has not been run, so the account lives only in this browser. */
+  localOnly: boolean;
   quotes: Record<string, Quote>;
   view: PotView | null;
   create: (pot: number) => void;
@@ -18,6 +25,7 @@ interface Ctx {
   place: (req: Omit<OrderRequest, "product">) => Promise<{ error?: string; filled?: boolean }>;
   closeNow: (positionId: number) => Promise<{ error?: string }>;
   cancel: (orderId: number) => void;
+  annotate: (tradeId: number, patch: { note?: string; tags?: string[] }) => void;
   reset: () => void;
 }
 const C = createContext<Ctx | null>(null);
@@ -35,35 +43,73 @@ async function fetchQuotes(symbols: string[]): Promise<Quote[]> {
   return (await res.json()).quotes as Quote[];
 }
 
-/** The separate 5x margin day-trading account. Saved in this browser; never mixes with the main paper account. */
+/** The separate 5x margin day-trading account. Saved in this browser and backed up to Supabase; never mixes with the main account. */
 export function IntradayProvider({ children }: { children: React.ReactNode }) {
   const [acc, setAcc] = useState<IntradayAccount | null>(null);
   const [ready, setReady] = useState(false);
+  const [localOnly, setLocalOnly] = useState(false);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const ref = useRef<IntradayAccount | null>(null);
   const prices = useRef<Record<string, number>>({});
   const seen = useRef(0);
+  const remoteOk = useRef(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
+
+  const pushRemote = useCallback(() => {
+    if (!remoteOk.current) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      const cur = ref.current;
+      if (!cur) return;
+      const r = await saveRemote(supabase, cur).catch(() => ({ error: "offline" } as { error?: string; missing?: boolean }));
+      if (r.missing) { remoteOk.current = false; setLocalOnly(true); }
+    }, 1500);
+  }, [supabase]);
 
   const commit = useCallback((next: IntradayAccount | null) => {
-    ref.current = next;
-    setAcc(next);
-    if (next) saveIntraday(next);
-    for (const e of next?.state.events ?? []) {
+    const stamped = next ? { ...next, savedAt: Date.now() } : null;
+    ref.current = stamped;
+    setAcc(stamped);
+    if (stamped) { saveIntraday(stamped); pushRemote(); }
+    for (const e of stamped?.state.events ?? []) {
       if (e.id <= seen.current) continue;
       seen.current = e.id;
       if (e.kind === "filled") toast.success(`Intraday: ${e.text}`);
       else if (e.kind === "rejected" || e.kind === "expired") toast.warning(`Intraday: ${e.text}`);
     }
-  }, []);
+  }, [pushRemote]);
 
+  // Load the newer of the browser copy and the Supabase copy, then settle anything left over from an earlier session.
   useEffect(() => {
-    const a = loadIntraday();
-    ref.current = a;
-    seen.current = Math.max(0, ...(a?.state.events ?? []).map((e) => e.id));
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- load the saved account after mount
-    setAcc(a);
-    setReady(true);
-  }, []);
+    let dead = false;
+    (async () => {
+      const local = loadIntraday();
+      let remote: Awaited<ReturnType<typeof loadRemote>> = { acc: null, missing: false };
+      try { remote = await loadRemote(supabase); } catch { /* offline: use the browser copy */ }
+      if (dead) return;
+      if (remote.missing) { remoteOk.current = false; setLocalOnly(true); }
+      let a = newer(local, remote.acc);
+      if (a) {
+        const today = istStartOfDay(nowSec());
+        const stale = a.state.positions.filter((p) => p.product === "intraday" && p.entryTime < today);
+        if (stale.length) {
+          const bars: Record<string, Awaited<ReturnType<typeof fetchCandles>>> = {};
+          for (const sym of new Set(stale.map((p) => p.symbol))) { try { bars[sym] = await fetchCandles(sym, 40, "5m"); } catch { /* handled as no data */ } }
+          const r = settleStale(a.state, bars, nowSec());
+          a = { ...a, state: expireOrders(r.state, nowSec()) };
+          if (r.settled) toast.info(`Closed ${r.settled} position${r.settled > 1 ? "s" : ""} from an earlier session at its 3:15 pm price${r.noData.length ? ` (no candles for ${r.noData.join(", ")}: closed at entry)` : ""}.`);
+        }
+      }
+      if (dead) return;
+      ref.current = a;
+      seen.current = Math.max(0, ...(a?.state.events ?? []).map((e) => e.id));
+      setAcc(a);
+      if (a) { saveIntraday(a); if (a !== local) pushRemote(); }
+      setReady(true);
+    })();
+    return () => { dead = true; };
+  }, [supabase, pushRemote]);
 
   const symbolsKey = useMemo(() => [...new Set([...(acc?.state.positions ?? []).map((p) => p.symbol), ...(acc?.state.orders ?? []).map((o) => o.symbol)])].sort().join(","), [acc]);
   useEffect(() => {
@@ -76,11 +122,13 @@ export function IntradayProvider({ children }: { children: React.ReactNode }) {
         if (stop || !qs.length || !cur) return;
         setQuotes((p) => ({ ...p, ...Object.fromEntries(qs.map((q) => [q.symbol, q])) }));
         for (const q of qs) prices.current[q.symbol] = q.price;
-        let st = cur.state;
+        const before = cur.state;
+        let st = before;
         for (const q of qs) st = onPrice(st, q.symbol, q.price, q.time || nowSec());
         st = expireOrders(st, nowSec());
         if (intradayDue(st, nowSec())) st = squareOffIntraday(st, Object.fromEntries(qs.map((q) => [q.symbol, q.price])), nowSec());
-        if (st !== cur.state) commit({ ...cur, state: st });
+        st = recordEquity(st, equityOf(st, prices.current), nowSec(), { force: st.trades.length !== before.trades.length });
+        if (st !== before) commit({ ...cur, state: st });
       } catch { /* try again on the next tick */ }
     };
     tick();
@@ -118,14 +166,19 @@ export function IntradayProvider({ children }: { children: React.ReactNode }) {
       const [q] = await fetchQuotes([pos.symbol]);
       if (!q) return { error: "No live price available" };
       const r = closePosition(cur.state, positionId, pos.qty, q.price, nowSec(), "manual");
-      if (!r.error) commit({ ...cur, state: r.state });
+      if (!r.error) { prices.current[q.symbol] = q.price; commit({ ...cur, state: recordEquity(r.state, equityOf(r.state, prices.current), nowSec(), { force: true }) }); }
       return { error: r.error };
     } catch (e) { return { error: (e as Error).message }; }
   }, [commit]);
   const cancel = useCallback((orderId: number) => { const cur = ref.current; if (cur) commit({ ...cur, state: cancelOrder(cur.state, orderId, nowSec()) }); }, [commit]);
-  const reset = useCallback(() => { try { localStorage.removeItem("tb.intraday.v1"); } catch { /* ignore */ } ref.current = null; setAcc(null); setQuotes({}); }, []);
+  const annotate = useCallback((tradeId: number, patch: { note?: string; tags?: string[] }) => { const cur = ref.current; if (cur) commit({ ...cur, state: annotateTrade(cur.state, tradeId, patch) }); }, [commit]);
+  const reset = useCallback(() => {
+    try { localStorage.removeItem("tb.intraday.v1"); } catch { /* ignore */ }
+    ref.current = null; setAcc(null); setQuotes({});
+    if (remoteOk.current) void supabase.from("intraday_accounts").delete().not("user_id", "is", null).then(() => undefined);
+  }, [supabase]);
 
   const view = useMemo(() => (acc ? potView(acc, Object.fromEntries(Object.values(quotes).map((q) => [q.symbol, q.price]))) : null), [acc, quotes]);
-  const value = useMemo<Ctx>(() => ({ acc, ready, quotes, view, create, topUp, place, closeNow, cancel, reset }), [acc, ready, quotes, view, create, topUp, place, closeNow, cancel, reset]);
+  const value = useMemo<Ctx>(() => ({ acc, ready, localOnly, quotes, view, create, topUp, place, closeNow, cancel, annotate, reset }), [acc, ready, localOnly, quotes, view, create, topUp, place, closeNow, cancel, annotate, reset]);
   return <C.Provider value={value}>{children}</C.Provider>;
 }
