@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped Yahoo JSON */
 import { getJsonWithRetry } from "./http";
+import { prevCloseFromDaily } from "./prev-close";
 import { createSpacer, dedupe } from "./spacer";
 import type { Candle, Interval, Quote, SymbolHit } from "./types";
 
@@ -71,11 +72,14 @@ export async function fetchCandles(
 
 /** One live quote from Yahoo's chart metadata (no crumb/cookie needed). */
 export async function fetchYahooQuote(symbol: string): Promise<Quote> {
-  const json = await yget(`/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`, { fast: true });
-  const m = json?.chart?.result?.[0]?.meta;
+  // Daily bars give a reliable previous close; chartPreviousClose is just the close before the range starts.
+  const json = await yget(`/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`, { fast: true });
+  const r = json?.chart?.result?.[0];
+  const m = r?.meta;
   if (!m || typeof m.regularMarketPrice !== "number") throw new Error(`${symbol}: no price from Yahoo`);
   const price = m.regularMarketPrice as number;
-  const prev = (m.chartPreviousClose ?? m.previousClose) as number;
+  const prev = prevCloseFromDaily(r.timestamp ?? [], r.indicators?.quote?.[0]?.close ?? [], m.regularMarketTime ?? Math.floor(Date.now() / 1000));
+  if (prev === undefined) throw new Error(`${symbol}: could not determine the previous close from Yahoo`);
   return {
     symbol,
     price,
