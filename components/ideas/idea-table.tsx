@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { matchesScreen, SCREENS, type ScreenId } from "@/lib/analysis/features";
 import type { Idea } from "@/lib/analysis/ideas-engine";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
@@ -23,13 +24,14 @@ export function IdeaTable({ ideas, sectorFilter, onSector, sectors, onOpen, days
   const [verdict, setVerdict] = useState<"buy" | "watch" | "all">("all");
   const [sort, setSort] = useState<Sort>("best");
   const [limit, setLimit] = useState(60);
+  const [screen, setScreen] = useState<ScreenId | null>(null);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const f = ideas.filter((i) => (scope === "all" || i.cap === scope) && (verdict === "all" || i.v.verdict === verdict) && (!sectorFilter || i.sector === sectorFilter) && (!needle || `${i.symbol} ${i.name}`.toLowerCase().includes(needle)));
+    const f = ideas.filter((i) => (scope === "all" || i.cap === scope) && (verdict === "all" || i.v.verdict === verdict) && (!sectorFilter || i.sector === sectorFilter) && (!screen || matchesScreen(i.feat ?? undefined, screen)) && (!needle || `${i.symbol} ${i.name}`.toLowerCase().includes(needle)));
     const key: Record<Sort, (i: Idea) => number> = { best: () => 0, score: (i) => -i.v.score, odds: (i) => -(i.hz?.hitRate ?? -1), month: (i) => -(i.v.ret.m1 || -99), rr: (i) => -(i.v.plan?.rr1 ?? -1) };
     return sort === "best" ? f : [...f].sort((a, b) => key[sort](a) - key[sort](b));
-  }, [ideas, q, scope, verdict, sort, sectorFilter]);
+  }, [ideas, q, scope, verdict, sort, sectorFilter, screen]);
 
   return (
     <div className="space-y-3">
@@ -39,6 +41,14 @@ export function IdeaTable({ ideas, sectorFilter, onSector, sectors, onOpen, days
         <div className="flex gap-1.5">{([["all", "All"], ["buy", "Buy setups"], ["watch", "Watch"]] as const).map(([k, l]) => <Chip key={k} on={verdict === k} onClick={() => setVerdict(k)}>{l}</Chip>)}</div>
         <select value={sectorFilter ?? ""} onChange={(e) => onSector(e.target.value || null)} aria-label="Sector" className="h-8 rounded-lg border bg-background px-2 text-xs"><option value="">All sectors</option>{sectors.map((s) => <option key={s} value={s}>{s}</option>)}</select>
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort" className="ml-auto h-8 rounded-lg border bg-background px-2 text-xs">{SORTS.map((s) => <option key={s.id} value={s.id}>Sort: {s.label}</option>)}</select>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5" aria-label="Quick screens">
+        <span className="mr-1 text-xs font-medium text-muted-foreground">Quick screens:</span>
+        {SCREENS.map((sc) => {
+          const count = ideas.filter((i) => matchesScreen(i.feat ?? undefined, sc.id)).length;
+          return <button key={sc.id} type="button" title={sc.hint} aria-pressed={screen === sc.id} onClick={() => { setScreen(screen === sc.id ? null : sc.id); setLimit(60); }}
+            className={cn("h-8 rounded-full border px-3 text-xs font-medium transition-colors", screen === sc.id ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{sc.label} <span className="opacity-70">{count}</span></button>;
+        })}
       </div>
       <p className="text-xs text-muted-foreground">{rows.length} stock{rows.length === 1 ? "" : "s"}. &ldquo;Past odds&rdquo; = how often this stock reached +{target}% within {days} days in its own last 3 years, before hitting its stop.</p>
       {/* Phones: a compact list instead of a wide table. */}

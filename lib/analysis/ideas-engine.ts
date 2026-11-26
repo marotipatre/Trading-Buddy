@@ -4,6 +4,7 @@ import { horizonStats, type HorizonStats } from "./horizon";
 import { applyTarget, withOverlay, type StockView } from "./stock-view";
 import { bullBear, type BullBear } from "./bullbear";
 import type { Regime } from "./regime";
+import type { Features } from "./features";
 
 export interface BaseIdea {
   symbol: string;
@@ -13,6 +14,8 @@ export interface BaseIdea {
   /** Scored on price alone, with relative strength folded in. No target applied yet, so the plan can change without a rescan. */
   view: StockView;
   patterns: { name: string; bias: "bullish" | "bearish" | "neutral" }[];
+  /** Facts for the quick screens (near high, volume surge, breakout, pullback). */
+  feat?: Features | null;
   overlay?: { mood: number; moodSource: "ai" | "words"; moodCount: number; summary: Consensus };
 }
 

@@ -7,6 +7,7 @@ import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
 import { moodOf } from "@/lib/analysis/mood";
 import { assessMethod, type Method } from "@/lib/analysis/methods";
 import { latestPatterns } from "@/lib/analysis/patterns";
+import { computeFeatures } from "@/lib/analysis/features";
 import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
 import { HISTORY_DAYS, withRelativeStrength, type Frame } from "@/lib/analysis/stock-view";
 import type { BaseIdea } from "@/lib/analysis/ideas-engine";
@@ -74,7 +75,7 @@ export function useIdeasScan(method: Method, frame: Frame) {
         try {
           const candles = await fetchCandles(s.symbol, days);
           const view = assessMethod(s.symbol, candles, method, frame);
-          if (view) found.push({ symbol: s.symbol, name: s.name, sector: s.sector, cap: s.cap, view, patterns: latestPatterns(candles).map((p) => ({ name: p.name, bias: p.bias })) });
+          if (view) found.push({ symbol: s.symbol, name: s.name, sector: s.sector, cap: s.cap, view, patterns: latestPatterns(candles).map((p) => ({ name: p.name, bias: p.bias })), feat: computeFeatures(candles) });
           else failed++;
         } catch { failed++; }
         done++;
