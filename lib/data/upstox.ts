@@ -1,7 +1,4 @@
-import { gunzipSync } from "node:zlib";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { getInstrumentKeyMap } from "@/lib/instruments";
 import { isMarketOpen } from "@/lib/market-hours";
 import { normalizeDailyTime } from "./moneycontrol";
 import { createSpacer, dedupe } from "./spacer";
@@ -16,7 +13,6 @@ import type { Candle, Interval, Quote } from "./types";
  */
 
 const BASE = "https://api.upstox.com/v3/historical-candle";
-const INSTRUMENTS_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz";
 const IST = 19800;
 
 export const INDEX_KEYS: Record<string, string> = {
@@ -27,51 +23,22 @@ export const INDEX_KEYS: Record<string, string> = {
   "^BSESN": "BSE_INDEX|SENSEX",
 };
 
-// ---------- instrument list -> compact ticker map ----------
+// ---------- instrument keys ----------
 
-export interface InstrumentRow { segment?: string; instrument_type?: string; trading_symbol?: string; instrument_key?: string }
-
-/** Pure: reduce the ~86k-row instrument list to ticker -> instrument key for NSE equities. */
-export function buildInstrumentMap(rows: InstrumentRow[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const r of rows) {
-    if (r.segment === "NSE_EQ" && r.instrument_type === "EQ" && r.trading_symbol && r.instrument_key) out[r.trading_symbol] = r.instrument_key;
-  }
-  return out;
-}
-
-/** Pure: Yahoo-style symbol -> Upstox instrument key, or null. */
+/** Pure: symbol (any case) -> Upstox instrument key from a symbol->key map, or null. */
 export function toUpstoxKey(yahoo: string, map: Record<string, string>): string | null {
   const s = yahoo.trim().toUpperCase();
-  if (INDEX_KEYS[s]) return INDEX_KEYS[s];
-  const m = s.match(/^([A-Z0-9&_-]+)\.NS$/);
-  return m ? map[m[1]] ?? null : null;
+  return map[s] ?? INDEX_KEYS[s] ?? null;
 }
 
-const CACHE_FILE = join(tmpdir(), "trading-buddy-upstox-instruments.json");
-const DAY_MS = 86_400_000;
-let memo: { map: Record<string, string>; at: number } | null = null;
-const loading = dedupe<Record<string, string>>();
+let keyMap: { map: Record<string, string>; at: number } | null = null;
 
-/** Ticker map, cached in memory and in a temp file for a day (the raw list is ~2 MB gzipped, 42 MB of JSON). */
+/** symbol -> key for every NSE/BSE stock and index. Rebuilt at most once an hour from the cached instrument list. */
 export async function getInstrumentMap(fetchImpl: typeof fetch = fetch): Promise<Record<string, string>> {
-  if (memo && Date.now() - memo.at < DAY_MS) return memo.map;
-  return loading("map", async () => {
-    try {
-      if (existsSync(CACHE_FILE) && Date.now() - statSync(CACHE_FILE).mtimeMs < DAY_MS) {
-        const map = JSON.parse(readFileSync(CACHE_FILE, "utf8")) as Record<string, string>;
-        if (Object.keys(map).length > 500) return (memo = { map, at: Date.now() }).map;
-      }
-    } catch {}
-    const res = await fetchImpl(INSTRUMENTS_URL, { cache: "no-store", signal: AbortSignal.timeout(60_000) });
-    if (!res.ok) throw new Error(`Upstox instrument list HTTP ${res.status}`);
-    const rows = JSON.parse(gunzipSync(Buffer.from(await res.arrayBuffer())).toString("utf8")) as InstrumentRow[];
-    const map = buildInstrumentMap(rows);
-    if (Object.keys(map).length < 500) throw new Error("Upstox instrument list looked wrong");
-    try { writeFileSync(CACHE_FILE, JSON.stringify(map)); } catch {}
-    memo = { map, at: Date.now() };
-    return map;
-  });
+  if (keyMap && Date.now() - keyMap.at < 3_600_000) return keyMap.map;
+  const map = await getInstrumentKeyMap(fetchImpl);
+  keyMap = { map, at: Date.now() };
+  return map;
 }
 
 // ---------- requests ----------

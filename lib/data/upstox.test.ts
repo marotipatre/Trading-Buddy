@@ -1,28 +1,25 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildInstrumentMap, fetchUpstoxCandles, parseUpstoxCandles, planChunks, quoteFromCandles, toUpstoxKey, INDEX_KEYS } from "./upstox";
+import { fetchUpstoxCandles, parseUpstoxCandles, planChunks, quoteFromCandles, toUpstoxKey, INDEX_KEYS } from "./upstox";
 import type { Candle } from "./types";
 
-const map = buildInstrumentMap([
-  { segment: "NSE_EQ", instrument_type: "EQ", trading_symbol: "RELIANCE", instrument_key: "NSE_EQ|INE002A01018" },
-  { segment: "NSE_EQ", instrument_type: "EQ", trading_symbol: "M&M", instrument_key: "NSE_EQ|INE101A01026" },
-  { segment: "NSE_EQ", instrument_type: "BE", trading_symbol: "SOMEBE", instrument_key: "NSE_EQ|X" },
-  { segment: "NSE_FO", instrument_type: "FUT", trading_symbol: "RELIANCE", instrument_key: "NSE_FO|999" },
-  { segment: "NSE_EQ", instrument_type: "EQ", trading_symbol: "", instrument_key: "NSE_EQ|BAD" },
-]);
+const map: Record<string, string> = {
+  "RELIANCE.NS": "NSE_EQ|INE002A01018",
+  "M&M.NS": "NSE_EQ|INE101A01026",
+  "RELIANCE.BO": "BSE_EQ|INE002A01018",
+};
 
-describe("instrument map", () => {
-  it("keeps only plain NSE equities", () => {
-    expect(map).toEqual({ RELIANCE: "NSE_EQ|INE002A01018", "M&M": "NSE_EQ|INE101A01026" });
-  });
-  it("maps Yahoo-style symbols and indices to Upstox keys", () => {
+describe("toUpstoxKey", () => {
+  it("looks up NSE and BSE symbols in any case", () => {
     expect(toUpstoxKey("RELIANCE.NS", map)).toBe("NSE_EQ|INE002A01018");
     expect(toUpstoxKey("m&m.ns", map)).toBe("NSE_EQ|INE101A01026");
-    expect(toUpstoxKey("^NSEI", map)).toBe("NSE_INDEX|Nifty 50");
-    expect(toUpstoxKey("^BSESN", map)).toBe(INDEX_KEYS["^BSESN"]);
+    expect(toUpstoxKey("reliance.bo", map)).toBe("BSE_EQ|INE002A01018");
   });
-  it("returns null for unknown or BSE-only symbols", () => {
+  it("always resolves the main indices, even without the map", () => {
+    expect(toUpstoxKey("^NSEI", {})).toBe("NSE_INDEX|Nifty 50");
+    expect(toUpstoxKey("^BSESN", {})).toBe(INDEX_KEYS["^BSESN"]);
+  });
+  it("returns null for unknown symbols", () => {
     expect(toUpstoxKey("NOPE.NS", map)).toBeNull();
-    expect(toUpstoxKey("500325.BO", map)).toBeNull();
     expect(toUpstoxKey("AAPL", map)).toBeNull();
   });
 });
