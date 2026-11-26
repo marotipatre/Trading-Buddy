@@ -12,7 +12,6 @@ import { METHODS, type Method } from "@/lib/analysis/methods";
 import { buildMixedPortfolio } from "@/lib/analysis/portfolio-mix";
 import { rankSectors } from "@/lib/analysis/sectors";
 import type { Frame } from "@/lib/analysis/stock-view";
-import { cn } from "@/lib/utils";
 import { IdeaCard } from "./idea-card";
 import { IdeaDrawer } from "./idea-drawer";
 import { IdeaTable } from "./idea-table";
@@ -23,6 +22,7 @@ import { RealityCheck } from "./reality-check";
 import { FactorLabCard } from "./factor-lab-card";
 import { WarmCard } from "./warm-card";
 import { SectorMap } from "./sector-map";
+import { PillTabs, Stagger, StaggerItem, Swap } from "@/components/motion/primitives";
 import { SectorOutlook } from "./sector-outlook";
 import { useSectors } from "./use-sectors";
 import { SCAN_SCOPES, type ScanScope } from "@/lib/universe-lists";
@@ -140,11 +140,7 @@ export function IdeasView() {
       {scan.running && p && <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden><div className="h-full bg-primary transition-all" style={{ width: `${(p.done / Math.max(1, p.total)) * 100}%` }} /></div>}
 
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="What to scan">
-        <span className="text-sm text-muted-foreground">Scan</span>
-        {SCAN_SCOPES.map((o) => (
-          <button key={o.id} type="button" title={o.hint} aria-pressed={scope === o.id} disabled={scan.running} onClick={() => { setScope(o.id); try { localStorage.setItem("tb.ideas.scope", o.id); } catch { /* ignore */ } }}
-            className={cn("h-8 rounded-full border px-3 text-sm font-medium transition-colors disabled:opacity-60", scope === o.id ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{o.label}</button>
-        ))}
+                <PillTabs value={(scope ?? "n500") as ScanScope} onChange={(v) => { if (scan.running) return; setScope(v); try { localStorage.setItem("tb.ideas.scope", v); } catch { /* ignore */ } }} ariaLabel="What to scan" options={SCAN_SCOPES.map((o) => ({ value: o.id, label: o.label }))} className={scan.running ? "opacity-60" : undefined} />
         <span className="text-xs text-muted-foreground">{SCAN_SCOPES.find((o) => o.id === scope)?.hint}</span>
         <span className="ml-auto"><WarmCard scope={scope} /></span>
       </div>
@@ -161,14 +157,13 @@ export function IdeasView() {
         ) : best.length === 0 ? (
           <p className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">{ideas.length ? "No stock qualifies as a buy setup for this plan right now. That is a real answer: sitting out is a position. Try a lower target or longer period, or look at the Watch list below." : "Results will appear here as the scan finds them."}</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{best.map((i, k) => <IdeaCard key={i.symbol} idea={i} plan={{ days: plan.days, target: plan.target }} rank={k + 1} onOpen={() => setOpenSymbol(i.symbol)} />)}</div>
+          <Stagger className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{best.map((i, k) => <StaggerItem key={i.symbol}><IdeaCard idea={i} plan={{ days: plan.days, target: plan.target }} rank={k + 1} onOpen={() => setOpenSymbol(i.symbol)} /></StaggerItem>)}</Stagger>
         )}
       </section>
 
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-1 border-b" role="tablist">
-          {TABS.map((t) => <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={cn("-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors", tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>{t.label}{t.id === "stocks" && ideas.length ? <span className="ml-1.5 text-xs text-muted-foreground">{ideas.length}</span> : null}</button>)}
-        </div>
+        <PillTabs value={tab} onChange={setTab} ariaLabel="Ideas sections" options={TABS.map((t) => ({ value: t.id, label: t.label, badge: t.id === "stocks" && ideas.length ? ideas.length : undefined }))} />
+        <Swap id={tab}>
         {tab === "stocks" && <IdeaTable ideas={ideas} sectorFilter={sectorFilter} onSector={setSectorFilter} sectors={sectorNames} onOpen={(i) => setOpenSymbol(i.symbol)} days={plan.days} target={plan.target} />}
         {tab === "sectors" && (
           <div className="space-y-8">
@@ -188,6 +183,7 @@ export function IdeasView() {
             <RealityCheck />
           </div>
         )}
+        </Swap>
       </div>
 
       <p className="text-xs text-muted-foreground">For learning and paper trading. Rule-based screens from price trends, headlines and published broker calls, not investment advice. Past patterns do not guarantee future results.</p>

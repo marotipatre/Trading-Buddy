@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BUCKET_LABEL, type Bucket } from "@/lib/multibagger/screen";
 import type { Call } from "@/lib/multibagger/ta";
 import { cn } from "@/lib/utils";
+import { Collapse, PillTabs, Stagger, StaggerItem } from "@/components/motion/primitives";
 import { useMultibagger, type Candidate } from "./use-multibagger";
 
 const CALL: Record<Call, { label: string; cls: string }> = {
@@ -39,7 +40,7 @@ function Row({ c }: { c: Candidate }) {
   const [open, setOpen] = useState(false);
   const fa = c.fa, ta = c.ta;
   return (
-    <li className="rounded-xl border bg-card">
+    <div className="rounded-xl border bg-card">
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 p-3 sm:grid-cols-[auto_minmax(9rem,1.1fr)_repeat(4,minmax(4.5rem,1fr))_auto]">
         <Ring value={c.score} />
         <div className="min-w-0">
@@ -55,7 +56,7 @@ function Row({ c }: { c: Candidate }) {
         </div>
         <button type="button" aria-expanded={open} aria-label={open ? "Hide details" : "Show details"} onClick={() => setOpen((o) => !o)} className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent"><ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} /></button>
       </div>
-      {open && (
+      <Collapse open={open}>
         <div className="grid gap-4 border-t p-4 text-sm md:grid-cols-2">
           <div className="space-y-2">
             <h4 className="font-semibold">The business (fundamentals{c.faScore ? `: ${c.faScore.score}/100` : ""})</h4>
@@ -79,8 +80,8 @@ function Row({ c }: { c: Candidate }) {
             <a href={`https://www.screener.in/company/${encodeURIComponent(c.symbol)}/`} target="_blank" rel="noreferrer noopener" className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent">Full financials (screener.in)</a>
           </div>
         </div>
-      )}
-    </li>
+      </Collapse>
+    </div>
   );
 }
 
@@ -117,9 +118,7 @@ export function MultibaggerView() {
       {mb.error && <p className="rounded-xl border border-down/40 bg-down/10 p-3 text-sm text-down">{mb.error}</p>}
 
       <div className="flex flex-wrap items-center gap-2">
-        {([["all", "All"], ["small", "Small cap"], ["micro", "Micro cap"], ["penny", "Penny (under ₹50)"], ["other", "Other listed"], ["sme", "SME (Emerge)"]] as const).map(([k, l]) => (
-          <button key={k} type="button" onClick={() => setBucket(k)} className={cn("rounded-full border px-3 py-1 text-xs font-medium", bucket === k ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{l}</button>
-        ))}
+        <PillTabs value={bucket} onChange={setBucket} ariaLabel="Group" options={[{ value: "all", label: "All" }, { value: "small", label: "Small cap" }, { value: "micro", label: "Micro cap" }, { value: "penny", label: "Penny (under ₹50)" }, { value: "other", label: "Other listed" }, { value: "sme", label: "SME (Emerge)" }]} />
         <span className="mx-1 h-4 w-px bg-border" />
         <button type="button" onClick={() => setShow(show === "ranked" ? "all" : "ranked")} className="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground">{show === "ranked" ? "Showing: fully checked only" : "Showing: all charted"}</button>
         <span className="mx-1 h-4 w-px bg-border" />
@@ -133,7 +132,7 @@ export function MultibaggerView() {
       {mb.items.length === 0 ? (
         <div className="space-y-2">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[4.5rem] w-full rounded-xl" />)}</div>
       ) : shown.length === 0 ? <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Nothing matches these filters yet. {mb.busy ? "Results are still arriving." : "Try another group."}</p>
-        : layout === "list" ? <ul className="space-y-2">{shown.map((c) => <Row key={c.symbol} c={c} />)}</ul>
+        : layout === "list" ? <Stagger as="ul" className="space-y-2">{shown.slice(0, 40).map((c) => <StaggerItem as="li" key={c.symbol}><Row c={c} /></StaggerItem>)}{shown.slice(40).map((c) => <li key={c.symbol}><Row c={c} /></li>)}</Stagger>
         : (
           <div className="space-y-3">
             {groups.map((g, gi) => (
@@ -145,7 +144,7 @@ export function MultibaggerView() {
                   {g.watch > 0 && <span className="rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold text-warn">{g.watch} watch</span>}
                   <span className="ml-auto text-xs text-muted-foreground">best score {g.best || "-"}</span>
                 </summary>
-                <ul className="space-y-2 p-3 pt-0">{g.items.map((c) => <Row key={c.symbol} c={c} />)}</ul>
+                <ul className="space-y-2 p-3 pt-0">{g.items.map((c) => <li key={c.symbol}><Row c={c} /></li>)}</ul>
               </details>
             ))}
             <p className="text-xs text-muted-foreground">Categories are NSE&apos;s industry groups. Stocks outside the Nifty 500 and Microcap 250 have no industry data here and are grouped as Unclassified. The scan keeps at most 8 charted and 4 fully checked stocks per category so no single sector crowds out the rest.</p>

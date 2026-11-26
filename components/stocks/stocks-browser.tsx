@@ -13,6 +13,8 @@ import { CAP_LABEL, CAP_ORDER, CAP_SHORT, filterUniverse, type UniverseStock } f
 import type { MarketRow } from "@/lib/multibagger/market";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
+import { PillTabs } from "@/components/motion/primitives";
+import { motion } from "motion/react";
 import { useMarketFeed } from "./use-market-feed";
 
 const CAPS = ["all", ...CAP_ORDER] as const;
@@ -92,13 +94,7 @@ export function StocksBrowser() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        {CAPS.map((c) => (
-          <button key={c} type="button" onClick={() => set({ cap: c, sector: null })} className={cn("rounded-full border px-3.5 py-1.5 text-sm transition-colors", cap === c ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground")}>
-            {c === "all" ? "All" : CAP_LABEL[c]}{count(c) !== undefined && <span className="ml-1.5 opacity-70">{count(c)?.toLocaleString("en-IN")}</span>}
-          </button>
-        ))}
-      </div>
+      <PillTabs value={cap} onChange={(c) => set({ cap: c, sector: null })} ariaLabel="Size class" options={CAPS.map((c) => ({ value: c, label: c === "all" ? "All" : CAP_LABEL[c], badge: count(c)?.toLocaleString("en-IN") }))} />
 
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         <button type="button" onClick={() => set({ sector: null })} className={chip(sector === "all")}>All sectors</button>
@@ -135,10 +131,10 @@ export function StocksBrowser() {
           <tbody className="divide-y">
             {loading ? Array.from({ length: 10 }, (_, i) => <tr key={i}><td colSpan={7} className="px-4 py-3"><Skeleton className="h-8 w-full" /></td></tr>)
               : shown.length === 0 ? <tr><td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">No stocks match. Try another sector or clear the search.</td></tr>
-              : shown.map((s) => {
+              : shown.map((s, i) => {
                 const r = feed.rows?.get(s.symbol);
                 return (
-                  <tr key={s.symbol} className="group transition-colors hover:bg-accent/40">
+                  <motion.tr key={s.symbol} layout={shown.length <= 150 ? "position" : false} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 420, damping: 34, delay: Math.min(i, 14) * 0.015 }} className="group transition-colors hover:bg-accent/40">
                     <td className="px-4 py-2.5">
                       <Link href={`/trade?symbol=${encodeURIComponent(s.symbol)}`} className="block min-w-0">
                         <span className="font-semibold">{displaySymbol(s.symbol)}</span>
@@ -155,7 +151,7 @@ export function StocksBrowser() {
                         <Star className={cn("size-4", wl.has(s.symbol) && "fill-warn text-warn")} />
                       </button>
                     </td>
-                  </tr>
+                  </motion.tr>
                 );
               })}
           </tbody>
