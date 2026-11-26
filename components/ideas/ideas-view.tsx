@@ -14,9 +14,11 @@ import { useUniverse } from "@/components/use-universe";
 import type { Candle } from "@/lib/data/types";
 import { newsMood } from "@/lib/analysis/sentiment";
 import { rankSectors, type SectorRow } from "@/lib/analysis/sectors";
+import { assessMethod, METHODS, type Method } from "@/lib/analysis/methods";
+import { RealityCheck } from "./reality-check";
 import { interleaveMixed } from "@/lib/analysis/mixed";
 import { buildMixedPortfolio } from "@/lib/analysis/portfolio-mix";
-import { assessStock, FRAME_LABEL, HISTORY_DAYS, positionSize, withOverlay, withRelativeStrength, type Frame, type StockView } from "@/lib/analysis/stock-view";
+import { FRAME_LABEL, HISTORY_DAYS, positionSize, withOverlay, withRelativeStrength, type Frame, type StockView } from "@/lib/analysis/stock-view";
 import type { AnalystCall, Consensus, NewsItem } from "@/lib/data/news";
 import { fmtInr } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
@@ -40,6 +42,8 @@ async function candlesOf(symbol: string, days: number): Promise<Candle[]> {
 
 export function IdeasView() {
   const { stocks, loading: uniLoading } = useUniverse();
+  const [method, setMethod] = useState<Method>("trend");
+  const [ranMethod, setRanMethod] = useState<Method>("trend");
   const [frame, setFrame] = useState<Frame>("daily");
   const [ranFrame, setRanFrame] = useState<Frame>("daily");
   const [cap, setCap] = useState<Cap | "mixed">("large");
@@ -70,6 +74,7 @@ export function IdeasView() {
     setRunning(true);
     setIdeas([]); setSectors([]); setOpen(null);
     setRanFrame(frame);
+    setRanMethod(method);
     const found: Idea[] = [];
     let done = 0, failed = 0;
     try {
@@ -85,7 +90,7 @@ export function IdeasView() {
         for (let s = queue.shift(); s && !stopRef.current; s = queue.shift()) {
           setProgress({ done, total: picks.length, note: `Reading ${displaySymbol(s.symbol)}` });
           try {
-            const view = assessStock(s.symbol, await candlesOf(s.symbol, HISTORY_DAYS[frame]), frame);
+            const view = assessMethod(s.symbol, await candlesOf(s.symbol, method === "trend" ? HISTORY_DAYS[frame] : 800), method, frame);
             if (view) found.push({ stock: s, view });
             else failed++;
           } catch { failed++; }
@@ -94,7 +99,7 @@ export function IdeasView() {
       };
       await Promise.all([worker(), worker(), worker(), worker()]);
       if (!found.length) throw new Error("No stock could be analysed. Check your connection and try again.");
-      const ranked = withRelativeStrength(found.map((f) => f.view));
+      const ranked = method === "trend" ? withRelativeStrength(found.map((f) => f.view)) : found.map((f) => f.view);
       found.forEach((f, i) => { f.view = ranked[i]; });
       found.sort((a, b) => b.view.technical - a.view.technical);
       setIdeas([...found]);
@@ -149,14 +154,17 @@ export function IdeasView() {
           <CardDescription>Reads daily and weekly price trends for each stock, scores them, then checks news and broker calls on the best. Scores come from fixed rules you can see below; they are not predictions.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="w-60 space-y-1"><Label className="text-xs text-muted-foreground">Method</Label>
+            <SimpleSelect className="w-full" value={method} onChange={setMethod} options={METHODS.map((m) => ({ value: m.id, label: m.label }))} /></div>
           <div className="w-44 space-y-1"><Label className="text-xs text-muted-foreground">Look at</Label>
-            <SimpleSelect className="w-full" value={frame} onChange={setFrame} options={[{ value: "daily", label: "Daily (1–3 weeks)" }, { value: "weekly", label: "Weekly (3–8 weeks)" }, { value: "monthly", label: "Monthly (2–6 months)" }]} /></div>
+            <SimpleSelect className="w-full" value={method === "trend" ? frame : "daily"} onChange={setFrame} options={[{ value: "daily", label: "Daily (1–3 weeks)" }, { value: "weekly", label: "Weekly (3–8 weeks)" }, { value: "monthly", label: "Monthly (2–6 months)" }]} /></div>
           <div className="w-52 space-y-1"><Label className="text-xs text-muted-foreground">Stock size</Label>
             <SimpleSelect className="w-full" value={cap} onChange={setCap} options={[{ value: "mixed" as const, label: "Mixed (large + mid + small)" }, ...(["large", "mid", "small"] as Cap[]).map((c) => ({ value: c, label: CAP_LABEL[c] }))]} /></div>
           <div className="w-32 space-y-1"><Label className="text-xs text-muted-foreground">How many</Label>
             <SimpleSelect className="w-full" value={count} onChange={setCount} options={[30, 60, 100].map((n) => ({ value: String(n), label: `${n} stocks` }))} /></div>
           <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Capital (₹)</Label><NumberField min={10000} step={50000} value={capital} onChange={setCapital} /></div>
           <div className="w-32 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (%)</Label><NumberField min={0.25} max={5} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
+          <p className="w-full text-xs text-muted-foreground"><b>{METHODS.find((m) => m.id === method)!.label}:</b> {METHODS.find((m) => m.id === method)!.blurb} <i>({METHODS.find((m) => m.id === method)!.source})</i>{method !== "trend" && " Uses daily candles."}</p>
           <Button size="lg" onClick={scan} disabled={running || uniLoading || !pool.length}>{running ? <Loader2 className="animate-spin" /> : <Play />}{running ? "Scanning…" : "Scan now"}</Button>
           {running && <Button size="lg" variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
           {progress && (
@@ -167,6 +175,8 @@ export function IdeasView() {
           )}
         </CardContent>
       </Card>
+
+      <RealityCheck />
 
       {sectors.length > 0 && (
         <Card>
@@ -198,7 +208,7 @@ export function IdeasView() {
       {mix.picks.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Mixed portfolio · {FRAME_LABEL[ranFrame].toLowerCase()} view</CardTitle>
+            <CardTitle>Mixed portfolio · {ranMethod === "trend" ? `${FRAME_LABEL[ranFrame].toLowerCase()} view` : METHODS.find((m) => m.id === ranMethod)!.label}</CardTitle>
             <CardDescription>The best buy setups spread over sectors: at most 2 per sector, each sized to risk {riskPct}% of {fmtInr(capital)}, 10% kept as cash.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
