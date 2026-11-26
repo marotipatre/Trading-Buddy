@@ -7,7 +7,7 @@ export default function IdeasPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Ideas</h1>
-        <p className="text-sm text-muted-foreground">Which sectors have momentum, which stocks are set up for a 1–3 week swing, and where to enter, stop and take profit</p>
+        <p className="text-sm text-muted-foreground">The whole market, scanned for you: the strongest sectors, the best setups, and exactly where to enter, stop and take profit</p>
       </div>
       <IdeasView />
     </div>
