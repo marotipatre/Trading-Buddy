@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { OrderTicket } from "@/components/paper/order-ticket";
+import { AlertForm } from "@/components/alerts/alert-form";
 import { StockChart } from "@/components/chart/stock-chart";
 import { PositionsPanel } from "@/components/paper/positions-panel";
 import { SymbolSearch } from "@/components/symbol-search";
@@ -167,6 +168,7 @@ export function TradeView() {
             </Card>
           )}
           <OrderTicket key={`${symbol}-${initialSide}`} symbol={symbol} ltp={q?.price} initialSide={initialSide} />
+          <AlertForm key={`alert-${symbol}`} symbol={symbol} ltp={q?.price} />
         </div>
       </div>
 
