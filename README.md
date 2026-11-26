@@ -9,11 +9,13 @@ It answers two questions honestly:
 
 ## Features
 
-- **Explore** (home): index cards, a live watchlist with one-tap Buy/Sell, and top movers among popular stocks. Prices paint instantly from the last session, then update.
-- **Trade**: a chart-free stock page with live quote, day range, your position, a watchlist star and the order ticket (market and limit, delivery and intraday, stop-loss, target, trailing stop, live risk preview).
+- **Search**: every NSE and BSE stock (main board and SME) and about 220 indices, about 8,900 instruments, from a local index. It is instant, ranked (exact ticker, name, multi-word, well-known stocks first), and works with the keyboard. Recent and popular symbols show when you focus the box.
+- **Explore** (home): index cards, shortcuts by size and sector, a live watchlist with one-tap Buy/Sell, and top movers. Prices paint instantly from the last session, then update.
+- **Stocks**: browse about 500 stocks by size class (Large = Nifty 100, Mid = Midcap 150, Small = Smallcap 250) and by NSE sector, with search, and top gainers or losers within a group.
+- **Trade**: a live quote, a price chart (candles or line; 1D, 1W, 1M, 6M, 1Y, 5Y, All; volume; hover legend) with your average price, stop-loss, take-profit, pending orders and past trades drawn on it, plus the order ticket (market, limit and stop orders, delivery and intraday, live risk preview).
 - **Portfolio**: Holdings, Positions, Orders, Funds and Analysis tabs, laid out like a broker app. Two money pots (Trading and Bank) with add, move and withdraw; returns are measured against the money you put into trading, so deposits never look like profit.
 - **Analysis**: win rate with a 95% confidence interval, expectancy in R, stop usage, winners given back, MAE/MFE, tags and notes per trade, and plain-language findings about your own behaviour.
-- **Backtester** (`lib/engine`): visual rule builder plus six swing presets. Signals are read at the close and filled at the next open, with pessimistic stop/target ordering, gap handling, trailing and time stops, slippage and Indian transaction charges. Reports win probability, Monte Carlo, in/out-of-sample and a stop-loss study that holds the target fixed so only the stop changes.
+- **Backtester** (`lib/engine`): visual rule builder plus six swing presets, on one stock or on a whole group (size class and/or sector, 5 to 50 stocks) with pooled win probability, how many stocks made money, whether it beat buy-and-hold, and an out-of-sample check. Signals are read at the close and filled at the next open, with pessimistic stop/target ordering, gap handling, trailing and time stops, slippage and Indian transaction charges. Reports win probability, Monte Carlo, in/out-of-sample and a stop-loss study that holds the target fixed so only the stop changes.
 - **Paper broker** (`lib/paper`): shares the backtester's cost model. Stops and targets that triggered while the app was closed are replayed, and intraday positions square off at 15:15 IST.
 - **Orders**: market, limit, and stop (trigger) orders. Take-profit and stop-loss exits can be placed on any holding (or edited later with Exits); they are linked, so when one executes the other cancels. Orders are day or GTT (good till triggered, up to a year), execute when the price hits them, fill gaps at the open, and expire on their own. Activity and executions are announced as toasts, including anything that triggered while the app was closed.
 - **Data** (`lib/data`): price history and live quotes come from Upstox's open candle endpoints (no login or key needed; NSE stocks and indices, 10 years of daily and years of 5m/15m, plus today's bars), with Moneycontrol, Yahoo and a verified Google Finance page as fallbacks. Every source is cross-checked, previous close is derived from daily bars, and a price is only shown if it can be tied to the requested symbol. Requests are spaced, deduplicated, cached in Supabase and served stale-while-revalidate. CSV import is the last resort.
@@ -42,7 +44,7 @@ In Supabase, turn off *Confirm email* for local use, and turn off *Allow new use
 
 - All free market data here is unofficial (Upstox open endpoints, Yahoo, Moneycontrol, a Google Finance page). Any of them can throttle, delay, change or block without notice, and scraping may be against a site's terms; keep usage personal and low-volume. Upload a CSV on the Backtest page if every feed is down.
 - Resting orders only run while the app is open. When you open it again, anything that triggered meanwhile is replayed from intraday candles (and logged). There is no always-on server watching prices.
-- Broker logins: nothing here uses your broker account. Upstox's candle endpoints need no login. A real broker sandbox or API token would only be needed for live tick streaming or placing real orders.
+- Keys and logins: none are needed. Upstox's candle and instrument endpoints are open, and nothing here uses your broker account. Upstox's candle endpoints need no login. A real broker sandbox or API token would only be needed for live tick streaming or placing real orders.
 - Free intraday history is short (about 59 days for 5m/15m, 7 days for 1m), so swing backtests use daily candles.
 - No free historical option data exists, so F&O is not backtested.
 - Backtests ignore survivorship bias (today's index members only), liquidity and circuit limits. A small number of trades is statistical noise; the app warns below 30.
@@ -56,6 +58,7 @@ app/(app)/            explore, trade, backtest workbench, portfolio
 app/api/              candles, quotes, symbols route handlers (proxy to data providers)
 components/backtest/  rule builder, risk form, charts, result panels
 components/paper/     provider, order ticket, positions, journal, portfolio view
+lib/instruments.ts    every NSE/BSE stock and index, with ranked search
 lib/engine/           indicators, rules, walkTrade, simulator, costs, metrics, Monte Carlo, stop-loss study
 lib/paper/            broker, store, analytics
 lib/data/             Yahoo adapter, retry, cache, CSV import
