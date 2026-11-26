@@ -11,10 +11,10 @@ import { NumberField } from "@/components/backtest/number-field";
 import { SimpleSelect } from "@/components/backtest/simple-select";
 import { NewsPanel } from "@/components/news/news-panel";
 import { useUniverse } from "@/components/use-universe";
-import type { Candle } from "@/lib/data/types";
 import { newsMood } from "@/lib/analysis/sentiment";
 import { rankSectors, type SectorRow } from "@/lib/analysis/sectors";
 import { assessMethod, METHODS, type Method } from "@/lib/analysis/methods";
+import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
 import { RealityCheck } from "./reality-check";
 import { interleaveMixed } from "@/lib/analysis/mixed";
 import { horizonStats, type HorizonStats } from "@/lib/analysis/horizon";
@@ -34,12 +34,7 @@ const VERDICT = { buy: "Buy setup", watch: "Watch", avoid: "Avoid" } as const;
 const STANCE = { focus: "bg-up/15 text-up", neutral: "bg-muted text-muted-foreground", avoid: "bg-down/15 text-down" } as const;
 const pct = (n: number) => (Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixed(1)}%` : "—");
 
-async function candlesOf(symbol: string, days: number): Promise<Candle[]> {
-  const res = await fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&days=${days}`);
-  const j = await res.json();
-  if (!res.ok) throw new Error(j.error ?? "no data");
-  return j.candles as Candle[];
-}
+const candlesOf = (symbol: string, days: number) => fetchCandles(symbol, days);
 
 /** Best first: buy setups before watch before avoid, then by historical expectancy over the chosen period, then by score. */
 const RANK = { buy: 0, watch: 1, avoid: 2 } as const;
@@ -95,24 +90,25 @@ export function IdeasView() {
       } catch { /* the market comparison is optional */ }
       setBench(benchM1);
 
-      const queue = [...picks];
-      const worker = async () => {
-        for (let s = queue.shift(); s && !stopRef.current; s = queue.shift()) {
-          setProgress({ done, total: picks.length, note: `Reading ${displaySymbol(s.symbol)}` });
-          try {
-            const candles = await candlesOf(s.symbol, method === "trend" ? HISTORY_DAYS[frame] : 800);
-            const base = assessMethod(s.symbol, candles, method, frame);
-            if (base) {
-              const view = applyTarget(base, target);
-              const hz = view.plan ? horizonStats(candles, days, target, view.plan.riskPct) ?? undefined : undefined;
-              found.push({ stock: s, view, hz });
-            }
-            else failed++;
-          } catch { failed++; }
-          done++;
+      // Eight downloads at a time, and results appear while the scan is still going.
+      await runPool(picks, 8, async (s) => {
+        setProgress({ done, total: picks.length, note: `Reading ${displaySymbol(s.symbol)}` });
+        try {
+          const candles = await candlesOf(s.symbol, method === "trend" ? HISTORY_DAYS[frame] : 800);
+          const base = assessMethod(s.symbol, candles, method, frame);
+          if (base) {
+            const view = applyTarget(base, target);
+            const hz = view.plan ? horizonStats(candles, days, target, view.plan.riskPct) ?? undefined : undefined;
+            found.push({ stock: s, view, hz });
+          } else failed++;
+        } catch { failed++; }
+        done++;
+        if (done % 8 === 0 || done === picks.length) {
+          const snap = [...found].sort(byEdge);
+          setIdeas(snap);
+          setSectors(rankSectors(snap.map((f) => ({ sector: f.stock.sector, view: f.view })), benchM1));
         }
-      };
-      await Promise.all([worker(), worker(), worker(), worker()]);
+      }, () => stopRef.current);
       if (!found.length) throw new Error("No stock could be analysed. Check your connection and try again.");
       const ranked = method === "trend" ? withRelativeStrength(found.map((f) => f.view)) : found.map((f) => f.view);
       found.forEach((f, i) => { f.view = applyTarget(ranked[i], target); });
