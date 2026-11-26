@@ -102,3 +102,16 @@ describe("weekly and monthly frames", () => {
     expect(assessStock("U", mk((i) => 100 + i, 450), "weekly")).not.toBeNull();
   });
 });
+
+describe("applyTarget", () => {
+  it("replaces the first target and re-judges reward-to-risk", async () => {
+    const { applyTarget } = await import("./stock-view");
+    const v = assessStock("UP", mk((i) => 100 + i * 0.5 + Math.sin(i / 5) * 2))!;
+    const a = applyTarget({ ...v, score: 80, plan: { entry: 100, entryKind: "now", stop: 96, target1: 108, target2: 112, riskPct: 4, rewardPct1: 8, rr1: 2, rr2: 3 } }, 10);
+    expect(a.plan!.target1).toBeCloseTo(110);
+    expect(a.plan!.rr1).toBeCloseTo(2.5);
+    expect(a.verdict).toBe("buy");
+    const tiny = applyTarget({ ...v, score: 80, plan: { entry: 100, entryKind: "now", stop: 96, target1: 108, target2: 112, riskPct: 4, rewardPct1: 8, rr1: 2, rr2: 3 } }, 3);
+    expect(tiny.verdict).toBe("watch"); // 3% for a 4% risk is not worth it
+  });
+});

@@ -1,6 +1,6 @@
 import { positionSize, type StockView } from "./stock-view";
 
-export interface MixInput { symbol: string; name: string; sector: string; view: StockView }
+export interface MixInput { symbol: string; name: string; sector: string; view: StockView; /** Optional historical edge (percent per trade); higher is picked first. */ edge?: number }
 export interface MixPick extends MixInput { qty: number; value: number; risk: number; reward: number; weightPct: number }
 export interface Mix {
   picks: MixPick[];
@@ -21,7 +21,7 @@ export function buildMixedPortfolio(items: MixInput[], capital: number, riskPct:
   const perSector = new Map<string, number>();
   const picks: MixPick[] = [];
   let invested = 0;
-  for (const it of [...items].sort((a, b) => b.view.score - a.view.score)) {
+  for (const it of [...items].sort((a, b) => (b.edge ?? 0) - (a.edge ?? 0) || b.view.score - a.view.score)) {
     if (picks.length >= maxNames) break;
     const plan = it.view.plan;
     if (it.view.verdict !== "buy" || !plan) continue;

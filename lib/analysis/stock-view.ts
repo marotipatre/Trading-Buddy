@@ -175,3 +175,13 @@ export function positionSize(capital: number, riskPct: number, maxPositionPct: n
   const qty = Math.max(0, Math.min(byRisk, byCap));
   return { qty, value: qty * plan.entry, risk: qty * perShare };
 }
+
+/** Use the trader's own target (percent above entry) for the first target, and re-judge the setup's reward-to-risk. */
+export function applyTarget(v: StockView, targetPct: number): StockView {
+  const p = v.plan;
+  if (!p || !(targetPct > 0)) return v;
+  const target1 = p.entry * (1 + targetPct / 100);
+  const risk = p.entry - p.stop;
+  const plan: Plan = { ...p, target1, target2: p.entry * (1 + (targetPct * 1.5) / 100), rewardPct1: targetPct, rr1: (target1 - p.entry) / risk, rr2: (p.entry * (1 + (targetPct * 1.5) / 100) - p.entry) / risk };
+  return { ...v, plan, verdict: verdictOf(v.score, plan) };
+}
