@@ -19,6 +19,8 @@ import { fmtInr } from "@/lib/format";
 import { companyName, displaySymbol } from "@/lib/symbols";
 import { INDICES, POPULAR_STOCKS } from "@/lib/universe";
 import { useMarketOpen } from "@/components/use-market-open";
+import { GettingStarted } from "@/components/dashboard/getting-started";
+import { TodayCard } from "@/components/dashboard/today-card";
 
 const INDEX_SYMBOLS = INDICES.slice(0, 3);
 const MOVERS = POPULAR_STOCKS.slice(0, 14);
@@ -64,6 +66,9 @@ export default function ExplorePage() {
         </div>
         <Button variant="ghost" size="icon" aria-label="Refresh prices" onClick={() => { idx.refresh(); watch.refresh(); movers.refresh(); }}><RefreshCw /></Button>
       </div>
+
+      <GettingStarted />
+      <TodayCard />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {INDEX_SYMBOLS.map((i) => {

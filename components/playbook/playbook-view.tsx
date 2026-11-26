@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BOOKS, type Book } from "@/lib/playbook/content";
 import { cn } from "@/lib/utils";
 import { Calculators } from "./calculators";
+import { markDone } from "@/lib/progress";
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -32,6 +33,7 @@ export function PlaybookView() {
 
 function BookView({ book }: { book: Book }) {
   const [done, setDone] = useState<Record<number, boolean>>({});
+  useEffect(() => { if (book.id === "swing") markDone("rules"); }, [book.id]);
   const [q, setQ] = useState("");
   const [active, setActive] = useState("");
   const needle = q.trim().toLowerCase();

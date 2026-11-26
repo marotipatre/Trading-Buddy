@@ -34,6 +34,7 @@ import { SimpleSelect } from "./simple-select";
 import { aggregateWeekly } from "@/lib/chart-timeframes";
 import { BacktestChart } from "./backtest-chart";
 import { displaySymbol } from "@/lib/symbols";
+import { markDone } from "@/lib/progress";
 import { EmaBuilderForm } from "./ema-builder-form";
 import { buildEmaStrategy, DEFAULT_EMA_SPEC, type EmaSpec } from "@/lib/engine/ema-builder";
 
@@ -302,6 +303,7 @@ export function Workbench() {
       const name = (csv ? csv.name : symbol) + (frame === "weekly" ? " (weekly)" : "");
       const analysis = analyze(name, candles, parsed.data, costs);
       setOut({ analysis, candles, label: `${parsed.data.name} on ${name}`, strategy: parsed.data });
+      markDone("backtest");
       toast.success(`${analysis.result.trades.length} trades simulated`);
     } catch (e) {
       toast.error((e as Error).message);
