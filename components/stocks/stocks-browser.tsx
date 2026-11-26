@@ -14,7 +14,6 @@ import type { MarketRow } from "@/lib/multibagger/market";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
 import { PillTabs } from "@/components/motion/primitives";
-import { motion } from "motion/react";
 import { useMarketFeed } from "./use-market-feed";
 
 const CAPS = ["all", ...CAP_ORDER] as const;
@@ -134,7 +133,7 @@ export function StocksBrowser() {
               : shown.map((s, i) => {
                 const r = feed.rows?.get(s.symbol);
                 return (
-                  <motion.tr key={s.symbol} layout={shown.length <= 150 ? "position" : false} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 420, damping: 34, delay: Math.min(i, 14) * 0.015 }} className="group transition-colors hover:bg-accent/40">
+                  <tr key={s.symbol} style={{ animationDelay: `${Math.min(i, 14) * 15}ms` }} className="row-in group transition-colors hover:bg-accent/40">
                     <td className="px-4 py-2.5">
                       <Link href={`/trade?symbol=${encodeURIComponent(s.symbol)}`} className="block min-w-0">
                         <span className="font-semibold">{displaySymbol(s.symbol)}</span>
@@ -151,7 +150,7 @@ export function StocksBrowser() {
                         <Star className={cn("size-4", wl.has(s.symbol) && "fill-warn text-warn")} />
                       </button>
                     </td>
-                  </motion.tr>
+                  </tr>
                 );
               })}
           </tbody>

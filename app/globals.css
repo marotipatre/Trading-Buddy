@@ -192,3 +192,7 @@
 button, [role="button"], a[class*="rounded"] { transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
 button:not(:disabled):active, [role="tab"]:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) { button:not(:disabled):active { transform: none; } }
+
+@keyframes row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.row-in { animation: row-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .row-in { animation: none; } }
