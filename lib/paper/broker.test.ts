@@ -218,3 +218,58 @@ describe("intraday session window", () => {
     expect(placeOrder(acct(), buy({ product: "intraday" }), 100, 1).error).toBeUndefined();
   });
 });
+
+describe("risk, excursions and R multiples", () => {
+  it("records initial risk and R when a stop is set (stopped out at -1R)", () => {
+    let s = must(placeOrder(acct(), buy({ stop: 95 }), 100, 1));
+    expect(s.positions[0].initialRisk).toBe(50);
+    s = onPrice(s, "ABC", 95, 2);
+    expect(s.trades[0]).toMatchObject({ initialRisk: 50, reason: "stop" });
+    expect(s.trades[0].rMultiple).toBeCloseTo(-1);
+  });
+  it("a gap through the stop loses more than 1R", () => {
+    let s = must(placeOrder(acct(), buy({ stop: 95 }), 100, 1));
+    s = onPrice(s, "ABC", 94, 2);
+    expect(s.trades[0].rMultiple).toBeCloseTo(-1.2);
+  });
+  it("has no R multiple when no stop was set", () => {
+    let s = must(placeOrder(acct(), buy(), 100, 1));
+    s = must(placeOrder(s, buy({ side: "sell" }), 105, 2));
+    expect(s.trades[0].initialRisk).toBeUndefined();
+    expect(s.trades[0].rMultiple).toBeUndefined();
+  });
+  it("tracks the worst dip and best run over the life of the trade", () => {
+    let s = must(placeOrder(acct(), buy(), 100, 1));
+    s = onPrice(s, "ABC", 108, 2);
+    s = onPrice(s, "ABC", 97, 3);
+    s = must(placeOrder(s, buy({ side: "sell" }), 103, 4));
+    expect(s.trades[0].mfePct).toBeCloseTo(8);
+    expect(s.trades[0].maePct).toBeCloseTo(3);
+  });
+  it("short trades measure excursions in the right direction", () => {
+    let s = must(placeOrder(acct(), buy({ side: "sell", product: "intraday" }), 100, 1));
+    s = onPrice(s, "ABC", 92, 2); // in favour
+    s = onPrice(s, "ABC", 104, 3); // against
+    s = must(placeOrder(s, buy({ side: "buy", product: "intraday" }), 101, 4));
+    expect(s.trades[0].mfePct).toBeCloseTo(8);
+    expect(s.trades[0].maePct).toBeCloseTo(4);
+  });
+  it("a partial close takes a pro-rata share of the risk and leaves the rest", () => {
+    let s = must(placeOrder(acct(), buy({ qty: 10, stop: 95 }), 100, 1));
+    s = must(closePosition(s, s.positions[0].id, 4, 100, 2, "manual"));
+    expect(s.trades[0].initialRisk).toBeCloseTo(20);
+    expect(s.positions[0].initialRisk).toBeCloseTo(30);
+  });
+  it("adding to a position adds the new risk", () => {
+    let s = must(placeOrder(acct(), buy({ qty: 10, stop: 95 }), 100, 1));
+    s = must(placeOrder(s, buy({ qty: 10, stop: 100 }), 110, 2));
+    expect(s.positions[0].initialRisk).toBe(50 + 100);
+  });
+  it("copes with positions saved before these fields existed", () => {
+    const s0 = must(placeOrder(acct(), buy(), 100, 1));
+    const legacy = { ...s0, positions: s0.positions.map((p) => ({ ...p, worst: undefined, initialRisk: undefined })) };
+    const s = must(closePosition(legacy, legacy.positions[0].id, 10, 99, 2, "manual"));
+    expect(s.trades[0].maePct).toBeCloseTo(1);
+    expect(s.trades[0].rMultiple).toBeUndefined();
+  });
+});
