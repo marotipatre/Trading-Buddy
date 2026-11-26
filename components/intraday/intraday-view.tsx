@@ -14,6 +14,7 @@ import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
 import { moodOf } from "@/lib/analysis/mood";
 import { AiSentimentToggle } from "@/components/ai-sentiment";
 import { pnlByDay } from "@/lib/intraday/account";
+import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
 import { dayStatus, DEFAULT_LIMITS, type Limits } from "@/lib/intraday/limits";
 import { cleanShare, MISTAKE_TAGS, mistakeCounts, pickDateOf, userNote, withUserNote } from "@/lib/intraday/journal";
 import { loadBatches, saveBatch, type PickBatch } from "@/lib/intraday/log";
@@ -114,6 +115,7 @@ function Picks({ lock }: { lock: string | null }) {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [batch, setBatch] = useState<PickBatch | null>(() => (typeof window === "undefined" ? null : loadBatches().at(-1) ?? null));
   const [riskPct, setRiskPct] = useState(1);
+  const [regime, setRegime] = useState<MarketRegime | null>(null);
   const stopRef = useRef(false);
 
   const generate = useCallback(async () => {
@@ -123,7 +125,9 @@ function Picks({ lock }: { lock: string | null }) {
     setRunning(true);
     const found: IntradayPick[] = [];
     let done = 0;
+    let reg: MarketRegime | null = null;
     try {
+      try { reg = marketRegime(await fetchCandles("^NSEI", 500)); setRegime(reg); } catch { /* the market check is optional */ }
       await runPool(universe, 8, async (s) => {
         try { const p = scoreIntraday(s.symbol, s.name, s.sector, await fetchCandles(s.symbol, 400)); if (p) found.push(p); } catch { /* skip */ }
         done++;
@@ -142,7 +146,7 @@ function Picks({ lock }: { lock: string | null }) {
         const again = scoreIntraday(p.symbol, p.name, p.sector, c, mood);
         if (again) rescored.push(again);
       }
-      const picks = topPicks(rescored, 5, 2);
+      const picks = topPicks(rescored, reg?.regime === "bear" ? 3 : 5, 2);
       if (!picks.length) { toast.info("No stock qualified today. Sitting out is a valid trade."); setBatch(null); return; }
       const b: PickBatch = { forDate: picks[0].forDate, createdAt: Date.now(), picks };
       saveBatch(b);
@@ -166,12 +170,17 @@ function Picks({ lock }: { lock: string | null }) {
           {running && <Button variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
           {progress && <span className="font-mono text-xs text-muted-foreground">{progress.done}/{progress.total}</span>}
         </div>
+        {regime && (
+          <p className={cn("rounded-lg border p-2.5 text-xs", regime.regime === "bull" ? "border-up/40 bg-up/5" : regime.regime === "bear" ? "border-down/40 bg-down/5" : "border-warn/40 bg-warn/5")}>
+            <b>Market: {regime.regime === "bull" ? "uptrend" : regime.regime === "bear" ? "downtrend" : "choppy"}.</b> {regime.advice}{regime.sizeFactor < 1 && <> Sizes below use {Math.round(regime.sizeFactor * 100)}% of your normal risk.</>}
+          </p>
+        )}
         {batch && (
           <>
             <p className="text-sm">For the session on <b>{batch.forDate}</b> (found {new Date(batch.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}).</p>
             <div className="grid gap-3 lg:grid-cols-2">
               {batch.picks.map((p) => {
-                const size = intradaySize(pot, acc?.leverage ?? 5, riskPct, 5, p.plan);
+                const size = intradaySize(pot, acc?.leverage ?? 5, riskPct * (regime?.sizeFactor ?? 1), 5, p.plan);
                 return (
                   <div key={p.symbol} className="space-y-2 rounded-lg border p-3">
                     <div className="flex items-baseline justify-between gap-2">
