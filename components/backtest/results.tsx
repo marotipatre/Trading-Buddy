@@ -1,5 +1,6 @@
 "use client";
 
+import { PeriodsPanel } from "./periods-panel";
 import { BacktestChart } from "./backtest-chart";
 import type { StrategyDef } from "@/lib/engine/strategy";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,12 +17,14 @@ export function BacktestResults({ analysis, candles, strategy }: { analysis: Ana
       <TabsList>
         <TabsTrigger value="chart">Chart</TabsTrigger>
         <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="periods">Monthly &amp; weekly</TabsTrigger>
         <TabsTrigger value="stoploss">Stop-loss study</TabsTrigger>
         <TabsTrigger value="robustness">Probability &amp; robustness</TabsTrigger>
         <TabsTrigger value="trades">Trades ({analysis.result.trades.length})</TabsTrigger>
       </TabsList>
       <TabsContent value="chart"><BacktestChart candles={candles} trades={analysis.result.trades} strategy={strategy} /></TabsContent>
       <TabsContent value="overview"><OverviewPanel a={analysis} candles={candles} /></TabsContent>
+      <TabsContent value="periods"><PeriodsPanel a={analysis} /></TabsContent>
       <TabsContent value="stoploss"><StopLossPanel s={analysis.stopStudy} /></TabsContent>
       <TabsContent value="robustness"><RobustnessPanel a={analysis} /></TabsContent>
       <TabsContent value="trades"><TradesPanel trades={analysis.result.trades} /></TabsContent>
