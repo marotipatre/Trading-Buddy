@@ -69,7 +69,7 @@ const SWING_EVENTS: Section = {
 };
 
 const SWING_REGIME: Section = {
-  title: "0. Check the market first",
+  title: "Check the market first",
   intro: "Most stocks follow the market. The best setups fail more often when the index is falling.",
   rules: [
     { rule: "Before buying, look at the Nifty 50 and a broad index (Nifty 500 or Midcap 150). Are they above their 50-day and 200-day averages and are those rising?", why: "William O'Neil's 'M' in CANSLIM: roughly three of four stocks move with the market. Buying breakouts in a downtrending index is swimming upstream.", inApp: { label: "Ideas: sector table shows the market's 1-month move", href: "/ideas" } },
@@ -134,7 +134,7 @@ export const SWING: Book = {
   ],
   sections: [
     {
-      title: "1. Choose what to trade",
+      title: "Choose what to trade",
       rules: [
         { rule: "Trade in the direction of the larger trend: price above rising 50- and 200-day averages, weekly trend up.", why: "Trend followers such as Minervini and O'Neil buy strength in confirmed uptrends, because stocks in uptrends keep going more often than stocks that look 'cheap' in downtrends.", inApp: { label: "Ideas: Minervini trend template", href: "/ideas" } },
         { rule: "Prefer the strongest sectors and the strongest stocks in them.", why: "A good stock in a weak sector has a headwind; leaders in strong sectors tend to lead again.", inApp: { label: "Ideas: sector ranking and Focus list", href: "/ideas" } },
@@ -144,7 +144,7 @@ export const SWING: Book = {
       ],
     },
     {
-      title: "2. Plan every trade before you enter",
+      title: "Plan every trade before you enter",
       rules: [
         { rule: "Write entry, stop-loss and target before buying. Do not enter if you cannot.", why: "A plan made while the price is moving is a plan made by emotion.", inApp: { label: "Ideas gives entry, stop and targets", href: "/ideas" } },
         { rule: "Aim for at least 2 times as much reward as risk (2R). Skip trades below about 1.5R.", why: "With 2R winners you can be wrong more often than right and still profit. At 40% winners and 2R, each trade averages +0.2R before costs." },
@@ -154,7 +154,7 @@ export const SWING: Book = {
       ],
     },
     {
-      title: "3. Position sizing and portfolio risk",
+      title: "Position sizing and portfolio risk",
       intro: "Risk is decided by position size, not by hope. These are common conventions; pick your own and keep them.",
       rules: [
         { rule: "Risk about 0.5% to 1% of your capital on a single trade (many professionals use 1% or less; 2% is considered the upper end).", why: "At 1% risk, ten losses in a row cost about 10%. At 10% risk per trade the same run ends the account.", inApp: { label: "Ideas sizes each trade to your risk setting", href: "/ideas" } },
@@ -165,7 +165,7 @@ export const SWING: Book = {
       ],
     },
     {
-      title: "4. Manage the trade",
+      title: "Manage the trade",
       rules: [
         { rule: "Take the loss when the stop is hit. Do not re-enter the same stock within a day or two out of anger.", why: "A stop-out is the cost of doing business, not a verdict on you." },
         { rule: "Sell part (a third to a half) at the first target, move the stop to breakeven, and let the rest follow a trailing stop.", why: "It banks a gain, removes the risk of a winner turning into a loser and still leaves room for the rare big winner." },
@@ -174,7 +174,7 @@ export const SWING: Book = {
       ],
     },
     {
-      title: "5. Process and review",
+      title: "Process and review",
       rules: [
         { rule: "Keep a journal: reason for entry, plan, result in R, what you did right or wrong.", why: "You cannot improve what you do not measure. Patterns in your mistakes are the best coaching available.", inApp: { label: "Portfolio > Analysis: your trade journal", href: "/portfolio?tab=analysis" } },
         { rule: "Judge your process, not one result. A well-executed trade that lost is a good trade.", why: "Outcomes of single trades are random. Sticking to the rules is what you control." },
@@ -183,7 +183,7 @@ export const SWING: Book = {
       ],
     },
     {
-      title: "6. India-specific notes",
+      title: "India-specific notes",
       rules: [
         { rule: "Delivery (CNC) trades carry securities transaction tax and other charges. Include costs when you judge a setup.", why: "Charges come off every round trip; short holds with small targets suffer most.", inApp: { label: "Backtests include Indian charges and slippage", href: "/strategies" } },
         { rule: "Gaps are common around results, global moves and news. A stop-loss order may fill below your price in a gap.", why: "Size so that a gap beyond your stop is survivable." },
@@ -229,7 +229,18 @@ export const SWING: Book = {
   ],
 };
 
-SWING.sections = [SWING_REGIME, SWING.sections[0], SWING_SETUPS, ...SWING.sections.slice(1, 3), SWING_EXPECTANCY, ...SWING.sections.slice(3, 5), SWING_PSY, SWING_INDIA, SWING.sections[5]];
+const find = (all: Section[], t: string): Section => { const f = all.find((s) => s.title.includes(t)); if (!f) throw new Error(`missing section: ${t}`); return f; };
+const joinSections = (a: Section, b: Section, title: string): Section => ({ title, intro: b.intro ?? a.intro, rules: [...a.rules, ...b.rules.filter((r) => !a.rules.some((x) => x.rule === r.rule))] });
+{
+  const all = [...SWING.sections, SWING_REGIME, SWING_GRADE, SWING_SETUPS, SWING_EXPECTANCY, SWING_PSY, SWING_INDIA, SWING_EXIT, SWING_PYRAMID, SWING_EVENTS];
+  const india = joinSections(find(all, "India: costs"), find(all, "India-specific notes"), "India: costs, tax and market structure");
+  SWING.sections = [
+    find(all, "Check the market first"), find(all, "Choose what to trade"), find(all, "Trend, momentum"), find(all, "Grade every setup"), find(all, "Plan every trade"),
+    find(all, "Position sizing"), find(all, "Manage the trade"), find(all, "Exit playbook"), find(all, "Adding to winners"), find(all, "Expectancy and drawdown"),
+    find(all, "Events and news"), find(all, "Psychology: protocols"), find(all, "Process and review"), india,
+  ];
+}
+
 SWING.setups = [
   { name: "Pullback to a rising average", when: "Stock in an uptrend (above rising 50 and 200-day averages) falls back to its 20-day or 50-day average on lighter volume and RSI cools into the 40s.", entry: "Buy when price turns up: a close above the prior day's high, or a buy-stop just above it.", stop: "Below the pullback low (or the swing low) with a small buffer. Skip if the stop is over about 7% away.", target: "The prior high, then a trailing stop under the 10-day low or 20-day average. Aim for 2R or more.", avoid: "The average is flat or falling, the pullback is on rising volume, or the market is in a downtrend." },
   { name: "Base breakout", when: "Stock is in an uptrend and has traded in a tight range of 3 to 8 weeks, volatility shrinking, near its high.", entry: "Buy-stop just above the top of the range on a day with volume at least 40% above average.", stop: "Below the low of the last contraction, usually 4% to 8% below the entry.", target: "Sell a third to a half at 2R to 3R, trail the rest under the 20-day average.", avoid: "Breakouts on thin volume, more than 5% above the pivot, or into a market downtrend." },
@@ -369,7 +380,7 @@ export const INTRADAY: Book = {
   ],
   sections: [
     {
-      title: "1. Before you trade at all",
+      title: "Before you trade at all",
       rules: [
         { rule: "Trade only with money whose loss will not change your life. Use a separate pot and never refill it from savings to chase losses.", why: "Desperation destroys discipline. A separate pot makes the true cost visible.", inApp: { label: "Intraday: its own pot and P&L", href: "/intraday" } },
         { rule: "Paper trade your plan for several weeks. Move to small real size only after the results are positive over 50 or more trades.", why: "Most losers skip this. Paper results show whether the method and your execution work.", inApp: { label: "Intraday scorecard replays every pick", href: "/intraday" } },
@@ -377,7 +388,7 @@ export const INTRADAY: Book = {
       ],
     },
     {
-      title: "2. Risk per trade and margin",
+      title: "Risk per trade and margin",
       rules: [
         { rule: "Risk 0.5% to 1% of your own money per trade, measured from entry to stop, not from the margin amount.", why: "Margin gives size, not safety. Risk is set by the stop.", inApp: { label: "Intraday sizes each pick by risk, not by margin", href: "/intraday" } },
         { rule: "Do not use all your buying power. Keep each position well under the maximum and have no more than 2 or 3 open at once.", why: "Full leverage on one idea means one gap can erase a week of gains." },
@@ -387,7 +398,7 @@ export const INTRADAY: Book = {
       ],
     },
     {
-      title: "3. What to trade",
+      title: "What to trade",
       rules: [
         { rule: "Trade liquid stocks only: tight spreads, heavy volume and enough daily range to reach your target.", why: "Illiquid stocks gap through stops and trap you.", inApp: { label: "Intraday picks require high turnover and a workable daily range", href: "/intraday" } },
         { rule: "Trade with the day's direction: strong stocks in strong sectors when the index is steady or rising.", why: "Fighting the trend is the classic beginner's trap." },
@@ -397,7 +408,7 @@ export const INTRADAY: Book = {
       ],
     },
     {
-      title: "4. Execution",
+      title: "Execution",
       rules: [
         { rule: "Enter with a plan: entry trigger, stop, first target, and a time limit. Place the stop at once.", why: "Delay turns a plan into a guess.", inApp: { label: "Place the pick with SL and TP attached", href: "/intraday" } },
         { rule: "Skip the trade if the stock gaps well beyond the entry or through the stop at the open.", why: "The risk-to-reward you planned no longer exists." },
@@ -407,7 +418,7 @@ export const INTRADAY: Book = {
       ],
     },
     {
-      title: "5. Psychology and discipline",
+      title: "Psychology and discipline",
       rules: [
         { rule: "Think in series of trades. Any single trade is a coin toss weighted by your edge; only many trades reveal it.", why: "This is the core idea of Mark Douglas's work: accept uncertainty to act without fear." },
         { rule: "Stop after 3 losses in a row, or when you break a rule twice in a day.", why: "It means conditions or your state are wrong. Stepping back protects the pot." },
@@ -417,7 +428,7 @@ export const INTRADAY: Book = {
       ],
     },
     {
-      title: "6. Review",
+      title: "Review",
       rules: [
         { rule: "End each day with the journal: setup, result in R, did you follow the plan, one lesson.", why: "Plan adherence is the number to improve." },
         { rule: "Every month, compare results with the scorecard. If the picks do not work, change the method, not the size.", why: "Larger size on a method that does not work only speeds up losses.", inApp: { label: "Intraday scorecard and your results side by side", href: "/intraday" } },
@@ -463,7 +474,15 @@ export const INTRADAY: Book = {
   ],
 };
 
-INTRADAY.sections = [INTRADAY.sections[0], INTRADAY.sections[1], ID_RISK, INTRADAY.sections[2], ID_SETUPS, ID_DAY, INTRADAY.sections[3], ID_COSTS, INTRADAY.sections[4], ID_PSY, INTRADAY.sections[5]];
+{
+  const ia = [...INTRADAY.sections, ID_PREMARKET, ID_EXEC, ID_EVENTS, ID_DAY, ID_RISK, ID_SETUPS, ID_COSTS, ID_PSY, ID_STATES];
+  INTRADAY.sections = [
+    find(ia, "Before you trade at all"), find(ia, "Risk per trade and margin"), find(ia, "Hard limits"), find(ia, "Before the open"), find(ia, "What to trade"), find(ia, "Setup rules"),
+    find(ia, "The trading day"), joinSections(find(ia, "Execution"), ID_EXEC, "Execution"), find(ia, "Expiry days"), find(ia, "Costs and margin"), find(ia, "Your state"),
+    joinSections(find(ia, "Psychology and discipline"), ID_PSY, "Psychology and discipline"), find(ia, "Review"),
+  ];
+}
+
 INTRADAY.setups = [
   { name: "Opening range breakout (ORB)", when: "Liquid stock in an uptrend, index steady or rising, price breaks the 15- or 30-minute opening range high on volume.", entry: "Buy-stop just above the opening range high after 9:30 (or 9:45).", stop: "Below the opening range low, or the range midpoint if the range is wide.", target: "1.5R to 2R. Sell half at 1R, trail the rest.", avoid: "A narrow, sleepy open, a stock that gapped far above yesterday's close, or a falling index." },
   { name: "Prior-day high break", when: "The pick closed strong on rising volume yesterday and the market is not weak.", entry: "Buy-stop above yesterday's high (this is the plan the next-session picks use).", stop: "About 0.5 to 1.4% below the entry.", target: "1.5R first, 2.5R for the runner.", avoid: "Opens more than 1% above the entry or below the stop. Skip it." },
@@ -490,7 +509,6 @@ INTRADAY.scorecard = [
   { metric: "Worst day and longest losing streak", how: "In % of pot and number of trades", target: "Worst day within your daily limit" },
 ];
 
-SWING.sections = [SWING.sections[0], SWING.sections[1], SWING_GRADE, ...SWING.sections.slice(2, 5), SWING_EXIT, SWING_PYRAMID, ...SWING.sections.slice(5, 8), SWING_EVENTS, ...SWING.sections.slice(8)];
 SWING.constitution = [
   "I trade a plan, not a feeling. Entry, stop and target are written before I buy.",
   "I risk no more than 1% of my capital on any trade, and no more than about 6% in total.",
@@ -504,7 +522,6 @@ SWING.constitution = [
   "I protect my capital first. It is the only thing I cannot trade without.",
 ];
 
-INTRADAY.sections = [INTRADAY.sections[0], INTRADAY.sections[1], INTRADAY.sections[2], ID_PREMARKET, ...INTRADAY.sections.slice(3, 5), INTRADAY.sections[5], ID_EXEC, ID_EVENTS, ...INTRADAY.sections.slice(6, 8), ID_STATES, ...INTRADAY.sections.slice(8)];
 INTRADAY.constitution = [
   "My own money is at risk. I trade only what I can afford to lose, and I never refill the pot to chase losses.",
   "My daily loss limit is set before the open. When it is hit, I stop.",
