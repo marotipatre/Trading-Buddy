@@ -1,151 +1,147 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { SymbolSearch } from "@/components/symbol-search";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChangePill } from "@/components/change-pill";
+import { usePaper } from "@/components/paper/paper-provider";
+import { StockRow } from "@/components/stock-row";
+import { useQuotes } from "@/components/use-quotes";
+import { useWatchlist } from "@/components/use-watchlist";
+import { fmtInr } from "@/lib/format";
 import { isMarketOpen } from "@/lib/market-hours";
-import type { Quote, SymbolHit } from "@/lib/data/types";
+import { companyName, displaySymbol } from "@/lib/symbols";
+import { INDICES, POPULAR_STOCKS } from "@/lib/universe";
 
-const DEFAULTS: SymbolHit[] = [
-  { symbol: "^NSEI", name: "NIFTY 50", exchange: "NSI" },
-  { symbol: "^NSEBANK", name: "NIFTY BANK", exchange: "NSI" },
-  { symbol: "RELIANCE.NS", name: "Reliance Industries", exchange: "NSI" },
-  { symbol: "TCS.NS", name: "Tata Consultancy Services", exchange: "NSI" },
-  { symbol: "HDFCBANK.NS", name: "HDFC Bank", exchange: "NSI" },
-  { symbol: "INFY.NS", name: "Infosys", exchange: "NSI" },
-];
+const INDEX_SYMBOLS = INDICES.slice(0, 3);
+const MOVERS = POPULAR_STOCKS.slice(0, 14);
 
-interface Item { id: string; symbol: string; name: string | null }
+function RowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
+      <div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-36" /></div>
+      <div className="space-y-1.5"><Skeleton className="ml-auto h-4 w-16" /><Skeleton className="ml-auto h-3 w-12" /></div>
+    </div>
+  );
+}
 
-export default function DashboardPage() {
-  const [listId, setListId] = useState<string | null>(null);
-  const [items, setItems] = useState<Item[]>([]);
-  const [quotes, setQuotes] = useState<Record<string, Quote>>({});
-  const [error, setError] = useState<string | null>(null);
+export default function ExplorePage() {
+  const wl = useWatchlist();
+  const { state, equity, quotes: heldQuotes } = usePaper();
+  const watchSymbols = useMemo(() => wl.items.map((i) => i.symbol), [wl.items]);
+  const idx = useQuotes(INDEX_SYMBOLS.map((i) => i.symbol));
+  const watch = useQuotes(watchSymbols);
+  const movers = useQuotes(MOVERS.map((m) => m.symbol), { openMs: 30_000, closedMs: 300_000 });
 
-  const load = useCallback(async () => {
-    const supabase = createClient();
-    const { data: lists, error: e1 } = await supabase.from("watchlists").select("id").order("created_at").limit(1);
-    if (e1) return setError(`Database error: ${e1.message}. Did you run the SQL migration?`);
-    let id = lists?.[0]?.id as string | undefined;
-    if (!id) {
-      const { data, error } = await supabase.from("watchlists").insert({ name: "Default" }).select("id").single();
-      if (error) return setError(error.message);
-      id = data.id as string;
-      await supabase.from("watchlist_items").insert(
-        DEFAULTS.map((d) => ({ watchlist_id: id, symbol: d.symbol, name: d.name })),
-      );
-    }
-    setListId(id);
-    const { data: rows } = await supabase
-      .from("watchlist_items")
-      .select("id,symbol,name")
-      .eq("watchlist_id", id)
-      .order("created_at");
-    setItems((rows ?? []) as Item[]);
-  }, []);
+  const ranked = useMemo(
+    () => MOVERS.flatMap((m) => (movers.quotes[m.symbol] ? [{ ...m, q: movers.quotes[m.symbol] }] : [])).sort((a, b) => b.q.changePct - a.q.changePct),
+    [movers.quotes],
+  );
+  const gainers = ranked.slice(0, 5);
+  const losers = [...ranked].reverse().slice(0, 5);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
-    load();
-  }, [load]);
-
-  const symbolsKey = items.map((i) => i.symbol).join(",");
-  useEffect(() => {
-    if (!symbolsKey) return;
-    let stop = false;
-    const tick = async () => {
-      try {
-        const res = await fetch(`/api/quotes?symbols=${encodeURIComponent(symbolsKey)}`);
-        const json = await res.json();
-        if (!stop && json.quotes) {
-          setQuotes(Object.fromEntries((json.quotes as Quote[]).map((q) => [q.symbol, q])));
-        }
-      } catch {}
-    };
-    tick();
-    const id = setInterval(tick, isMarketOpen() ? 10_000 : 60_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, [symbolsKey]);
-
-  async function add(hit: SymbolHit) {
-    if (!listId || items.some((i) => i.symbol === hit.symbol)) return;
-    const { error } = await createClient()
-      .from("watchlist_items")
-      .insert({ watchlist_id: listId, symbol: hit.symbol, name: hit.name });
-    if (error) return setError(error.message);
-    load();
-  }
-
-  async function remove(id: string) {
-    await createClient().from("watchlist_items").delete().eq("id", id);
-    setItems((x) => x.filter((i) => i.id !== id));
-  }
+  const dayPnl = state.positions.reduce((a, p) => {
+    const q = heldQuotes[p.symbol];
+    return q ? a + (p.direction === "long" ? 1 : -1) * (q.price - q.prevClose) * p.qty : a;
+  }, 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Watchlist</h1>
-          <p className="text-sm text-muted-foreground">Live prices for the symbols you follow</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Explore</h1>
+          <p className="text-sm text-muted-foreground">{isMarketOpen() ? "Markets are open" : "Markets are closed. Prices are from the last session."}</p>
         </div>
-        <SymbolSearch onPick={add} placeholder="Add symbol…" />
+        <Button variant="ghost" size="icon" aria-label="Refresh prices" onClick={() => { idx.refresh(); watch.refresh(); movers.refresh(); }}><RefreshCw /></Button>
       </div>
-      {error && (
-        <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{error}</p>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {INDEX_SYMBOLS.map((i) => {
+          const q = idx.quotes[i.symbol];
+          return (
+            <Link key={i.symbol} href={`/trade?symbol=${encodeURIComponent(i.symbol)}`}>
+              <Card className="transition-colors hover:bg-accent/40">
+                <CardContent className="space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">{i.name}</div>
+                  {q ? (
+                    <>
+                      <div className="tabular font-mono text-xl font-semibold">{q.price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <ChangePill pct={q.changePct} amount={q.change} />
+                    </>
+                  ) : idx.loading ? <><Skeleton className="h-6 w-28" /><Skeleton className="h-4 w-20" /></> : <div className="text-sm text-muted-foreground">Unavailable</div>}
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+
+      {state.positions.length > 0 && (
+        <Link href="/portfolio">
+          <Card className="transition-colors hover:bg-accent/40">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-muted-foreground">Your portfolio</div>
+                <div className="tabular font-mono text-xl font-semibold">{fmtInr(equity)}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-muted-foreground">Today</div>
+                <div className={`tabular font-mono text-lg font-medium ${dayPnl >= 0 ? "text-up" : "text-down"}`}>{fmtInr(dayPnl, { sign: true })}</div>
+              </div>
+              <Badge variant="outline">{state.positions.length} open position{state.positions.length > 1 ? "s" : ""}</Badge>
+            </CardContent>
+          </Card>
+        </Link>
       )}
-      <Card className="py-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-4">Symbol</TableHead>
-              <TableHead className="text-right">LTP</TableHead>
-              <TableHead className="text-right">Change</TableHead>
-              <TableHead className="text-right">Day range</TableHead>
-              <TableHead className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((i) => {
-              const q = quotes[i.symbol];
-              const up = (q?.change ?? 0) >= 0;
-              return (
-                <TableRow key={i.id}>
-                  <TableCell className="pl-4">
-                    <Link href={`/trade?symbol=${encodeURIComponent(i.symbol)}`} className="font-medium hover:text-primary">
-                      {i.symbol}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">{i.name}</div>
-                  </TableCell>
-                  <TableCell className="text-right font-mono">{q ? q.price.toFixed(2) : "—"}</TableCell>
-                  <TableCell className={`text-right font-mono ${up ? "text-up" : "text-down"}`}>
-                    {q ? `${up ? "+" : ""}${q.change.toFixed(2)} (${q.changePct.toFixed(2)}%)` : "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                    {q ? `${q.dayLow.toFixed(2)} – ${q.dayHigh.toFixed(2)}` : "—"}
-                  </TableCell>
-                  <TableCell className="pr-2">
-                    <Button variant="ghost" size="icon-sm" onClick={() => remove(i.id)} aria-label={`Remove ${i.symbol}`}>
-                      <Trash2 />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </Card>
-      <p className="text-xs text-muted-foreground">
-        Prices come from Yahoo Finance (unofficial, may be delayed by a few minutes).
-      </p>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Card className="py-0">
+          <CardHeader className="pt-4"><CardTitle>Your watchlist</CardTitle></CardHeader>
+          {wl.error && <p className="mx-4 mb-3 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{wl.error}</p>}
+          {!wl.ready ? (
+            <>{Array.from({ length: 5 }, (_, i) => <RowSkeleton key={i} />)}</>
+          ) : wl.items.length === 0 ? (
+            <p className="px-4 pb-6 text-sm text-muted-foreground">Your watchlist is empty. Search for a stock above, or tap the star next to any stock on this page.</p>
+          ) : (
+            <div>
+              {wl.items.map((i) => (
+                <StockRow key={i.id} symbol={i.symbol} name={i.name ?? companyName(i.symbol)} quote={watch.quotes[i.symbol]} onRemove={() => wl.remove(i.symbol)} />
+              ))}
+            </div>
+          )}
+          {watch.failed && <p className="px-4 pb-3 text-xs text-muted-foreground">Some prices could not be refreshed. Showing the last known values.</p>}
+        </Card>
+
+        <Card className="py-0">
+          <Tabs defaultValue="gainers">
+            <CardHeader className="pt-4">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle>Top movers</CardTitle>
+                <TabsList>
+                  <TabsTrigger value="gainers">Gainers</TabsTrigger>
+                  <TabsTrigger value="losers">Losers</TabsTrigger>
+                </TabsList>
+              </div>
+            </CardHeader>
+            {(["gainers", "losers"] as const).map((tab) => (
+              <TabsContent key={tab} value={tab}>
+                {movers.loading && ranked.length === 0
+                  ? Array.from({ length: 5 }, (_, i) => <RowSkeleton key={i} />)
+                  : (tab === "gainers" ? gainers : losers).map((m) => (
+                      <StockRow key={m.symbol} symbol={m.symbol} name={m.name} quote={m.q} watched={wl.has(m.symbol)} onToggleWatch={() => wl.toggle(m.symbol, m.name)} />
+                    ))}
+                {!movers.loading && ranked.length === 0 && <p className="px-4 pb-4 text-sm text-muted-foreground">Prices are unavailable right now. Try again in a moment.</p>}
+              </TabsContent>
+            ))}
+          </Tabs>
+          <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">Among {MOVERS.length} popular stocks, e.g. {displaySymbol(MOVERS[0].symbol)}, {displaySymbol(MOVERS[1].symbol)}.</p>
+        </Card>
+      </div>
     </div>
   );
 }
