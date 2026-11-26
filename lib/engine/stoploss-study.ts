@@ -56,9 +56,15 @@ export interface StopLossStudy {
 const DEFAULT_PCT_GRID = [1, 2, 3, 5, 7, 10, 15];
 const DEFAULT_ATR_GRID = [1, 1.5, 2, 3, 4];
 
+/**
+ * Replays `signalIdx` entries under `strat`'s exits. The target distance is ALWAYS resolved from
+ * `base` (the user's original strategy) so that only the stop varies between variants. An
+ * R-multiple target would otherwise stretch or shrink with each candidate stop.
+ */
 function simulateEntries(
   candles: Candle[],
   signalIdx: number[],
+  base: StrategyDef,
   strat: StrategyDef,
   exitSig: boolean[] | undefined,
   atrSeries: number[],
@@ -73,7 +79,8 @@ function simulateEntries(
     const entryPrice = entryFill(candles[e].open, strat.direction, costs.slippageBps);
     const qty = Math.floor(notional / entryPrice);
     if (qty < 1) continue;
-    const d = resolveDistances(strat, entryPrice, atrSeries[s]);
+    const targetDist = resolveDistances(base, entryPrice, atrSeries[s]).targetDist;
+    const d = { stopDist: resolveDistances(strat, entryPrice, atrSeries[s]).stopDist, targetDist };
     const w = walkTrade(candles, e, entryPrice, walkRulesFor(strat, d, exitSig, costs));
     const pnl = sign * (w.exitPrice - entryPrice) * qty - roundTripCharges(strat.direction, qty, entryPrice, w.exitPrice, strat.product, costs);
     out.push({ entryIdx: e, exitIdx: w.exitIdx, returnPct: (pnl / (qty * entryPrice)) * 100, pnl, reason: w.exitReason, maePct: w.maePct, mfePct: w.mfePct });
@@ -127,7 +134,7 @@ export function stopLossStudy(
   const notional = strat.initialCapital / 10;
   const trailing = strat.stopLoss?.trailing ?? false;
   const run = (stop: StopLoss | undefined) =>
-    simulateEntries(candles, entrySignalIdx, { ...strat, stopLoss: stop }, exitSig, atrSeries, notional, costs);
+    simulateEntries(candles, entrySignalIdx, strat, { ...strat, stopLoss: stop }, exitSig, atrSeries, notional, costs);
   const stat = (label: string, stop: StopLoss | undefined, t: StudyTrade[]) => summarize(label, stop ?? null, t, strat.initialCapital);
 
   const noneTrades = run(undefined);
@@ -174,7 +181,7 @@ export function stopLossStudy(
 
   const caveats = [
     "Entries are the ones your strategy took; each is replayed independently with a fixed notional.",
-    "Without a stop-loss an R-multiple target cannot be defined, so it is dropped in the 'No stop-loss' variant.",
+    "Your profit target is held at the same price distance in every variant, so only the stop changes.",
     "Picking the best stop from the grid is itself curve-fitting. Prefer a stop that is good across a wide, flat range of values.",
   ];
   if (entrySignalIdx.length < 30) caveats.unshift(`Only ${entrySignalIdx.length} entries: results are too noisy to trust.`);
