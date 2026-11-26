@@ -43,18 +43,20 @@ export type ConditionGroup = z.infer<typeof ConditionGroup>;
 
 export const StopLoss = z.object({
   /** support / swing_low: place the stop just beyond a structure level; `value` is the buffer in percent. */
-  type: z.enum(["percent", "atr", "support", "swing_low"]),
+  type: z.enum(["percent", "atr", "support", "swing_low", "ema"]),
   value: z.number().positive(),
   trailing: z.boolean().default(false),
   atrPeriod: z.number().int().min(1).max(100).default(14),
-  /** Pivot strength for support, or lookback bars for swing_low. */
+  /** Pivot strength for support, lookback bars for swing_low, or the EMA length for an EMA stop. */
   period: z.number().int().min(2).max(60).optional(),
 });
 export type StopLoss = z.infer<typeof StopLoss>;
 
 export const Target = z.object({
-  type: z.enum(["percent", "rr", "resistance"]), // rr = multiple of initial risk (needs a stop-loss); resistance = just below the next resistance
+  type: z.enum(["percent", "rr", "resistance", "next_ema"]), // next_ema = just before the nearest EMA from `periods` that lies beyond the entry; rr = multiple of initial risk (needs a stop-loss); resistance = just below the next resistance
   value: z.number().positive(),
+  /** EMA lengths to consider for a next_ema target. */
+  periods: z.array(z.number().int().min(2).max(500)).min(1).max(8).optional(),
 });
 export type Target = z.infer<typeof Target>;
 

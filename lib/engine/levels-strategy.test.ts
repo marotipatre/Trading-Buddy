@@ -116,3 +116,20 @@ describe("a support-bounce strategy end to end", () => {
     expect(runBacktest("F", flat, strat({ stopLoss: { type: "support", value: 1 } }), zero).trades).toHaveLength(0);
   });
 });
+
+describe("EMA stop and next-EMA target", () => {
+  const s = strat({ stopLoss: { type: "ema", value: 1, period: 50 }, target: { type: "next_ema", value: 0.5, periods: [20, 50, 200] } });
+  it("targets the nearest EMA above entry and stops below the stop EMA", () => {
+    const d = resolveDistances(s, 100, { atr: 1, stopEma: 96, emas: [98, 104, 110] });
+    expect(d.targetDist).toBeCloseTo(104 * 0.995 - 100);
+    expect(d.stopDist).toBeCloseTo(100 - 96 * 0.99);
+  });
+  it("skips the trade when no EMA lies above the entry", () => {
+    expect(resolveDistances(s, 100, { atr: 1, stopEma: 96, emas: [90, 95, 99] }).invalid).toBe(true);
+  });
+  it("shorts target the nearest EMA below", () => {
+    const sh = strat({ direction: "short", product: "intraday", stopLoss: { type: "ema", value: 1, period: 50 }, target: { type: "next_ema", value: 0.5 } });
+    const d = resolveDistances(sh, 100, { atr: 1, stopEma: 104, emas: [90, 96, 110] });
+    expect(d.targetDist).toBeCloseTo(100 - 96 * 1.005);
+  });
+});

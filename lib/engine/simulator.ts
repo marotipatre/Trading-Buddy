@@ -4,7 +4,7 @@ import { buildSignals, SeriesCache } from "./rules";
 import type { StrategyDef } from "./strategy";
 import type { EquityPoint, Trade } from "./types";
 import { entryFill, walkTrade, type WalkRules } from "./walk";
-import { atr } from "./indicators";
+import { atr, ema } from "./indicators";
 import { highestHigh, lowestLow, swingLevels } from "./indicators/pivots";
 
 export interface BacktestResult {
@@ -20,7 +20,7 @@ export interface BacktestResult {
 export interface Distances { stopDist?: number; targetDist?: number; /** A structural stop or target was requested but there was no valid level: the trade should be skipped. */ invalid?: boolean }
 
 /** Price levels known at the signal bar, used for structural stops and targets. */
-export interface Levels { atr: number; support?: number; resistance?: number; swingLow?: number; swingHigh?: number }
+export interface Levels { atr: number; stopEma?: number; emas?: number[]; support?: number; resistance?: number; swingLow?: number; swingHigh?: number }
 
 /** Per-bar levels for a strategy, computed once. Only what the strategy needs is computed. */
 export function makeLevelSource(candles: Candle[], strat: StrategyDef): (i: number) => Levels {
@@ -30,9 +30,12 @@ export function makeLevelSource(candles: Candle[], strat: StrategyDef): (i: numb
   const pivots = needPivots ? swingLevels(candles, sl?.type === "support" ? sl.period ?? 5 : 5) : null;
   const lo = sl?.type === "swing_low" ? lowestLow(candles, sl.period ?? 10) : null;
   const hi = sl?.type === "swing_low" ? highestHigh(candles, sl.period ?? 10) : null;
-  return (i) => ({ atr: atrS[i], support: pivots?.support[i], resistance: pivots?.resistance[i], swingLow: lo?.[i], swingHigh: hi?.[i] });
+  const stopEma = sl?.type === "ema" ? ema(candles.map((c) => c.close), sl.period ?? 50) : null;
+  const tEmas = strat.target?.type === "next_ema" ? (strat.target.periods ?? DEFAULT_EMAS).map((p) => ema(candles.map((c) => c.close), p)) : null;
+  return (i) => ({ atr: atrS[i], stopEma: stopEma?.[i], emas: tEmas?.map((e) => e[i]),  support: pivots?.support[i], resistance: pivots?.resistance[i], swingLow: lo?.[i], swingHigh: hi?.[i] });
 }
 
+export const DEFAULT_EMAS = [10, 20, 50, 100, 200];
 const MIN_STOP = 0.001; // a structural stop closer than 0.1% to the entry is not a real stop
 const MIN_TARGET = 0.002;
 
@@ -47,7 +50,7 @@ export function resolveDistances(strat: StrategyDef, entryPrice: number, lv: num
     if (type === "percent") stopDist = (entryPrice * value) / 100;
     else if (type === "atr") stopDist = value * L.atr;
     else {
-      const level = type === "support" ? (short ? L.resistance : L.support) : short ? L.swingHigh : L.swingLow;
+      const level = type === "ema" ? L.stopEma : type === "support" ? (short ? L.resistance : L.support) : short ? L.swingHigh : L.swingLow;
       const stopPrice = level === undefined ? NaN : short ? level * (1 + value / 100) : level * (1 - value / 100);
       stopDist = short ? stopPrice - entryPrice : entryPrice - stopPrice;
       if (!Number.isFinite(stopDist) || stopDist < entryPrice * MIN_STOP) { stopDist = undefined; invalid = true; }
@@ -59,7 +62,12 @@ export function resolveDistances(strat: StrategyDef, entryPrice: number, lv: num
     if (strat.target.type === "percent") targetDist = (entryPrice * strat.target.value) / 100;
     else if (strat.target.type === "rr") { if (stopDist !== undefined) targetDist = stopDist * strat.target.value; }
     else {
-      const level = short ? L.support : L.resistance;
+      let level = short ? L.support : L.resistance;
+      if (strat.target.type === "next_ema") {
+        // the nearest EMA that lies beyond the entry in the profit direction
+        const beyond = (L.emas ?? []).filter((e) => Number.isFinite(e) && (short ? e < entryPrice * (1 - MIN_TARGET) : e > entryPrice * (1 + MIN_TARGET)));
+        level = beyond.length ? (short ? Math.max(...beyond) : Math.min(...beyond)) : undefined;
+      }
       const targetPrice = level === undefined ? NaN : short ? level * (1 + strat.target.value / 100) : level * (1 - strat.target.value / 100);
       targetDist = short ? entryPrice - targetPrice : targetPrice - entryPrice;
       if (!Number.isFinite(targetDist) || targetDist < entryPrice * MIN_TARGET) { targetDist = undefined; invalid = true; }
