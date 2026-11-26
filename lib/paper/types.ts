@@ -77,6 +77,8 @@ export interface PaperState {
   orders: PendingOrder[];
   trades: ClosedTrade[];
   costs: CostConfig;
+  /** Account value over time, appended by the app while it is open. */
+  equityHistory?: { time: number; equity: number }[];
 }
 
 export interface OrderRequest {
