@@ -14,7 +14,71 @@ export interface Book {
   routine: { when: string; what: string }[];
   mistakes: { mistake: string; fix: string }[];
   reading: { title: string; author: string; why: string }[];
+  /** Concrete setups with entry, stop and target rules. */
+  setups: { name: string; when: string; entry: string; stop: string; target: string; avoid: string }[];
+  /** Small reference tables (numbers worth memorising). */
+  tables: { title: string; note?: string; head: string[]; rows: string[][] }[];
+  /** Stages to pass before risking more. */
+  stages: { stage: string; do: string; passWhen: string }[];
+  /** Numbers to track every month, and what good looks like. */
+  scorecard: { metric: string; how: string; target: string }[];
 }
+
+
+const SWING_REGIME: Section = {
+  title: "0. Check the market first",
+  intro: "Most stocks follow the market. The best setups fail more often when the index is falling.",
+  rules: [
+    { rule: "Before buying, look at the Nifty 50 and a broad index (Nifty 500 or Midcap 150). Are they above their 50-day and 200-day averages and are those rising?", why: "William O'Neil's 'M' in CANSLIM: roughly three of four stocks move with the market. Buying breakouts in a downtrending index is swimming upstream.", inApp: { label: "Ideas: sector table shows the market's 1-month move", href: "/ideas" } },
+    { rule: "In a healthy market take full-size positions. In a choppy market halve your size. In a downtrend (index below a falling 200-day average) hold mostly cash.", why: "Position size is the cheapest risk control: the same setups produce smaller losses when you size down in bad conditions." },
+    { rule: "Watch breadth: the share of stocks above their 50-day average. Sharp falls in breadth while the index holds up are a warning.", why: "Narrow rallies lead to failed breakouts. The Ideas sector table shows how many stocks in each sector are in uptrends.", inApp: { label: "Ideas: share of each sector in an uptrend", href: "/ideas" } },
+    { rule: "Track India VIX. A jump above its recent range means wider swings: widen stops and cut size, or wait.", why: "Volatility is risk. Fixed-percent stops get hit more often when volatility spikes." },
+  ],
+};
+const SWING_SETUPS: Section = {
+  title: "Trend, momentum and mean-reversion rules from the pros",
+  rules: [
+    { rule: "Use a volume check on breakouts: volume at least 40% to 50% above its 50-day average on the breakout day.", why: "O'Neil and Minervini both require demand evidence. A breakout on thin volume fails far more often." },
+    { rule: "Do not chase: buy within about 5% of the breakout level. Beyond that, the stop is too far for a good reward-to-risk.", why: "Distance from the pivot is distance from your stop. Chasing is how a 6% stop becomes 12%." },
+    { rule: "Prefer tight, quiet consolidations before breakouts (volatility contraction): each pullback shallower than the last.", why: "Minervini's VCP idea: supply dries up when sellers are exhausted, so the next push meets little resistance." },
+    { rule: "Turtle-style trend rule: enter on a 20-day high close, exit on a 10-day low; size positions by volatility (ATR).", why: "A simple, tested trend-following rule set made public by Richard Dennis's Turtles. Many trades lose; a few large winners pay for all.", inApp: { label: "Backtest: '20-day breakout' preset", href: "/strategies" } },
+    { rule: "For pullback entries use an uptrend filter (price above the 200-day average) and wait for RSI to cool to the 40s before buying near the 20-day average.", why: "Larry Connors-style pullbacks work best in uptrends; buying dips in downtrends is catching knives.", inApp: { label: "Ideas: Pullback in an uptrend method", href: "/ideas" } },
+    { rule: "Never trade a method you have not seen work on many stocks over several years. Check the number of trades, not just the return.", why: "Backtests of 15 trades are noise. The Backtest page shows the win rate with a confidence range.", inApp: { label: "Backtest: win probability with confidence range", href: "/strategies" } },
+  ],
+};
+const SWING_EXPECTANCY: Section = {
+  title: "Expectancy and drawdown: know your numbers",
+  rules: [
+    { rule: "Measure every trade in R (profit divided by the amount you risked). Expectancy = (win rate x average win in R) minus (loss rate x average loss in R).", why: "Van Tharp's central idea. A 35% win rate with 3R winners gives +0.4R per trade; a 70% win rate with 0.3R winners and 1R losers gives about -0.09R.", inApp: { label: "Portfolio > Analysis: expectancy in R", href: "/portfolio?tab=analysis" } },
+    { rule: "Set a monthly loss limit (Alexander Elder's 6% rule is one version: if your account falls 6% in a month, stop opening new trades until next month).", why: "It stops a bad run from becoming a disaster and forces a review while your head is clear." },
+    { rule: "Cut size by half after a 5% to 10% drawdown from your peak and return to full size only after you earn back half of it.", why: "Drawdowns raise the odds that your thinking is off or the market has changed. Smaller size buys time and keeps recovery realistic." },
+    { rule: "Keep the number of trades you need to judge a method in mind: at least 30, and 100 or more before trusting averages.", why: "Streaks of 5 to 8 losses happen in sound systems. A small sample cannot tell skill from luck." },
+    { rule: "Do not compound too fast. Increase size only as capital grows, never because you feel lucky.", why: "Risk of ruin falls with fixed fractional sizing and rises sharply when size follows emotion." },
+  ],
+};
+const SWING_PSY: Section = {
+  title: "Psychology: protocols that actually help",
+  rules: [
+    { rule: "Write if-then rules in advance: 'If the stock closes below X, I sell at the open.' Pre-commit. Do not decide in the moment.", why: "Pre-commitment beats willpower. Research on implementation intentions shows planned responses are carried out far more reliably." },
+    { rule: "Beware the disposition effect: people sell winners too early and hold losers too long. Counter it with trailing stops and fixed stop-losses.", why: "It is one of the best-documented investor biases (loss aversion from Kahneman and Tversky's work)." },
+    { rule: "Run a pre-mortem before a big position: imagine it failed and list why. If the reasons are plausible, shrink the size or skip.", why: "It surfaces risks overconfidence hides." },
+    { rule: "Check positions at fixed times, not constantly. Avoid looking at P&L during the day if it makes you act.", why: "Frequent checking increases the pain of normal swings and the urge to interfere." },
+    { rule: "Size so that a full loss on any single trade does not affect your sleep or mood.", why: "If a position keeps you awake, it is too big. Fear makes you exit good trades early." },
+    { rule: "Take a break after your biggest win and your biggest loss. Both distort judgment.", why: "Euphoria and anger both lead to oversized, rule-breaking trades." },
+    { rule: "Keep one rule for yourself: 'I follow the plan.' Score each trade on whether you did, regardless of profit.", why: "You control process, not outcome. A process score tends to lift results over time." },
+  ],
+};
+const SWING_INDIA: Section = {
+  title: "India: costs, tax and market structure",
+  intro: "Rules change. Check current figures with your broker or a tax advisor before relying on them.",
+  rules: [
+    { rule: "Short-term capital gains on listed equity held under a year were taxed at 20%, and long-term gains above Rs 1.25 lakh a year at 12.5% (rates since July 2024; they have changed before).", why: "Tax is a cost on every winning swing trade. A 10% pre-tax gain is closer to 8% after tax and charges." },
+    { rule: "Check the circuit band and delivery volume. Stocks that hit 5% or 10% circuits can be impossible to exit.", why: "A stop-loss does not help if there are no sellers' buyers." },
+    { rule: "Avoid the ASM/GSM watch lists and stocks under trade-for-trade settlement.", why: "These carry extra margin rules and are flagged by the exchange for unusual risk." },
+    { rule: "Be careful with results season, Union Budget, RBI policy days and global events. Reduce size or skip trades that could gap beyond your stop.", why: "Gaps go through stops. Size to survive a gap, not just a normal stop-out." },
+    { rule: "Prefer stocks in the Nifty 200 for swing trades until you have a track record.", why: "Liquidity and information quality are better than in small caps, so your stops behave as expected." },
+  ],
+};
 
 export const SWING: Book = {
   id: "swing",
@@ -109,6 +173,7 @@ export const SWING: Book = {
     { mistake: "Betting big after a win streak", fix: "Keep size tied to the 1% rule. Confidence is not an edge." },
     { mistake: "Seeking tips instead of a process", fix: "Trade only setups you can write down and test." },
   ],
+  setups: [], tables: [], stages: [], scorecard: [],
   reading: [
     { title: "Trade Like a Stock Market Wizard", author: "Mark Minervini", why: "Trend template, risk control and cutting losses fast." },
     { title: "How to Make Money in Stocks", author: "William O'Neil", why: "Leaders, bases and the discipline of cutting losses at 7–8%." },
@@ -118,6 +183,92 @@ export const SWING: Book = {
     { title: "Market Wizards", author: "Jack Schwager", why: "Interviews showing that great traders differ in method but share risk discipline." },
     { title: "Technical Analysis of the Financial Markets", author: "John Murphy", why: "A broad reference for trends, support and resistance and indicators." },
     { title: "Thinking, Fast and Slow", author: "Daniel Kahneman", why: "The biases (loss aversion, overconfidence) that cause trading mistakes." },
+  ],
+};
+
+SWING.sections = [SWING_REGIME, SWING.sections[0], SWING_SETUPS, ...SWING.sections.slice(1, 3), SWING_EXPECTANCY, ...SWING.sections.slice(3, 5), SWING_PSY, SWING_INDIA, SWING.sections[5]];
+SWING.setups = [
+  { name: "Pullback to a rising average", when: "Stock in an uptrend (above rising 50 and 200-day averages) falls back to its 20-day or 50-day average on lighter volume and RSI cools into the 40s.", entry: "Buy when price turns up: a close above the prior day's high, or a buy-stop just above it.", stop: "Below the pullback low (or the swing low) with a small buffer. Skip if the stop is over about 7% away.", target: "The prior high, then a trailing stop under the 10-day low or 20-day average. Aim for 2R or more.", avoid: "The average is flat or falling, the pullback is on rising volume, or the market is in a downtrend." },
+  { name: "Base breakout", when: "Stock is in an uptrend and has traded in a tight range of 3 to 8 weeks, volatility shrinking, near its high.", entry: "Buy-stop just above the top of the range on a day with volume at least 40% above average.", stop: "Below the low of the last contraction, usually 4% to 8% below the entry.", target: "Sell a third to a half at 2R to 3R, trail the rest under the 20-day average.", avoid: "Breakouts on thin volume, more than 5% above the pivot, or into a market downtrend." },
+  { name: "Trend continuation (flag)", when: "A sharp rise on volume followed by a short, shallow sideways or slightly down drift (about 5 to 15 days).", entry: "Buy the break above the drift's high.", stop: "Below the flag low.", target: "Roughly the height of the prior rise measured from the breakout, or a trailing stop.", avoid: "Flags that drift down on heavy volume or last more than about three weeks." },
+  { name: "Support bounce", when: "Price returns to a level that held before (a prior swing low or rising trendline) in a larger uptrend.", entry: "Buy after the first sign of buyers: a close back above support or a bullish candle at the level.", stop: "Just below the support level (1% to 1.5% buffer).", target: "The next resistance, at least 2R away.", avoid: "Support that has been tested many times (it weakens), or a break on volume." },
+];
+SWING.tables = [
+  { title: "What a loss costs you to recover", note: "Why capital protection comes first.", head: ["Loss", "Gain needed to get back"], rows: [["5%", "5.3%"], ["10%", "11.1%"], ["20%", "25%"], ["30%", "42.9%"], ["50%", "100%"]] },
+  { title: "Expectancy examples (before costs)", note: "A high win rate does not guarantee profit.", head: ["Win rate", "Avg win", "Avg loss", "Expectancy per trade"], rows: [["35%", "3.0R", "1.0R", "+0.40R"], ["45%", "2.0R", "1.0R", "+0.35R"], ["60%", "1.0R", "1.0R", "+0.20R"], ["70%", "0.3R", "1.0R", "-0.09R"]] },
+  { title: "Losing streaks to expect", note: "Chance of at least one run of this many losses in 100 trades at a given win rate (approximate).", head: ["Win rate", "5 in a row", "8 in a row", "10 in a row"], rows: [["50%", "about 81%", "about 31%", "about 12%"], ["40%", "about 94%", "about 55%", "about 28%"], ["30%", "about 99%", "about 85%", "about 59%"]] },
+];
+SWING.stages = [
+  { stage: "1. Paper trade", do: "Follow the rule book with paper money, one position size, journal every trade.", passWhen: "At least 50 trades, expectancy above 0 after costs, and you followed your plan on 90% of them." },
+  { stage: "2. Small real size", do: "Trade with 10% to 25% of your intended size.", passWhen: "Another 50 trades with results in line with paper trading and no major rule breaks." },
+  { stage: "3. Build up", do: "Raise size by about a quarter at a time, never after one good week.", passWhen: "Each step: a month with drawdown within your limit and a clean journal." },
+  { stage: "4. Review and refine", do: "Quarterly: change at most one rule at a time and test it first.", passWhen: "A change is accepted only if it helps over many trades, not a few." },
+];
+SWING.scorecard = [
+  { metric: "Expectancy (R per trade)", how: "Average of all trades in R", target: "Above +0.2R after costs" },
+  { metric: "Win rate with its range", how: "Winners divided by trades, 95% range", target: "Depends on payoff. 35% to 50% with 2R winners is fine" },
+  { metric: "Average winner / average loser", how: "In R", target: "Winner at least 1.5 times the loser" },
+  { metric: "Maximum drawdown", how: "Largest peak-to-trough fall", target: "Within your own limit (for example 10% to 15%)" },
+  { metric: "Rule-following rate", how: "Trades that followed the plan divided by all trades", target: "90% or more" },
+  { metric: "Costs and tax as share of gross profit", how: "Brokerage, taxes and slippage", target: "Under 25%" },
+];
+
+
+const ID_DAY: Section = {
+  title: "The trading day, hour by hour (India)",
+  intro: "Market hours are 9:15 am to 3:30 pm. Most brokers square off intraday (MIS) positions automatically between about 3:15 and 3:25 pm.",
+  rules: [
+    { rule: "9:00 to 9:15 pre-open: study gaps and which stocks are active. Do not trade the auction. Cancel plans for picks that gapped past entry or through the stop.", why: "The open sets the day's tone, and many gaps invalidate yesterday's plan." },
+    { rule: "9:15 to 9:30: watch. Let the opening range form (the high and low of the first 15 or 30 minutes).", why: "The opening range gives the day's first support and resistance; early trades have wide spreads and false moves." },
+    { rule: "9:30 to 11:30: the best window for clean moves. Trade planned setups: opening-range breakouts and pullbacks in the day's direction.", why: "Volume and volatility are highest early, so targets are reached faster." },
+    { rule: "11:30 to 1:30: usually slow and choppy. Trade less or not at all.", why: "Lower volume produces more false breakouts and more costs per profit." },
+    { rule: "1:30 to 2:30: momentum often returns with later flows. Plan only clear setups.", why: "The afternoon move often decides the day's trend." },
+    { rule: "After 2:30: no new trades. Close everything by 3:10 pm yourself rather than leaving it to the broker's auto square-off.", why: "Auto square-off charges a fee and you do not control the price. Closing time moves are erratic." },
+  ],
+};
+const ID_RISK: Section = {
+  title: "Hard limits: the rules that protect your pot",
+  intro: "The Intraday page enforces the first three for you.",
+  rules: [
+    { rule: "Daily loss limit: stop for the day when you lose 2% of your pot (3% at most).", why: "Professionals and prop firms use daily loss limits because losses compound emotionally. The day you break this limit is the day accounts die.", inApp: { label: "Intraday page enforces a daily loss limit", href: "/intraday" } },
+    { rule: "Three losses in a row: stop for the day.", why: "Either conditions do not suit your setups or you are tilting. Both mean stop.", inApp: { label: "Intraday page locks orders after 3 losses in a row", href: "/intraday" } },
+    { rule: "Maximum trades per day: 3 to 5.", why: "SEBI's study found the most frequent traders lost most often. More trades mostly add costs and mistakes.", inApp: { label: "Intraday page caps trades per day", href: "/intraday" } },
+    { rule: "Gave back a third or more of the day's profit? Stop.", why: "Green-day giveback is the classic way a good day turns red. Protect what you earned." },
+    { rule: "Weekly loss limit of about 5% of the pot. Reaching it means a review day, not a trading day.", why: "It stops a bad week becoming a bad month." },
+    { rule: "Do not hold three or more positions in the same sector at once. Treat correlated stocks (for example three banks) as a single trade.", why: "Correlated stocks stop out together, so your real risk is larger than it looks." },
+  ],
+};
+const ID_SETUPS: Section = {
+  title: "Setup rules used by professional day traders",
+  rules: [
+    { rule: "Trade VWAP: be long only above it, short only below it. Use pullbacks to VWAP in a trending day.", why: "VWAP is where the day's average buyer stands. Institutions benchmark to it, so it often acts as support and resistance." },
+    { rule: "Identify the day type early. A trend day moves one way with shallow pullbacks; a range day oscillates. Trade breakouts on trend days and fade the edges on range days.", why: "The same entry works on one day and loses on the other. Matching the tool to the day is the edge." },
+    { rule: "Opening range breakout: buy above the high of the first 15 or 30 minutes with volume, stop below the range low or the middle, target 1.5R to 2R.", why: "A classic documented approach. It fails often in choppy markets, so use it with the market trend and a filter such as the gap direction." },
+    { rule: "Prior-day high or low is a magnet. A clean break of yesterday's high with volume in a strong stock is a valid long trigger.", why: "That is the level the next-session picks use for entry." },
+    { rule: "Avoid trades at the extremes of a long run without a pullback: it is where late buyers get trapped.", why: "Entries far from VWAP have wide stops and poor reward to risk." },
+    { rule: "If a breakout fails (back inside the range within a few candles), exit at once. Failed breakouts are information.", why: "Fast reversals are often followed by a move in the opposite direction." },
+  ],
+};
+const ID_COSTS: Section = {
+  title: "Costs and margin in India",
+  intro: "Check your broker's current charges; these are typical.",
+  rules: [
+    { rule: "Know your break-even per round trip. With brokerage of about Rs 20 a side or less, securities transaction tax of about 0.025% on the sell side, exchange and SEBI fees, GST and slippage, a round trip typically costs several hundredths of a percent plus brokerage.", why: "On a small trade, brokerage can be a larger share of the target than the stock's move. Compute costs before entering." },
+    { rule: "Margin (MIS leverage) depends on the stock and your broker, and can be well below 5x. Under SEBI's peak margin rules brokers must collect the required margin up front and may penalise shortfalls.", why: "You may not get the leverage you assume. Do not size trades based on the maximum leverage a screen shows." },
+    { rule: "Expect an auto square-off fee if you leave intraday positions to the broker. Avoid it by exiting yourself.", why: "It costs money and the fill is at an unfavourable time." },
+    { rule: "Intraday profits are taxed as business income at your slab rate, and losses can be set off against other business income. Keep records.", why: "Tax planning affects the real return. Confirm current rules with an advisor." },
+  ],
+};
+const ID_PSY: Section = {
+  title: "Psychology protocols for day traders",
+  rules: [
+    { rule: "Start each day with a 2-minute routine: read the rules, state the daily loss limit, and name the one mistake you will avoid today.", why: "A fixed routine puts you in a planning state before the emotion starts." },
+    { rule: "After every loss, stand up and look away for 10 to 15 minutes before the next trade.", why: "Tilt peaks right after a loss. A short pause breaks the revenge-trade impulse." },
+    { rule: "After a big green morning, reduce size for the rest of the day.", why: "Overconfidence after wins is as destructive as fear after losses." },
+    { rule: "Use bracket orders or place stops at once so protection does not depend on your mood.", why: "Automation removes the chance to hesitate." },
+    { rule: "Limit screen time. Trade only the windows in your plan and close the platform afterwards.", why: "Boredom trades happen when you stare at screens with no plan." },
+    { rule: "Never trade while impaired: poor sleep, stress, illness or after an argument.", why: "Decision quality falls quickly. A skipped day costs almost nothing." },
+    { rule: "Journal with a screenshot: setup, entry, exit, and how you felt. Review the worst trade each week.", why: "Emotions are visible in notes long before they show up in the profit curve." },
   ],
 };
 
@@ -214,6 +365,7 @@ export const INTRADAY: Book = {
     { mistake: "Trading every stock that moves", fix: "Only liquid stocks from the plan. No plan, no trade." },
     { mistake: "Ignoring costs", fix: "Add charges to every plan and skip tiny targets." },
   ],
+  setups: [], tables: [], stages: [], scorecard: [],
   reading: [
     { title: "Trading in the Zone", author: "Mark Douglas", why: "The mindset of probabilities and acting without fear." },
     { title: "The Daily Trading Coach", author: "Brett Steenbarger", why: "Practical psychology and habits for active traders." },
@@ -224,5 +376,32 @@ export const INTRADAY: Book = {
     { title: "SEBI study on intraday traders (July 2024)", author: "SEBI", why: "The evidence on how individual intraday traders actually fare in India." },
   ],
 };
+
+INTRADAY.sections = [INTRADAY.sections[0], INTRADAY.sections[1], ID_RISK, INTRADAY.sections[2], ID_SETUPS, ID_DAY, INTRADAY.sections[3], ID_COSTS, INTRADAY.sections[4], ID_PSY, INTRADAY.sections[5]];
+INTRADAY.setups = [
+  { name: "Opening range breakout (ORB)", when: "Liquid stock in an uptrend, index steady or rising, price breaks the 15- or 30-minute opening range high on volume.", entry: "Buy-stop just above the opening range high after 9:30 (or 9:45).", stop: "Below the opening range low, or the range midpoint if the range is wide.", target: "1.5R to 2R. Sell half at 1R, trail the rest.", avoid: "A narrow, sleepy open, a stock that gapped far above yesterday's close, or a falling index." },
+  { name: "Prior-day high break", when: "The pick closed strong on rising volume yesterday and the market is not weak.", entry: "Buy-stop above yesterday's high (this is the plan the next-session picks use).", stop: "About 0.5 to 1.4% below the entry.", target: "1.5R first, 2.5R for the runner.", avoid: "Opens more than 1% above the entry or below the stop. Skip it." },
+  { name: "VWAP pullback", when: "A trending stock that has held above VWAP all morning pulls back to VWAP on low volume.", entry: "Buy when a candle closes back up from VWAP.", stop: "Just under VWAP or the pullback low.", target: "The morning high, then the next resistance.", avoid: "VWAP is flat and price keeps crossing it: that is a range day." },
+  { name: "Gap and go vs gap fade", when: "The stock gaps on news. If it holds the gap and the first pullback is shallow on volume it can 'go'; if it quickly falls back into the prior range, it often 'fades'.", entry: "Gap-and-go: buy the break of the first 5- to 15-minute high. Fade: only experienced traders; use small size.", stop: "Below the first pullback low (go) or above the gap high (fade).", target: "1.5R to 2R.", avoid: "Gaps on rumours, on stocks with no volume, or in the first 5 minutes." },
+];
+INTRADAY.tables = [
+  { title: "Daily limits to set before the open", head: ["Limit", "Starting point"], rows: [["Max loss per trade", "0.5% to 1% of the pot"], ["Max loss per day", "2% (3% at most)"], ["Max loss per week", "5%"], ["Max trades per day", "3 to 5"], ["Stop after losses in a row", "3"], ["Positions open at once", "2 to 3"]] },
+  { title: "Leverage and what a move costs you", note: "Percent of your own money lost for an adverse price move.", head: ["Price move against you", "At 1x", "At 3x", "At 5x"], rows: [["0.5%", "0.5%", "1.5%", "2.5%"], ["1%", "1%", "3%", "5%"], ["2%", "2%", "6%", "10%"], ["5%", "5%", "15%", "25%"]] },
+  { title: "Break-even win rate by reward-to-risk", note: "Before costs. Costs push these up.", head: ["Reward : risk", "Win rate needed"], rows: [["1 : 1", "50%"], ["1.5 : 1", "40%"], ["2 : 1", "33%"], ["3 : 1", "25%"]] },
+];
+INTRADAY.stages = [
+  { stage: "1. Paper, small size", do: "Trade the picks in the Intraday pot for at least 4 weeks, following every rule here and journaling.", passWhen: "50 or more trades, positive result after costs, and you followed the plan on 90% of trades." },
+  { stage: "2. Compare with the scorecard", do: "Check whether your results match the picks' own scorecard. Differences show execution mistakes.", passWhen: "Your result is within reach of the scorecard's, and the scorecard itself is positive over 50+ picks." },
+  { stage: "3. Real money, tiny size", do: "Use real money at a quarter of the intended risk for another 50 trades.", passWhen: "Same results as paper trading and no daily-loss-limit breaches." },
+  { stage: "4. Decide honestly", do: "If expectancy is below zero after costs over 100 trades, stop or change the method. Many people should stop here, and that is a good decision.", passWhen: "Continue only if the numbers keep earning their place." },
+];
+INTRADAY.scorecard = [
+  { metric: "Expectancy (R per trade) after costs", how: "Average result of all trades in R, net of charges", target: "Above +0.15R" },
+  { metric: "Profit factor", how: "Gross profit divided by gross loss", target: "Above 1.3" },
+  { metric: "Rule-following rate", how: "Trades inside plan and limits", target: "95% or more" },
+  { metric: "Trades per day", how: "Average", target: "3 to 5 or fewer" },
+  { metric: "Costs share of gross profit", how: "Charges divided by gross profit", target: "Under 30%" },
+  { metric: "Worst day and longest losing streak", how: "In % of pot and number of trades", target: "Worst day within your daily limit" },
+];
 
 export const BOOKS = [SWING, INTRADAY] as const;
