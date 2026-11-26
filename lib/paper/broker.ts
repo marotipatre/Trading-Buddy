@@ -184,3 +184,27 @@ export function isSquareOffTime(minutesIst: number): boolean {
 }
 
 export type { Product };
+
+const IST_OFFSET_SEC = 5.5 * 3600;
+
+/** Unix seconds of 00:00 IST for the day containing `sec`. */
+export function istStartOfDay(sec: number): number {
+  return Math.floor((sec + IST_OFFSET_SEC) / 86400) * 86400 - IST_OFFSET_SEC;
+}
+
+/** Minutes since midnight IST. */
+export function istMinutes(sec: number): number {
+  return Math.floor((((sec + IST_OFFSET_SEC) % 86400) + 86400) % 86400 / 60);
+}
+
+/**
+ * True when intraday (MIS) positions or orders must be closed: it is past 15:15 IST, or they were
+ * opened on an earlier IST day (e.g. the app was closed overnight).
+ */
+export function intradayDue(state: PaperState, nowSec: number): boolean {
+  const today = istStartOfDay(nowSec);
+  const stale = state.positions.some((p) => p.product === "intraday" && p.entryTime < today)
+    || state.orders.some((o) => o.product === "intraday" && o.createdAt < today);
+  const hasIntraday = state.positions.some((p) => p.product === "intraday") || state.orders.some((o) => o.product === "intraday");
+  return stale || (hasIntraday && isSquareOffTime(istMinutes(nowSec)));
+}
