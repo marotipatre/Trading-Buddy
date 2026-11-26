@@ -15,6 +15,7 @@ import { paperMetrics } from "@/lib/paper/analytics";
 import { bankOf, capitalOf, tradingPnl } from "@/lib/paper/funds";
 import { summarizePositions } from "@/lib/paper/portfolio";
 import { ReviewPanel } from "./review-panel";
+import { WeeklyReviewCard } from "@/components/weekly-review-card";
 import { AlertsPanel } from "@/components/alerts/alerts-panel";
 import { AccountEquityChart } from "./account-equity-chart";
 import { FundsCard } from "./funds-card";
@@ -144,6 +145,7 @@ export function PortfolioView() {
               <CardContent><AccountEquityChart history={state.equityHistory!} initial={capitalOf(state)} /></CardContent>
             </Card>
           )}
+          <WeeklyReviewCard trades={state.trades} title="Paper trading" />
           <InsightsPanel />
           <JournalTable />
         </TabsContent>

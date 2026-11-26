@@ -66,6 +66,14 @@ function BookView({ book }: { book: Book }) {
     return () => io.disconnect();
   }, [nav, needle]);
 
+  // A link such as /playbook?book=swing#exit-playbook... should land on that section once the page has rendered.
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: "start" }), 250);
+    return () => clearTimeout(t);
+  }, [book.id]);
+
   const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   const total = book.sections.reduce((n, s) => n + s.rules.length, 0);
 

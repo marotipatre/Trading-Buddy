@@ -25,6 +25,7 @@ import { fmtInr, fmtPct } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
 import { downloadText, tradesToCsv } from "@/lib/export-csv";
+import { WeeklyReviewCard } from "@/components/weekly-review-card";
 import { AccountEquityChart } from "@/components/paper/account-equity-chart";
 import { capitalOf } from "@/lib/paper/funds";
 import { IntradayProvider, useIntraday } from "./intraday-provider";
@@ -93,6 +94,7 @@ function Inner() {
       <Picks lock={status.reason ?? null} />
       <Open />
       <EquityCard />
+      <WeeklyReviewCard trades={acc.state.trades} title="Intraday" />
       <Results />
       <Scorecard />
       <p className="text-xs text-muted-foreground">Day trading on margin loses money for most people (SEBI&apos;s own studies of Indian traders say so). Read the <Link className="underline" href="/playbook?book=intraday">intraday rule book</Link> before you trade. Paper money only, for learning; picks are rule-based screens, not advice.</p>
