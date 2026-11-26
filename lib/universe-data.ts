@@ -12,7 +12,7 @@ export * from "./universe-lists";
 
 const BASE = "https://www.niftyindices.com/IndexConstituent";
 const FILES = { large: "ind_nifty100list.csv", mid: "ind_niftymidcap150list.csv", small: "ind_niftysmallcap250list.csv", micro: "ind_niftymicrocap250_list.csv" } as const;
-const CACHE_FILE = join(tmpdir(), "trading-buddy-universe-v3.json");
+const CACHE_FILE = join(tmpdir(), "trading-buddy-universe-v4.json");
 const WEEK_MS = 7 * 86_400_000;
 let memo: Universe | null = null;
 const loading = dedupe<Universe>();

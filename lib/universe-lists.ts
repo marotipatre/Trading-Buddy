@@ -97,7 +97,7 @@ export function buildUniverse(large: Constituent[], mid: Constituent[], small: C
 
 /** One listed NSE stock from the exchange's instrument list. */
 export interface Listed { symbol: string; name: string; series: string; isin?: string }
-const FUND_LIKE = /(BEES|ETF|IETF|LIQUID|GILT|NIFTY|SENSEX|BANKEX|MON100|MOM100|MAFANG|\bFUND\b|\bETF\b|INDEX FUND|MUTUAL)/i;
+const FUND_LIKE = /(BEES|ETF|IETF|LIQUID|GILT|NIFTY|SENSEX|BANKEX|MON100|MOM100|MAFANG|\bFUND\b|INDEX FUND|MUTUAL|AMC\s*-|\bMF\s*-)/i;
 
 /** Pure: add every other NSE stock (not in the Nifty lists) so the whole listed market is browsable. ETFs and funds are left out. */
 export function mergeListed(stocks: UniverseStock[], listed: Listed[]): UniverseStock[] {

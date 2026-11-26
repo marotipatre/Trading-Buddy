@@ -97,7 +97,7 @@ describe("whole listed market", () => {
     const base = [{ symbol: "AAA.NS", name: "Aaa", sector: "IT", cap: "large" as const, isin: "" }];
     const out = mergeListed(base, [
       { symbol: "AAA.NS", name: "Aaa Ltd", series: "EQ" }, { symbol: "BBB.NS", name: "Bbb Ltd", series: "EQ" },
-      { symbol: "CCC.NS", name: "Ccc Ltd", series: "SM" }, { symbol: "NV20BEES.NS", name: "Nippon ETF", series: "EQ" },
+      { symbol: "CCC.NS", name: "Ccc Ltd", series: "SM" }, { symbol: "NV20BEES.NS", name: "Nippon ETF", series: "EQ" }, { symbol: "GOLD360.NS", name: "360oneamc - Gold360", series: "EQ" },
     ]);
     expect(out.map((s) => [s.symbol, s.cap, s.sector])).toEqual([["AAA.NS", "large", "IT"], ["BBB.NS", "other", "Unclassified"], ["CCC.NS", "sme", "Unclassified"]]);
   });

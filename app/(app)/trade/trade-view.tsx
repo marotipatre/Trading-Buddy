@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Star } from "lucide-react";
+import { useUniverse } from "@/components/use-universe";
+import { CAP_LABEL, THIN_CAPS } from "@/lib/universe-lists";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,6 +43,8 @@ export function TradeView() {
   const { state } = usePaper();
   const wl = useWatchlist();
   const held = state.positions.filter((p) => p.symbol === symbol);
+  const { stocks } = useUniverse();
+  const info = stocks?.find((x) => x.symbol === symbol);
 
   // Remember the symbols you trade so switching between them is one click.
   useEffect(() => {
@@ -113,6 +117,13 @@ export function TradeView() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <SymbolLabel symbol={symbol} className="[&_span:first-child]:text-lg" />
+                {info && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="rounded bg-muted px-1.5 py-0.5">{CAP_LABEL[info.cap]}</span>
+                    {info.sector !== "Unclassified" && <span className="rounded bg-muted px-1.5 py-0.5">{info.sector}</span>}
+                    {THIN_CAPS.includes(info.cap) && <span className="rounded bg-warn/15 px-1.5 py-0.5 text-warn">Thinly traded class: check volume before sizing up</span>}
+                  </div>
+                )}
                 <div className="mt-1 flex items-baseline gap-3">
                   <span className="font-mono text-5xl font-semibold tracking-tight">{q ? q.price.toFixed(2) : loading ? "…" : "—"}</span>
                   {q && (
