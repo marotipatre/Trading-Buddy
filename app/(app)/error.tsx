@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ export default function RouteError({ error, reset }: { error: Error & { digest?:
         </div>
         <div className="flex justify-center gap-2">
           <Button onClick={reset}>Try again</Button>
-          <Button variant="outline" onClick={() => window.location.assign("/dashboard")}>Go to Explore</Button>
+          <Button variant="outline" nativeButton={false} render={<Link href="/dashboard" />}>Go to Explore</Button>
         </div>
       </CardContent>
     </Card>
