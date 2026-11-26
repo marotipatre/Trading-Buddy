@@ -20,10 +20,53 @@ export interface Book {
   tables: { title: string; note?: string; head: string[]; rows: string[][] }[];
   /** Stages to pass before risking more. */
   stages: { stage: string; do: string; passWhen: string }[];
+  /** The short pledge: read before each session. */
+  constitution: string[];
   /** Numbers to track every month, and what good looks like. */
   scorecard: { metric: string; how: string; target: string }[];
 }
 
+
+
+const SWING_GRADE: Section = {
+  title: "Grade every setup before you size it",
+  intro: "A simple grading rule keeps you from giving every idea the same size.",
+  rules: [
+    { rule: "A setup earns an A only if all of these are true: market trend healthy, sector in the top third, stock in a stage-2 uptrend, entry within 5% of a clean pivot, volume confirmation, and at least 3R of room to the next resistance. Size: your full planned risk.", why: "Quality varies enormously between setups. Matching size to quality is a free improvement in expectancy." },
+    { rule: "A B setup fails one of those tests. Size: half your normal risk. A C setup fails two or more: skip it.", why: "Most losing months come from taking C setups out of boredom or hope." },
+    { rule: "Write the grade in the journal. After 50 trades compare results by grade. If your A trades do not beat your B trades, your grading criteria need work.", why: "The grade is a testable hypothesis about your own edge." },
+  ],
+};
+const SWING_EXIT: Section = {
+  title: "Exit playbook: winners decide your year",
+  rules: [
+    { rule: "Pick your trailing method before entry. Options: the lowest low of the last 10 days (fast), the 20-day EMA (medium), or a chandelier stop at 3 times ATR below the highest high (volatility-aware).", why: "Chandelier-style ATR stops adapt to each stock's volatility; the 20-day EMA suits steady trends; the 10-day low suits fast, climactic moves. A trailing method chosen in advance cannot be argued with in the moment." },
+    { rule: "At 1R of profit, consider moving the stop to breakeven. At 2R, sell a third to a half.", why: "Banking part of the gain lowers the chance a winner becomes a loser, and a breakeven stop makes the remaining position free to run." },
+    { rule: "Never let a trade that was up more than 2R turn into a loss.", why: "That outcome is almost always an unmanaged winner, one of the most expensive habits in swing trading." },
+    { rule: "Treat a climax as a sell signal: a stock more than about 25% to 30% above its 50-day average on a volume spike and a wide-range day often marks a short-term top.", why: "Parabolic runs end quickly. Selling into strength is easier than selling into a collapse." },
+    { rule: "Use a time stop: if a trade has gone nowhere in 10 to 15 sessions, exit and redeploy the capital.", why: "Capital stuck in a stalled trade is an opportunity cost, and stalled trades tend to resolve downwards when the market weakens." },
+    { rule: "Exit rules are for the whole position. Do not average a loser. Do not move a stop away.", why: "Both turn a planned small loss into an open-ended one." },
+  ],
+};
+const SWING_PYRAMID: Section = {
+  title: "Adding to winners and managing the book",
+  rules: [
+    { rule: "Add to a position only after it is in profit, and only if the combined stop keeps total risk at or below your original risk.", why: "Pyramiding on strength adds to the winners you have evidence for. Adding to losers adds to the ones you have evidence against." },
+    { rule: "Make each add smaller than the last (for example 100%, 50%, 25%).", why: "It keeps the average cost below the current price and the risk shape sensible." },
+    { rule: "Know your portfolio heat: the sum of risk across all open trades if every stop were hit. Keep it under about 6% of capital.", why: "Stocks are correlated in sell-offs, so many open positions can lose at once.", inApp: { label: "Ideas: mixed portfolio shows loss if all stops hit", href: "/ideas" } },
+    { rule: "Review weak holdings weekly: any stock below its 50-day average or lagging its sector for three weeks is a candidate to replace.", why: "Money in laggards is money not in leaders.", inApp: { label: "Portfolio review: Hold / Add / Trim / Exit", href: "/portfolio?tab=review" } },
+    { rule: "Keep cash as a position. When few setups grade A, hold more cash and wait.", why: "The edge is selectivity. Fully invested all the time means taking C setups." },
+  ],
+};
+const SWING_EVENTS: Section = {
+  title: "Events and news",
+  rules: [
+    { rule: "Know the results date of every stock you hold. Either exit or reduce size before it, or accept the gap and size so a 10% to 15% gap beyond your stop is survivable.", why: "Gaps ignore stop-losses. The only protection is size." },
+    { rule: "On Union Budget day, RBI policy days and major global events, avoid starting new full-size positions.", why: "Volatility spikes and direction changes quickly; wait for the move to settle." },
+    { rule: "Trade the reaction to news, not the headline. A stock that falls on good news or does not rise on it is telling you something.", why: "Price is the cleanest signal of what the market believes." },
+    { rule: "Treat news-feed headlines as clues, not signals. Confirm with price and volume.", why: "Headlines are noisy and often already priced in.", inApp: { label: "Trade page: news and broker calls panel", href: "/trade" } },
+  ],
+};
 
 const SWING_REGIME: Section = {
   title: "0. Check the market first",
@@ -173,7 +216,7 @@ export const SWING: Book = {
     { mistake: "Betting big after a win streak", fix: "Keep size tied to the 1% rule. Confidence is not an edge." },
     { mistake: "Seeking tips instead of a process", fix: "Trade only setups you can write down and test." },
   ],
-  setups: [], tables: [], stages: [], scorecard: [],
+  setups: [], tables: [], stages: [], scorecard: [], constitution: [],
   reading: [
     { title: "Trade Like a Stock Market Wizard", author: "Mark Minervini", why: "Trend template, risk control and cutting losses fast." },
     { title: "How to Make Money in Stocks", author: "William O'Neil", why: "Leaders, bases and the discipline of cutting losses at 7–8%." },
@@ -196,7 +239,7 @@ SWING.setups = [
 SWING.tables = [
   { title: "What a loss costs you to recover", note: "Why capital protection comes first.", head: ["Loss", "Gain needed to get back"], rows: [["5%", "5.3%"], ["10%", "11.1%"], ["20%", "25%"], ["30%", "42.9%"], ["50%", "100%"]] },
   { title: "Expectancy examples (before costs)", note: "A high win rate does not guarantee profit.", head: ["Win rate", "Avg win", "Avg loss", "Expectancy per trade"], rows: [["35%", "3.0R", "1.0R", "+0.40R"], ["45%", "2.0R", "1.0R", "+0.35R"], ["60%", "1.0R", "1.0R", "+0.20R"], ["70%", "0.3R", "1.0R", "-0.09R"]] },
-  { title: "Losing streaks to expect", note: "Chance of at least one run of this many losses in 100 trades at a given win rate (approximate).", head: ["Win rate", "5 in a row", "8 in a row", "10 in a row"], rows: [["50%", "about 81%", "about 31%", "about 12%"], ["40%", "about 94%", "about 55%", "about 28%"], ["30%", "about 99%", "about 85%", "about 59%"]] },
+  { title: "Losing streaks to expect", note: "Chance of at least one run of this many losses in 100 trades at a given win rate (computed; use the calculator for other cases).", head: ["Win rate", "5 in a row", "8 in a row", "10 in a row"], rows: [["50%", "about 81%", "about 17%", "about 4%"], ["40%", "about 98%", "about 49%", "about 20%"], ["30%", "about 100%", "about 86%", "about 58%"]] },
 ];
 SWING.stages = [
   { stage: "1. Paper trade", do: "Follow the rule book with paper money, one position size, journal every trade.", passWhen: "At least 50 trades, expectancy above 0 after costs, and you followed your plan on 90% of them." },
@@ -213,6 +256,49 @@ SWING.scorecard = [
   { metric: "Costs and tax as share of gross profit", how: "Brokerage, taxes and slippage", target: "Under 25%" },
 ];
 
+
+
+const ID_PREMARKET: Section = {
+  title: "Before the open: the pre-market checklist (India)",
+  rules: [
+    { rule: "Check GIFT Nifty (the successor to SGX Nifty) and overnight US and Asian markets for the likely opening direction.", why: "A gap-up or gap-down open changes which setups are valid." },
+    { rule: "Read the provisional FII/DII flows from the previous session and India VIX.", why: "Strong FII selling and a rising VIX mean wider swings and more false breakouts; reduce size or trade less." },
+    { rule: "List today's events: results, board meetings, RBI, index expiry, global data. Avoid or cut size on stocks with news.", why: "Event stocks gap and whipsaw. Plan for them or skip." },
+    { rule: "Check the F&O ban list and any circuit or surveillance changes on your picks.", why: "Banned or restricted stocks can have limited or margin-heavy trading." },
+    { rule: "Write down three things: the day's maximum loss, the setups you will trade, and the one mistake you will avoid.", why: "Committing in writing before the open makes it harder to rationalise later." },
+  ],
+};
+const ID_EXEC: Section = {
+  title: "Execution rules",
+  rules: [
+    { rule: "Look at the spread and depth before you enter. If the bid-ask spread is more than a quarter of your stop distance, skip the stock.", why: "A wide spread eats your edge in slippage on both sides." },
+    { rule: "Use limit orders or buy-stops with a small limit when you can. Use market orders only in highly liquid stocks.", why: "Market orders in thin names can fill far from the price you saw." },
+    { rule: "Place the stop and target at once (bracket or cover order).", why: "It enforces the exit even if you freeze or the connection drops." },
+    { rule: "At +1R, sell half and move the stop on the rest to breakeven. Trail the rest under the last higher low on the 5-minute chart.", why: "Banking half makes the trade risk-free and the remainder can capture a trend day." },
+    { rule: "Time stop: if the trade has not moved in your favour within 45 to 60 minutes, exit.", why: "A setup that does not work promptly is usually not working. Freed margin and attention are worth more." },
+    { rule: "Never add to a losing intraday position. Never move a stop further away.", why: "Both are how small losses become account-sized ones when margin multiplies the damage." },
+  ],
+};
+const ID_STATES: Section = {
+  title: "Your state: green, amber, red",
+  intro: "Intraday results depend on you being in a fit state. Decide the state before you click.",
+  rules: [
+    { rule: "Green: rested, calm, following the plan. Trade normally.", why: "Your normal rules assume your normal judgment." },
+    { rule: "Amber: after a loss, a missed move, a long morning or any frustration. Halve your size and take only A setups.", why: "Amber is when mistakes start. Smaller size contains the cost while you reset." },
+    { rule: "Red: two rule breaks, revenge urges, anger, fatigue or after hitting a daily limit. Stop. Close the platform.", why: "Red-state trades have the worst expectancy of the day. Skipping them is the single highest-return habit." },
+    { rule: "When ahead for the day, protect the gain: if you give back a third of the day's profit, stop. Do not raise size because you are 'playing with the market's money'.", why: "Profits are yours. The green-day trap turns a good day into a flat or red one." },
+    { rule: "If you are down and want to 'make it back' today, that urge is the signal to stop.", why: "Chasing losses is the best-documented path to blow-ups." },
+  ],
+};
+const ID_EVENTS: Section = {
+  title: "Expiry days and event days",
+  intro: "Exchange expiry days and contract schedules have changed over time. Check the current calendar.",
+  rules: [
+    { rule: "On index expiry days, swings in heavy-weight stocks can be sharper and the last hour erratic. Trade smaller and avoid chasing.", why: "Hedging and expiry unwinds move prices for reasons unrelated to the stock's own news." },
+    { rule: "On results day for a stock, skip it unless you are trading the reaction after the first 30 minutes.", why: "Spreads and slippage are at their worst around the release." },
+    { rule: "On days with a major scheduled event (RBI policy, Budget, big global data), reduce size or sit out until after the announcement.", why: "Direction is a coin flip around the event, and stops get run." },
+  ],
+};
 
 const ID_DAY: Section = {
   title: "The trading day, hour by hour (India)",
@@ -365,7 +451,7 @@ export const INTRADAY: Book = {
     { mistake: "Trading every stock that moves", fix: "Only liquid stocks from the plan. No plan, no trade." },
     { mistake: "Ignoring costs", fix: "Add charges to every plan and skip tiny targets." },
   ],
-  setups: [], tables: [], stages: [], scorecard: [],
+  setups: [], tables: [], stages: [], scorecard: [], constitution: [],
   reading: [
     { title: "Trading in the Zone", author: "Mark Douglas", why: "The mindset of probabilities and acting without fear." },
     { title: "The Daily Trading Coach", author: "Brett Steenbarger", why: "Practical psychology and habits for active traders." },
@@ -402,6 +488,34 @@ INTRADAY.scorecard = [
   { metric: "Trades per day", how: "Average", target: "3 to 5 or fewer" },
   { metric: "Costs share of gross profit", how: "Charges divided by gross profit", target: "Under 30%" },
   { metric: "Worst day and longest losing streak", how: "In % of pot and number of trades", target: "Worst day within your daily limit" },
+];
+
+SWING.sections = [SWING.sections[0], SWING.sections[1], SWING_GRADE, ...SWING.sections.slice(2, 5), SWING_EXIT, SWING_PYRAMID, ...SWING.sections.slice(5, 8), SWING_EVENTS, ...SWING.sections.slice(8)];
+SWING.constitution = [
+  "I trade a plan, not a feeling. Entry, stop and target are written before I buy.",
+  "I risk no more than 1% of my capital on any trade, and no more than about 6% in total.",
+  "My stop is an order in the market. I never move it away.",
+  "I take the loss the market gives me. A stop-out is the cost of doing business.",
+  "I let winners run with a rule, and I do not let a big winner turn into a loser.",
+  "I trade with the trend and the strongest sectors. I do not argue with the market.",
+  "I do not add to losers, chase moves, or trade from tips.",
+  "I judge myself on following the process, not on any single result.",
+  "I keep a journal and review it every week.",
+  "I protect my capital first. It is the only thing I cannot trade without.",
+];
+
+INTRADAY.sections = [INTRADAY.sections[0], INTRADAY.sections[1], INTRADAY.sections[2], ID_PREMARKET, ...INTRADAY.sections.slice(3, 5), INTRADAY.sections[5], ID_EXEC, ID_EVENTS, ...INTRADAY.sections.slice(6, 8), ID_STATES, ...INTRADAY.sections.slice(8)];
+INTRADAY.constitution = [
+  "My own money is at risk. I trade only what I can afford to lose, and I never refill the pot to chase losses.",
+  "My daily loss limit is set before the open. When it is hit, I stop.",
+  "I risk at most 1% of my own money on a trade, measured to my stop, not to my margin.",
+  "I take only planned setups in liquid stocks, and only when reward is at least 1.5 times risk after costs.",
+  "Every trade has its stop and target placed with it.",
+  "Three losses in a row, or two rule breaks, ends my day.",
+  "I do not average down, move a stop away, or take a revenge trade.",
+  "I am flat before the 3:15 pm square-off. I do not turn a failed day trade into an investment.",
+  "A day with no good setup is a good day.",
+  "I tag every mistake in the journal. My goal is clean trades, not big days.",
 ];
 
 export const BOOKS = [SWING, INTRADAY] as const;
