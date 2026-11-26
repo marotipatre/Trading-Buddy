@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { BaseIdea } from "@/lib/analysis/ideas-engine";
 import { displaySymbol } from "@/lib/symbols";
+import { useNow } from "@/components/use-now";
 import { PlanMeter, ScoreRing } from "@/components/ideas/shared";
 
 interface Saved { at: number; bases: BaseIdea[] }
@@ -13,6 +14,7 @@ interface Saved { at: number; bases: BaseIdea[] }
 /** The three strongest buy setups from your last Ideas scan, so Explore has something worth acting on. Hidden until you have scanned. */
 export function TopIdeas() {
   const [top, setTop] = useState<{ at: number; items: BaseIdea[] } | null>(null);
+  const now = useNow(60_000);
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem("tb.ideas.last.v2") ?? "null") as Saved | null;
@@ -23,7 +25,7 @@ export function TopIdeas() {
     } catch { /* ignore */ }
   }, []);
   if (!top) return null;
-  const mins = Math.max(0, Math.round((Date.now() - top.at) / 60000));
+  const mins = Math.max(0, Math.round((now * 1000 - top.at) / 60000));
   return (
     <Card>
       <CardContent className="space-y-3">
