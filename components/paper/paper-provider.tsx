@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import type { Candle, Quote } from "@/lib/data/types";
 import { catchUp, closePosition, intradayDue, newAccount, onPrice, placeOrder, squareOffIntraday, cancelOrder, equity as equityOf } from "@/lib/paper/broker";
 import { annotateTrade, recordEquity } from "@/lib/paper/journal";
+import { addMoney as addMoneyFn, normalizeState, transferMoney, withdrawMoney } from "@/lib/paper/funds";
 import { loadAccount, saveAccount, type Loaded } from "@/lib/paper/store";
-import type { OrderRequest, PaperState } from "@/lib/paper/types";
+import type { OrderRequest, PaperState, Pot } from "@/lib/paper/types";
 import { isMarketOpen } from "@/lib/market-hours";
 
 interface PaperCtx {
@@ -21,7 +22,11 @@ interface PaperCtx {
   closeNow: (positionId: number, qty?: number) => Promise<{ error?: string }>;
   cancel: (orderId: number) => void;
   annotate: (tradeId: number, patch: { note?: string; tags?: string[] }) => void;
-  reset: (capital: number) => void;
+  /** Money moves between the trading pot and the bank pot (or in/out of the app). */
+  addMoney: (pot: Pot, amount: number) => { error?: string };
+  withdraw: (pot: Pot, amount: number) => { error?: string };
+  transfer: (from: Pot, amount: number) => { error?: string };
+  reset: (capital: number, bank?: number) => void;
 }
 
 const Ctx = createContext<PaperCtx | null>(null);
@@ -75,7 +80,7 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         loadedRef.current = { id: loaded.id, localOnly: loaded.localOnly };
         setLocalOnly(loaded.localOnly);
-        let st = loaded.state;
+        let st = normalizeState(loaded.state);
         const symbols = [...new Set([...st.positions.map((p) => p.symbol), ...st.orders.map((o) => o.symbol)])];
         for (const sym of symbols) {
           const since = Math.min(...[...st.positions.filter((p) => p.symbol === sym).map((p) => p.lastCheckedAt), ...st.orders.filter((o) => o.symbol === sym).map((o) => o.createdAt)]);
@@ -172,14 +177,22 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
     (tradeId: number, patch: { note?: string; tags?: string[] }) => commit(annotateTrade(stateRef.current, tradeId, patch)),
     [commit],
   );
-  const reset = useCallback((capital: number) => commit(newAccount(capital)), [commit]);
+  const reset = useCallback((capital: number, bank = 0) => commit(newAccount(capital, undefined, bank)), [commit]);
+  const moneyOp = useCallback((fn: (s: PaperState) => { state: PaperState; error?: string }) => {
+    const r = fn(stateRef.current);
+    if (!r.error) commit(recordEquity(r.state, equityOf(r.state, priceRef.current), nowSec(), { force: true }));
+    return { error: r.error };
+  }, [commit]);
+  const addMoney = useCallback((pot: Pot, amount: number) => moneyOp((s) => addMoneyFn(s, pot, amount, nowSec())), [moneyOp]);
+  const withdraw = useCallback((pot: Pot, amount: number) => moneyOp((s) => withdrawMoney(s, pot, amount, nowSec())), [moneyOp]);
+  const transfer = useCallback((from: Pot, amount: number) => moneyOp((s) => transferMoney(s, from, amount, nowSec())), [moneyOp]);
 
   const prices = useMemo(() => Object.fromEntries(Object.values(quotes).map((q) => [q.symbol, q.price])), [quotes]);
   const equity = useMemo(() => equityOf(state, prices), [state, prices]);
 
   const value = useMemo<PaperCtx>(
-    () => ({ state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, reset }),
-    [state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, reset],
+    () => ({ state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, addMoney, withdraw, transfer, reset }),
+    [state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, annotate, addMoney, withdraw, transfer, reset],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
