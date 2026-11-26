@@ -17,11 +17,14 @@ const QUAD: Record<Quadrant, { label: string; cls: string; hint: string }> = {
 const STANCE = { overweight: "bg-up/15 text-up", neutral: "bg-muted text-muted-foreground", underweight: "bg-down/15 text-down" } as const;
 
 function Rrg({ sectors, selected, onSelect }: { sectors: Outlook[]; selected: string | null; onSelect: (i: string | null) => void }) {
-  const pts = sectors.flatMap((s) => s.rrg);
-  const span = Math.max(4, ...pts.map((p) => Math.max(Math.abs(p.ratio - 100), Math.abs(p.momentum - 100)))) * 1.1;
-  const W = 520, H = 420, pad = 34;
-  const x = (r: number) => pad + ((r - 100 + span) / (2 * span)) * (W - 2 * pad);
-  const y = (m: number) => H - pad - ((m - 100 + span) / (2 * span)) * (H - 2 * pad);
+  // Zoom to where most sectors sit (the 90th percentile of their distance from the centre) so the cluster is readable; outliers are held at the edge.
+  const ends = sectors.map((s) => s.rrg[s.rrg.length - 1]).filter(Boolean);
+  const dev = ends.map((p) => Math.max(Math.abs(p.ratio - 100), Math.abs(p.momentum - 100))).sort((a, b) => a - b);
+  const span = Math.max(3, (dev[Math.floor(dev.length * 0.9)] ?? 4) * 1.25);
+  const W = 560, H = 480, pad = 34;
+  const cl = (v: number) => Math.max(-span, Math.min(span, v - 100));
+  const x = (r: number) => pad + ((cl(r) + span) / (2 * span)) * (W - 2 * pad);
+  const y = (m: number) => H - pad - ((cl(m) + span) / (2 * span)) * (H - 2 * pad);
   const color = (q: Quadrant) => (q === "leading" ? "var(--up)" : q === "improving" ? "var(--primary)" : q === "weakening" ? "var(--warn)" : "var(--down)");
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full rounded-xl border bg-card" role="img" aria-label="Relative rotation graph of sectors">
@@ -35,7 +38,7 @@ function Rrg({ sectors, selected, onSelect }: { sectors: Outlook[]; selected: st
       <text x={10} y={H / 2} fontSize={10} fill="var(--muted-foreground)" transform={`rotate(-90 10 ${H / 2})`} textAnchor="middle">Momentum ↑</text>
       {sectors.map((s) => {
         const on = selected === s.index, dim = selected && !on;
-        const tail = s.rrg.map((p) => `${x(p.ratio)},${y(p.momentum)}`).join(" ");
+        const tail = s.rrg.slice(-5).map((p) => `${x(p.ratio)},${y(p.momentum)}`).join(" ");
         const end = s.rrg[s.rrg.length - 1];
         return (
           <g key={s.index} opacity={dim ? 0.25 : 1} style={{ cursor: "pointer" }} onClick={() => onSelect(on ? null : s.index)}>

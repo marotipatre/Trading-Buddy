@@ -31,7 +31,7 @@ export async function loadSectors(): Promise<SectorsPayload> {
   const k = (n: number) => (closes.length > n ? (closes[closes.length - 1] / closes[closes.length - 1 - n] - 1) * 100 : NaN);
   return {
     asOf: bench[bench.length - 1]?.date ?? "",
-    benchmark: { index: BENCHMARK_INDEX, close: closes[closes.length - 1], returns: { d1: k(1), w1: k(5), m1: k(21), m3: k(63), m6: k(126), y1: k(252) } },
+    benchmark: { index: BENCHMARK_INDEX, close: closes[closes.length - 1], returns: { d1: k(1), w1: k(5), m1: k(21), m3: k(63), m6: k(126), y1: k(244) } },
     sectors: out.sort((a, b) => b.score - a.score),
     breadth: breadth.status === "fulfilled" ? { advances: breadth.value.advances, declines: breadth.value.declines, unchanged: breadth.value.unchanged, total: breadth.value.total_stocks, adRatio: breadth.value.ad_ratio } : undefined,
     vix: m?.india_vix?.level !== undefined ? { level: m.india_vix.level, change1dPct: m.india_vix.change_1d_pct } : undefined,

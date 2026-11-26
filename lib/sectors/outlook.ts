@@ -27,7 +27,7 @@ export interface SectorOutlook {
   reasons: string[];
 }
 
-const OFFSETS: Record<keyof Returns, number> = { d1: 1, w1: 5, m1: 21, m3: 63, m6: 126, y1: 252 };
+const OFFSETS: Record<keyof Returns, number> = { d1: 1, w1: 5, m1: 21, m3: 63, m6: 126, y1: 244 }; // NSE's history tool serves about 245 sessions, so "1 year" is the full window
 const ret = (c: number[], k: number) => (c.length > k ? (c[c.length - 1] / c[c.length - 1 - k] - 1) * 100 : NaN);
 
 export function returnsOf(closes: number[]): Returns {
