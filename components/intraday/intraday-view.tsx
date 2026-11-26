@@ -144,11 +144,12 @@ function Picks({ lock }: { lock: string | null }) {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [batch, setBatch] = useState<PickBatch | null>(() => (typeof window === "undefined" ? null : loadBatches().at(-1) ?? null));
   const [riskPct, setRiskPct] = useState(1);
+  const [settings, setSettings] = useState(false);
   const [regime, setRegime] = useState<MarketRegime | null>(null);
   const stopRef = useRef(false);
 
   const generate = useCallback(async () => {
-    const universe = (stocks ?? []).filter((s) => s.cap === "large" || s.cap === "mid");
+    const universe = [...(stocks ?? [])].sort((a, b) => (a.cap === "large" ? 0 : a.cap === "mid" ? 1 : 2) - (b.cap === "large" ? 0 : b.cap === "mid" ? 1 : 2)); // the whole market, most liquid first
     if (!universe.length) { toast.error("Stock list is still loading"); return; }
     stopRef.current = false;
     setRunning(true);
@@ -184,6 +185,15 @@ function Picks({ lock }: { lock: string | null }) {
     } finally { setRunning(false); setProgress(null); }
   }, [stocks]);
 
+  // Open the page and the picks are there: use the saved ones, and refresh in the background if they are old or missing.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current || !stocks?.length) return;
+    autoRan.current = true;
+    const age = batch ? Date.now() - batch.createdAt : Infinity;
+    if (age > 6 * 3600_000) setTimeout(() => void generate(), 0);
+  }, [stocks, batch, generate]);
+
   const pot = acc?.pot ?? 0;
   return (
     <Card>
@@ -192,13 +202,18 @@ function Picks({ lock }: { lock: string | null }) {
         <CardDescription>Five liquid stocks in uptrends that closed strong on rising volume, with headline tone checked. Each has a buy-stop entry, a stop-loss and targets. Scan after the close, trade the next morning.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-32 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (% of pot)</Label><NumberField min={0.25} max={3} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
-          <AiSentimentToggle className="w-full" />
-          <Button onClick={generate} disabled={running}>{running ? <Loader2 className="animate-spin" /> : <Play />}{running ? "Scanning…" : "Find picks"}</Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={generate} disabled={running}>{running ? <Loader2 className="animate-spin" /> : <Play />}{running ? "Scanning the market…" : batch ? "Refresh picks" : "Find picks"}</Button>
           {running && <Button variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
-          {progress && <span className="font-mono text-xs text-muted-foreground">{progress.done}/{progress.total}</span>}
+          {progress && <span className="font-mono text-xs text-muted-foreground">{progress.done} of {progress.total} stocks</span>}
+          <button type="button" onClick={() => setSettings((x) => !x)} aria-expanded={settings} className="ml-auto text-xs text-muted-foreground underline">Settings</button>
         </div>
+        {settings && (
+          <div className="flex flex-wrap items-end gap-4 rounded-lg border p-3">
+            <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (% of pot)</Label><NumberField min={0.25} max={3} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
+            <AiSentimentToggle />
+          </div>
+        )}
         {regime && (
           <p className={cn("rounded-lg border p-2.5 text-xs", regime.regime === "bull" ? "border-up/40 bg-up/5" : regime.regime === "bear" ? "border-down/40 bg-down/5" : "border-warn/40 bg-warn/5")}>
             <b>Market: {regime.label.toLowerCase()}.</b> {regime.advice}{regime.sizeFactor < 1 && <> Sizes below use {Math.round(regime.sizeFactor * 100)}% of your normal risk.</>}
