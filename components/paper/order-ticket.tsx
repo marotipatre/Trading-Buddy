@@ -14,10 +14,10 @@ import { usePaper } from "./paper-provider";
 import { displaySymbol } from "@/lib/symbols";
 import { useMarketOpen } from "@/components/use-market-open";
 
-export function OrderTicket({ symbol, ltp }: { symbol: string; ltp?: number }) {
+export function OrderTicket({ symbol, ltp, initialSide = "buy" }: { symbol: string; ltp?: number; initialSide?: "buy" | "sell" }) {
   const { state, place, ready, transfer } = usePaper();
   const open = useMarketOpen();
-  const [side, setSide] = useState<"buy" | "sell">("buy");
+  const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [product, setProduct] = useState<"delivery" | "intraday">("delivery");
   const [type, setType] = useState<"market" | "limit">("market");
   const [qty, setQty] = useState(10);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,20 +10,31 @@ import { OrderTicket } from "@/components/paper/order-ticket";
 import { PositionsPanel } from "@/components/paper/positions-panel";
 import { SymbolSearch } from "@/components/symbol-search";
 import type { Quote } from "@/lib/data/types";
-import { fmtPct } from "@/lib/format";
+import { fmtInr, fmtPct } from "@/lib/format";
 import { isMarketOpen } from "@/lib/market-hours";
 import { loadRecent, pushRecent } from "@/lib/recent-symbols";
 import { useMarketOpen } from "@/components/use-market-open";
+import { usePaper } from "@/components/paper/paper-provider";
+import { SymbolLabel } from "@/components/symbol-label";
+import { useNow } from "@/components/use-now";
+import { useWatchlist } from "@/components/use-watchlist";
+import { positionStats } from "@/lib/paper/portfolio";
+import { companyName } from "@/lib/symbols";
 
 export function TradeView() {
   const router = useRouter();
   const params = useSearchParams();
   const symbol = params.get("symbol") ?? "RELIANCE.NS";
+  const initialSide = params.get("side") === "sell" ? "sell" : "buy";
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [recent, setRecent] = useState<string[]>([]);
   const open = useMarketOpen();
+  const now = useNow();
+  const { state } = usePaper();
+  const wl = useWatchlist();
+  const held = state.positions.filter((p) => p.symbol === symbol);
 
   // Remember the symbols you trade so switching between them is one click.
   useEffect(() => {
@@ -94,7 +105,7 @@ export function TradeView() {
           <CardContent className="space-y-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="font-mono text-sm text-muted-foreground">{symbol}</div>
+                <SymbolLabel symbol={symbol} className="[&_span:first-child]:text-lg" />
                 <div className="mt-1 flex items-baseline gap-3">
                   <span className="font-mono text-5xl font-semibold tracking-tight">{q ? q.price.toFixed(2) : loading ? "…" : "—"}</span>
                   {q && (
@@ -106,6 +117,9 @@ export function TradeView() {
               </div>
               <div className="flex items-center gap-2">
                 {q?.source && <Badge variant="outline">via {q.source === "google" ? "Google Finance" : "Yahoo"}</Badge>}
+                <Button variant="ghost" size="icon-sm" aria-label={wl.has(symbol) ? "Remove from watchlist" : "Add to watchlist"} onClick={() => wl.toggle(symbol, companyName(symbol))}>
+                  <Star className={wl.has(symbol) ? "fill-warn text-warn" : ""} />
+                </Button>
                 <Button variant="ghost" size="icon-sm" aria-label="Refresh price" onClick={() => setNonce((n) => n + 1)}>
                   <RefreshCw />
                 </Button>
@@ -131,7 +145,25 @@ export function TradeView() {
             {error && !q && <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">{error}</p>}
           </CardContent>
         </Card>
-        <OrderTicket symbol={symbol} ltp={q?.price} />
+        <div className="space-y-4">
+          {held.length > 0 && (
+            <Card>
+              <CardContent className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Your position</div>
+                {held.map((p) => {
+                  const st = positionStats(p, q?.price ?? p.entryPrice, q?.prevClose, now);
+                  return (
+                    <div key={p.id} className="flex items-center justify-between gap-3">
+                      <div className="text-sm">{p.qty} {p.direction === "short" ? "short" : "shares"} · Avg {p.entryPrice.toFixed(2)}<span className="ml-1 text-xs text-muted-foreground">{p.product === "delivery" ? "CNC" : "MIS"}</span></div>
+                      <div className={`tabular text-right font-mono text-sm font-semibold ${st.pnl >= 0 ? "text-up" : "text-down"}`}>{fmtInr(st.pnl, { sign: true })}<div className="text-xs">{fmtPct(st.pnlPct, 2, { sign: true })}</div></div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+          <OrderTicket key={`${symbol}-${initialSide}`} symbol={symbol} ltp={q?.price} initialSide={initialSide} />
+        </div>
       </div>
 
       <PositionsPanel />
