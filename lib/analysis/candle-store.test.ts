@@ -16,3 +16,15 @@ describe("candle store packing", () => {
     expect(fresh(0, 7 * 3600_000, false)).toBe(false);
   });
 });
+
+describe("usableFromDb", () => {
+  it("accepts a full, recent history and rejects short or stale ones", async () => {
+    const { usableFromDb } = await import("./candle-cache");
+    const now = 1_800_000_000, day = 86400;
+    const mk = (n: number, endAgo: number) => Array.from({ length: n }, (_, i) => ({ time: now - endAgo * day - (n - 1 - i) * day, open: 1, high: 1, low: 1, close: 1, volume: 1 }));
+    expect(usableFromDb(mk(900, 1), 800, now)).toBe(true);
+    expect(usableFromDb(mk(300, 1), 800, now)).toBe(false);
+    expect(usableFromDb(mk(900, 9), 800, now)).toBe(false);
+    expect(usableFromDb(mk(10, 1), 5, now)).toBe(false);
+  });
+});

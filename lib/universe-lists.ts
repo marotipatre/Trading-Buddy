@@ -14,7 +14,19 @@ export const CAP_SHORT: Record<Cap, string> = { large: "Large", mid: "Mid", smal
 /** Classes too thin or too small for the app to build a plan or portfolio around; they are still shown and scored. */
 export const THIN_CAPS: Cap[] = ["micro", "other", "sme"];
 
-export interface UniverseStock { symbol: string; name: string; sector: string; cap: Cap; isin: string }
+/** Index lists a stock belongs to, for choosing what to scan. */
+export type ScanList = "n50" | "n500" | "m30";
+export interface UniverseStock { symbol: string; name: string; sector: string; cap: Cap; isin: string; lists?: ScanList[] }
+export type ScanScope = "n50" | "n500" | "m30" | "all";
+export const SCAN_SCOPES: { id: ScanScope; label: string; hint: string }[] = [
+  { id: "n50", label: "Nifty 50", hint: "The 50 largest companies. Fastest." },
+  { id: "m30", label: "Nifty 200 Momentum 30", hint: "NSE's 30 strongest-momentum stocks from the Nifty 200." },
+  { id: "n500", label: "Nifty 500", hint: "The 500 biggest listed companies. The usual choice." },
+  { id: "all", label: "All NSE stocks", hint: "Every listed stock that trades (about 2,300). Slow the first time." },
+];
+export const inScope = (s: Pick<UniverseStock, "lists" | "cap">, scope: ScanScope): boolean => scope === "all" || (s.lists ?? []).includes(scope);
+/** True when everything in `want` is also covered by a scan that used `have`. */
+export const scopeCovers = (have: ScanScope, want: ScanScope): boolean => have === want || have === "all" || (have === "n500" && (want === "n50" || want === "m30"));
 export interface Universe { stocks: UniverseStock[]; asOf: number }
 
 export interface Constituent { name: string; industry: string; ticker: string; series: string; isin: string }
@@ -93,6 +105,13 @@ export function buildUniverse(large: Constituent[], mid: Constituent[], small: C
     }
   }
   return out;
+}
+
+/** Pure: tag stocks with the index lists they belong to. */
+export function applyLists(stocks: UniverseStock[], lists: Record<ScanList, Constituent[]>): UniverseStock[] {
+  const by = new Map<string, ScanList[]>();
+  for (const k of ["n50", "n500", "m30"] as ScanList[]) for (const c of lists[k]) { const sym = `${c.ticker}.NS`; by.set(sym, [...(by.get(sym) ?? []), k]); }
+  return stocks.map((s) => (by.has(s.symbol) ? { ...s, lists: by.get(s.symbol) } : s));
 }
 
 /** One listed NSE stock from the exchange's instrument list. */

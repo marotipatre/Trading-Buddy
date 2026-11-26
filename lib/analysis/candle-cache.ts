@@ -46,3 +46,46 @@ export async function pool<T>(items: T[], n: number, worker: (item: T) => Promis
 export function peekCandles(symbol: string, days: number, interval = "1d"): Candle[] | undefined {
   return cache.get(`${symbol}|${interval}|${days}`)?.candles;
 }
+
+/** Pure: can candles from our database stand in for a fresh download of `days` days? Needs the full window and a recent last bar. */
+export function usableFromDb(candles: Candle[], days: number, nowSec: number): boolean {
+  if (candles.length < 30) return false;
+  const first = candles[0].time, last = candles[candles.length - 1].time;
+  return first <= nowSec - days * 86400 + 25 * 86400 && nowSec - last <= 5 * 86400;
+}
+
+/**
+ * Fills the in-memory and browser stores for many symbols at once from our own database, 20 symbols per request, so a big
+ * scan only has to download the stocks we have never saved. Anything missing or too old is left for fetchCandles to handle.
+ */
+export async function prefetchDaily(symbols: string[], days: number, stop: () => boolean = () => false): Promise<number> {
+  const need: string[] = [];
+  const nowSec = Math.floor(Date.now() / 1000);
+  for (const s of symbols) {
+    const key = `${s}|1d|${days}`;
+    const hit = cache.get(key);
+    if (hit && Date.now() - hit.at < TTL) continue;
+    const saved = typeof window !== "undefined" ? await readSeries(key) : null;
+    if (saved && saved.candles.length && fresh(saved.at, Date.now(), isMarketOpen())) { cache.set(key, { at: saved.at, candles: saved.candles }); continue; }
+    need.push(s);
+  }
+  let filled = 0;
+  const batches: string[][] = [];
+  for (let i = 0; i < need.length; i += 20) batches.push(need.slice(i, i + 20));
+  await pool(batches, 3, async (batch) => {
+    try {
+      const res = await fetch(`/api/candles/bulk?symbols=${batch.map(encodeURIComponent).join(",")}&days=${days}`);
+      if (!res.ok) return;
+      const j = (await res.json()) as { candles: Record<string, number[][]> };
+      for (const [sym, rows] of Object.entries(j.candles)) {
+        const candles: Candle[] = rows.map((r) => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4], volume: r[5] }));
+        if (!usableFromDb(candles, days, nowSec)) continue;
+        const key = `${sym}|1d|${days}`;
+        cache.set(key, { at: Date.now(), candles });
+        void writeSeries(key, candles);
+        filled++;
+      }
+    } catch { /* fall back to single downloads */ }
+  }, stop);
+  return filled;
+}

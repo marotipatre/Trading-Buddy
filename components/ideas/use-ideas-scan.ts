@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useUniverse } from "@/components/use-universe";
-import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
+import { fetchCandles, pool as runPool, prefetchDaily } from "@/lib/analysis/candle-cache";
 import { moodOf } from "@/lib/analysis/mood";
 import { assessMethod, type Method } from "@/lib/analysis/methods";
 import { latestPatterns } from "@/lib/analysis/patterns";
@@ -11,12 +11,12 @@ import { computeFeatures } from "@/lib/analysis/features";
 import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
 import { HISTORY_DAYS, withRelativeStrength, type Frame } from "@/lib/analysis/stock-view";
 import type { BaseIdea } from "@/lib/analysis/ideas-engine";
-import { CAP_ORDER, type UniverseStock } from "@/lib/universe-lists";
+import { CAP_ORDER, inScope, type ScanScope, type UniverseStock } from "@/lib/universe-lists";
 import { isMarketOpen } from "@/lib/market-hours";
 
 const LAST_KEY = "tb.ideas.last.v2";
 export interface Progress { done: number; total: number; phase: "prices" | "news"; note: string }
-interface Saved { at: number; bases: BaseIdea[]; regime: MarketRegime | null; bench: number | null; method: Method; frame: Frame }
+interface Saved { at: number; bases: BaseIdea[]; regime: MarketRegime | null; bench: number | null; method: Method; frame: Frame; scope?: ScanScope }
 
 export const daysFor = (method: Method, frame: Frame) => (method === "trend" ? HISTORY_DAYS[frame] : 800);
 const ORDER: Record<UniverseStock["cap"], number> = Object.fromEntries(CAP_ORDER.map((c, i) => [c, i])) as Record<UniverseStock["cap"], number>;
@@ -30,7 +30,7 @@ function load(): Saved | null {
  * the base results. Your plan (days, target, amount) is applied afterwards, so changing it never needs a rescan.
  * The last scan is shown at once; a stale one is refreshed in the background.
  */
-export function useIdeasScan(method: Method, frame: Frame) {
+export function useIdeasScan(method: Method, frame: Frame, scope: ScanScope | null) {
   const { stocks, loading: uniLoading } = useUniverse();
   const [bases, setBases] = useState<BaseIdea[]>([]);
   const [regime, setRegime] = useState<MarketRegime | null>(null);
@@ -55,12 +55,13 @@ export function useIdeasScan(method: Method, frame: Frame) {
   }, []);
 
   const scan = useCallback(async () => {
+    if (!scope) return;
     // Every NSE stock is in the universe. To keep the scan fast and the ideas tradable, stocks outside the Nifty 500 are
     // included only if they traded at least about Rs 10 lakh in the last session (from NSE's own live feed).
     let turnover: Map<string, number> | null = null;
     try { const r = await fetch("/api/market"); const j = await r.json(); if (r.ok) turnover = new Map((j.rows as { symbol: string; valueCr: number }[]).map((x) => [x.symbol, x.valueCr])); } catch { /* scan everything without the liquidity gate */ }
-    const tradable = (s: UniverseStock) => !turnover || s.cap === "large" || s.cap === "mid" || s.cap === "small" || (turnover.get(s.symbol.replace(/\.NS$/, "")) ?? 0) >= 0.1;
-    const all = [...(stocks ?? [])].filter(tradable).sort((a, b) => ORDER[a.cap] - ORDER[b.cap] || a.name.localeCompare(b.name));
+    const tradable = (s: UniverseStock) => !turnover || scope !== "all" || s.cap === "large" || s.cap === "mid" || s.cap === "small" || (turnover.get(s.symbol.replace(/\.NS$/, "")) ?? 0) >= 0.1;
+    const all = [...(stocks ?? [])].filter((s) => inScope(s, scope)).filter(tradable).sort((a, b) => ORDER[a.cap] - ORDER[b.cap] || a.name.localeCompare(b.name));
     if (!all.length) return;
     stopRef.current = false;
     setRunning(true);
@@ -76,6 +77,8 @@ export function useIdeasScan(method: Method, frame: Frame) {
       } catch { /* the market comparison is optional */ }
 
       const days = daysFor(method, frame);
+      setProgress({ done: 0, total: all.length, phase: "prices", note: "Loading saved history" });
+      await prefetchDaily(all.map((s) => s.symbol), days, () => stopRef.current);
       await runPool(all, 12, async (s) => {
         try {
           const candles = await fetchCandles(s.symbol, days);
@@ -109,7 +112,7 @@ export function useIdeasScan(method: Method, frame: Frame) {
       setBases([...found]);
       try {
         const keep = [...found].sort((a, b) => b.view.score - a.view.score).slice(0, 250);
-        localStorage.setItem(LAST_KEY, JSON.stringify({ at: Date.now(), bases: keep, regime: reg, bench: benchM1, method, frame } satisfies Saved));
+        localStorage.setItem(LAST_KEY, JSON.stringify({ at: Date.now(), bases: keep, regime: reg, bench: benchM1, method, frame, scope } satisfies Saved));
       } catch { /* storage full or unavailable */ }
       if (failed > all.length * 0.3) toast.warning(`${failed} of ${all.length} stocks could not be loaded. Results cover the rest.`);
     } catch (e) {
@@ -118,19 +121,19 @@ export function useIdeasScan(method: Method, frame: Frame) {
       setRunning(false);
       setProgress(null);
     }
-  }, [stocks, method, frame]);
+  }, [stocks, method, frame, scope]);
 
   const stop = useCallback(() => { stopRef.current = true; }, []);
 
   // First visit: scan at once. A saved scan that has gone stale (or was made with other settings) refreshes in the background.
   useEffect(() => {
-    if (startedRef.current || uniLoading || !stocks?.length || !lastLoaded.current) return;
+    if (startedRef.current || uniLoading || !stocks?.length || !lastLoaded.current || !scope) return;
     const s = load();
     const age = s ? Date.now() - s.at : Infinity;
-    const stale = !s || !s.bases.some((b) => b.feat) || s.method !== method || s.frame !== frame || age > (isMarketOpen() ? 15 * 60_000 : 6 * 3600_000);
+    const stale = !s || !s.bases.some((b) => b.feat) || s.method !== method || s.frame !== frame || (s.scope ?? "all") !== scope || age > (isMarketOpen() ? 15 * 60_000 : 6 * 3600_000);
     startedRef.current = true;
     if (stale) setTimeout(() => void scan(), 0);
-  }, [uniLoading, stocks, method, frame, scan]);
+  }, [uniLoading, stocks, method, frame, scope, scan]);
 
   // Changing the method or candle size is a new question: rescan.
   const first = useRef(true);
@@ -138,7 +141,7 @@ export function useIdeasScan(method: Method, frame: Frame) {
     if (first.current) { first.current = false; return; }
     if (startedRef.current && !running) setTimeout(() => void scan(), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the question changes
-  }, [method, frame]);
+  }, [method, frame, scope]);
 
   return { bases, regime, bench, asOf, running, progress, restored, ranWith, scan, stop, universeReady: !uniLoading && !!stocks?.length, total: stocks?.length ?? 0 };
 }

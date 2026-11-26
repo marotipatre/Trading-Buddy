@@ -21,9 +21,11 @@ import { DEFAULT_PLAN, PlanBar, type PlanState } from "./plan-bar";
 import { PortfolioPlan, type Expectation } from "./portfolio-plan";
 import { RealityCheck } from "./reality-check";
 import { FactorLabCard } from "./factor-lab-card";
+import { WarmCard } from "./warm-card";
 import { SectorMap } from "./sector-map";
 import { SectorOutlook } from "./sector-outlook";
 import { useSectors } from "./use-sectors";
+import { SCAN_SCOPES, type ScanScope } from "@/lib/universe-lists";
 import { SECTOR_INDICES } from "@/lib/sectors/outlook";
 import { daysFor, useIdeasScan } from "./use-ideas-scan";
 
@@ -46,7 +48,8 @@ export function IdeasView() {
   const [sectorFilter, setSectorFilter] = useState<string | null>(null);
   const [openSymbol, setOpenSymbol] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
-  const scan = useIdeasScan(method, frame);
+  const [scope, setScope] = useState<ScanScope | null>(null);
+  const scan = useIdeasScan(method, frame, scope);
   const nse = useSectors();
 
   useEffect(() => {
@@ -55,6 +58,7 @@ export function IdeasView() {
     /* eslint-disable react-hooks/set-state-in-effect -- load the saved plan after mount */
     if (saved && saved.amount > 0 && saved.days > 0 && saved.target > 0) setPlan({ ...DEFAULT_PLAN, ...saved });
     setPlanReady(true);
+    try { const sc = localStorage.getItem("tb.ideas.scope"); setScope(SCAN_SCOPES.some((x) => x.id === sc) ? (sc as ScanScope) : "n500"); } catch { setScope("n500"); }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
   useEffect(() => { if (planReady) try { localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); } catch { /* ignore */ } }, [plan, planReady]);
@@ -135,6 +139,15 @@ export function IdeasView() {
       </div>
       {scan.running && p && <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden><div className="h-full bg-primary transition-all" style={{ width: `${(p.done / Math.max(1, p.total)) * 100}%` }} /></div>}
 
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="What to scan">
+        <span className="text-sm text-muted-foreground">Scan</span>
+        {SCAN_SCOPES.map((o) => (
+          <button key={o.id} type="button" title={o.hint} aria-pressed={scope === o.id} disabled={scan.running} onClick={() => { setScope(o.id); try { localStorage.setItem("tb.ideas.scope", o.id); } catch { /* ignore */ } }}
+            className={cn("h-8 rounded-full border px-3 text-sm font-medium transition-colors disabled:opacity-60", scope === o.id ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{o.label}</button>
+        ))}
+        <span className="text-xs text-muted-foreground">{SCAN_SCOPES.find((o) => o.id === scope)?.hint}</span>
+        <span className="ml-auto"><WarmCard scope={scope} /></span>
+      </div>
       <PlanBar plan={plan} onPlan={setPlan} method={method} onMethod={setMethod} frame={frame} onFrame={setFrame} />
       <MarketStrip regime={scan.regime} bench={scan.bench} ideas={ideas} sectors={sectors} scanned={scan.total} />
 

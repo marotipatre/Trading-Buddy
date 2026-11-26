@@ -25,7 +25,7 @@ const toCandle = (r: Row): Candle => ({
   open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume,
 });
 
-async function readCache(supabase: SupabaseClient, symbol: string, interval: Interval, fromSec: number, toSec: number): Promise<Candle[]> {
+export async function readCache(supabase: SupabaseClient, symbol: string, interval: Interval, fromSec: number, toSec: number): Promise<Candle[]> {
   const rows: Row[] = [];
   // PostgREST caps responses (default 1000 rows); page through.
   for (let offset = 0; ; offset += 1000) {
@@ -55,9 +55,8 @@ async function refresh(supabase: SupabaseClient, symbol: string, interval: Inter
           symbol, interval, ts: new Date(c.time * 1000).toISOString(),
           open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
         }));
-        for (let i = 0; i < rows.length; i += 500) {
-          await supabase.from("candles").upsert(rows.slice(i, i + 500), { onConflict: "symbol,interval,ts" });
-        }
+        // Saving to the database must not hold up the answer: the caller already has the candles.
+        void (async () => { for (let i = 0; i < rows.length; i += 500) await supabase.from("candles").upsert(rows.slice(i, i + 500), { onConflict: "symbol,interval,ts" }); })().catch(() => undefined);
       }
       lastRefresh.set(key, Math.floor(Date.now() / 1000));
       return fresh;

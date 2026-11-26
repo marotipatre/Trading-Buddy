@@ -81,7 +81,7 @@ describe("getUniverse", () => {
     expect(u.stocks).toHaveLength(751);
     expect(u.stocks.filter((s) => s.cap === "micro")).toHaveLength(250);
     expect(u.stocks.filter((s) => s.cap === "large")).toHaveLength(100);
-    expect(f).toHaveBeenCalledTimes(4);
+    expect(f).toHaveBeenCalledTimes(7);
   });
   it("still works when the microcap list cannot be fetched", async () => {
     const mk = (n: number, ind: string) => csv(Array.from({ length: n }, (_, i) => `Co ${ind}${i} Ltd,${ind},${ind.slice(0, 2).toUpperCase()}${i}X,EQ,INE${i}`));
@@ -100,5 +100,17 @@ describe("whole listed market", () => {
       { symbol: "CCC.NS", name: "Ccc Ltd", series: "SM" }, { symbol: "NV20BEES.NS", name: "Nippon ETF", series: "EQ" }, { symbol: "GOLD360.NS", name: "360oneamc - Gold360", series: "EQ" },
     ]);
     expect(out.map((s) => [s.symbol, s.cap, s.sector])).toEqual([["AAA.NS", "large", "IT"], ["BBB.NS", "other", "Unclassified"], ["CCC.NS", "sme", "Unclassified"]]);
+  });
+});
+
+describe("scan scopes", () => {
+  it("tags stocks with their index lists and knows which scans cover which", async () => {
+    const { applyLists, inScope, scopeCovers } = await import("./universe-lists");
+    const stocks = [{ symbol: "A.NS", name: "A", sector: "IT", cap: "large" as const, isin: "" }, { symbol: "B.NS", name: "B", sector: "IT", cap: "mid" as const, isin: "" }];
+    const c = (t: string) => ({ name: t, industry: "", ticker: t, series: "EQ", isin: "" });
+    const out = applyLists(stocks, { n50: [c("A")], n500: [c("A"), c("B")], m30: [c("B")] });
+    expect(out[0].lists).toEqual(["n50", "n500"]); expect(out[1].lists).toEqual(["n500", "m30"]);
+    expect(inScope(out[0], "n50")).toBe(true); expect(inScope(out[1], "n50")).toBe(false); expect(inScope(out[1], "all")).toBe(true);
+    expect(scopeCovers("n500", "n50")).toBe(true); expect(scopeCovers("n50", "n500")).toBe(false); expect(scopeCovers("all", "m30")).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUniverse } from "@/components/use-universe";
-import { fetchCandles, pool } from "@/lib/analysis/candle-cache";
+import { fetchCandles, pool, prefetchDaily } from "@/lib/analysis/candle-cache";
 import { scoreFundamentals, type FaScore, type Fundamentals } from "@/lib/multibagger/fa";
 import { parseMarket, type MarketRow } from "@/lib/multibagger/market";
 import { stage1, type Bucket } from "@/lib/multibagger/screen";
@@ -55,6 +55,7 @@ export function useMultibagger() {
       const base: Candidate[] = [];
       let done = 0;
       setProgress({ phase: "charts", done: 0, total: shortlist.length, screened: rows.length });
+      await prefetchDaily(shortlist.map((s) => `${s.row.symbol}.NS`), 520);
       await pool(shortlist, 10, async (s) => {
         try {
           const candles = await fetchCandles(`${s.row.symbol}.NS`, 520);
