@@ -72,3 +72,24 @@ export const getIndexHistory = (indexName: string, months: number, f?: typeof fe
 export const getIndexSnapshot = (f?: typeof fetch) => callTool<IndexSnapshot>("eod", "get_index_snapshot", {}, f);
 export const getMarketBreadth = (f?: typeof fetch) => callTool<Breadth>("eod", "get_market_breadth", {}, f);
 export const getMarketMood = (f?: typeof fetch) => callTool<Record<string, unknown>>("eod", "get_market_mood", {}, f);
+
+type Eq = { updatedAt?: string; stocks: Record<string, unknown>[] };
+const PREFIXES = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"];
+
+/**
+ * Every listed equity. The tool returns at most 500 stocks per call, so the list is fetched by symbol prefix (A, B, C...)
+ * and any prefix that hits the cap is split into two-letter prefixes.
+ */
+export async function getAllEquities(f?: typeof fetch): Promise<Eq> {
+  const seen = new Map<string, Record<string, unknown>>();
+  let updatedAt: string | undefined;
+  const grab = async (prefix: string): Promise<void> => {
+    const j = await callTool<Eq>("live", "cm_get_equity_stocks", { limit: 500, symbolFilter: prefix }, f);
+    updatedAt ??= j.updatedAt;
+    for (const s of j.stocks) seen.set(String(s.symbol), s);
+    if (j.stocks.length >= 500 && prefix.length < 2) await Promise.all(PREFIXES.map((c) => grab(prefix + c)));
+  };
+  const queue = [...PREFIXES];
+  await Promise.all(Array.from({ length: 4 }, async () => { for (let p = queue.shift(); p !== undefined; p = queue.shift()) await grab(p); }));
+  return { updatedAt, stocks: [...seen.values()] };
+}
