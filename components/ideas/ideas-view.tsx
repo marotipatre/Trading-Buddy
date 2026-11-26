@@ -17,15 +17,16 @@ import { rankSectors, type SectorRow } from "@/lib/analysis/sectors";
 import { assessMethod, METHODS, type Method } from "@/lib/analysis/methods";
 import { RealityCheck } from "./reality-check";
 import { interleaveMixed } from "@/lib/analysis/mixed";
+import { horizonStats, type HorizonStats } from "@/lib/analysis/horizon";
 import { buildMixedPortfolio } from "@/lib/analysis/portfolio-mix";
-import { FRAME_LABEL, HISTORY_DAYS, positionSize, withOverlay, withRelativeStrength, type Frame, type StockView } from "@/lib/analysis/stock-view";
+import { FRAME_LABEL, HISTORY_DAYS, applyTarget, positionSize, withOverlay, withRelativeStrength, type Frame, type StockView } from "@/lib/analysis/stock-view";
 import type { AnalystCall, Consensus, NewsItem } from "@/lib/data/news";
 import { fmtInr } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
 import { CAP_LABEL, type Cap, type UniverseStock } from "@/lib/universe-lists";
 import { cn } from "@/lib/utils";
 
-interface Idea { stock: UniverseStock; view: StockView; news?: { items: NewsItem[]; calls: AnalystCall[]; summary: Consensus } }
+interface Idea { stock: UniverseStock; view: StockView; hz?: HorizonStats; news?: { items: NewsItem[]; calls: AnalystCall[]; summary: Consensus } }
 const ARROW = { up: "▲", down: "▼", flat: "▬" } as const;
 const TONE = { up: "text-up", down: "text-down", flat: "text-muted-foreground" } as const;
 const BADGE = { buy: "bg-up/15 text-up", watch: "bg-warn/15 text-warn", avoid: "bg-down/15 text-down" } as const;
@@ -40,6 +41,10 @@ async function candlesOf(symbol: string, days: number): Promise<Candle[]> {
   return j.candles as Candle[];
 }
 
+/** Best first: buy setups before watch before avoid, then by historical expectancy over the chosen period, then by score. */
+const RANK = { buy: 0, watch: 1, avoid: 2 } as const;
+const byEdge = (a: Idea, b: Idea) => RANK[a.view.verdict] - RANK[b.view.verdict] || (b.hz?.expectancyPct ?? -99) - (a.hz?.expectancyPct ?? -99) || b.view.score - a.view.score;
+
 export function IdeasView() {
   const { stocks, loading: uniLoading } = useUniverse();
   const [method, setMethod] = useState<Method>("trend");
@@ -48,7 +53,11 @@ export function IdeasView() {
   const [ranFrame, setRanFrame] = useState<Frame>("daily");
   const [cap, setCap] = useState<Cap | "mixed">("large");
   const [count, setCount] = useState("60");
-  const [capital, setCapital] = useState(300000);
+  const [showAll, setShowAll] = useState(false);
+  const [capital, setCapital] = useState(100000);
+  const [days, setDays] = useState(15);
+  const [target, setTarget] = useState(6);
+  const [ranCfg, setRanCfg] = useState({ days: 15, target: 6 });
   const [riskPct, setRiskPct] = useState(1);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; note: string } | null>(null);
@@ -68,12 +77,13 @@ export function IdeasView() {
   }, [stocks, cap]);
 
   async function scan() {
-    const picks = pool.slice(0, Number(count));
+    const picks = Number(count) === 0 ? pool : pool.slice(0, Number(count));
     if (!picks.length) { toast.error("No stocks loaded yet"); return; }
     stopRef.current = false;
     setRunning(true);
     setIdeas([]); setSectors([]); setOpen(null);
     setRanFrame(frame);
+    setRanCfg({ days, target });
     setRanMethod(method);
     const found: Idea[] = [];
     let done = 0, failed = 0;
@@ -90,8 +100,13 @@ export function IdeasView() {
         for (let s = queue.shift(); s && !stopRef.current; s = queue.shift()) {
           setProgress({ done, total: picks.length, note: `Reading ${displaySymbol(s.symbol)}` });
           try {
-            const view = assessMethod(s.symbol, await candlesOf(s.symbol, method === "trend" ? HISTORY_DAYS[frame] : 800), method, frame);
-            if (view) found.push({ stock: s, view });
+            const candles = await candlesOf(s.symbol, method === "trend" ? HISTORY_DAYS[frame] : 800);
+            const base = assessMethod(s.symbol, candles, method, frame);
+            if (base) {
+              const view = applyTarget(base, target);
+              const hz = view.plan ? horizonStats(candles, days, target, view.plan.riskPct) ?? undefined : undefined;
+              found.push({ stock: s, view, hz });
+            }
             else failed++;
           } catch { failed++; }
           done++;
@@ -100,8 +115,8 @@ export function IdeasView() {
       await Promise.all([worker(), worker(), worker(), worker()]);
       if (!found.length) throw new Error("No stock could be analysed. Check your connection and try again.");
       const ranked = method === "trend" ? withRelativeStrength(found.map((f) => f.view)) : found.map((f) => f.view);
-      found.forEach((f, i) => { f.view = ranked[i]; });
-      found.sort((a, b) => b.view.technical - a.view.technical);
+      found.forEach((f, i) => { f.view = applyTarget(ranked[i], target); });
+      found.sort(byEdge);
       setIdeas([...found]);
       setSectors(rankSectors(found.map((f) => ({ sector: f.stock.sector, view: f.view })), benchM1));
       setAsOf(Date.now());
@@ -117,8 +132,8 @@ export function IdeasView() {
           const j = await res.json();
           if (res.ok) {
             f.news = { items: j.news, calls: j.calls, summary: j.summary };
-            f.view = withOverlay(f.view, newsMood(j.news), j.summary);
-            setIdeas([...found].sort((a, b) => b.view.score - a.view.score));
+            f.view = applyTarget(withOverlay(f.view, newsMood(j.news), j.summary), target);
+            setIdeas([...found].sort(byEdge));
           }
         } catch { /* news is optional */ }
         n++;
@@ -132,26 +147,31 @@ export function IdeasView() {
     }
   }
 
-  const buys = ideas.filter((i) => i.view.verdict === "buy" && i.view.plan);
   const focusSectors = new Set(sectors.filter((s) => s.stance === "focus").map((s) => s.sector));
-  const mix = useMemo(() => buildMixedPortfolio(ideas.map((i) => ({ symbol: i.stock.symbol, name: i.stock.name, sector: i.stock.sector, view: i.view })), capital, riskPct), [ideas, capital, riskPct]);
-  const plan = useMemo(() => {
-    const picks = buys.slice(0, 6).map((i) => ({ i, size: positionSize(capital, riskPct, 25, i.view.plan!) })).filter((p) => p.size.qty > 0);
-    // Keep total invested within the capital.
-    const kept: typeof picks = [];
-    let used = 0;
-    for (const p of picks) { if (used + p.size.value <= capital) { kept.push(p); used += p.size.value; } }
-    const win = kept.reduce((s, p) => s + p.size.qty * (p.i.view.plan!.target1 - p.i.view.plan!.entry), 0);
-    const loss = kept.reduce((s, p) => s + p.size.risk, 0);
-    return { kept, used, win, loss };
-  }, [buys, capital, riskPct]);
+  // Only setups that have paid off on average over this holding period in their own history go into the portfolio.
+  const mix = useMemo(() => buildMixedPortfolio(
+    ideas.filter((i) => (i.hz?.expectancyPct ?? 0) > 0).map((i) => ({ symbol: i.stock.symbol, name: i.stock.name, sector: i.stock.sector, view: i.view, edge: i.hz?.expectancyPct })),
+    capital, riskPct), [ideas, capital, riskPct]);
+  const expectation = useMemo(() => {
+    const rows = mix.picks.flatMap((p) => { const hz = ideas.find((i) => i.stock.symbol === p.symbol)?.hz; return hz ? [{ p, hz }] : []; });
+    const invested = rows.reduce((s, r) => s + r.p.value, 0);
+    if (!rows.length || invested <= 0) return null;
+    const expected = rows.reduce((s, r) => s + (r.p.value * r.hz.expectancyPct) / 100, 0);
+    const hitRate = rows.reduce((s, r) => s + r.hz.hitRate * r.p.value, 0) / invested;
+    const stopRate = rows.reduce((s, r) => s + r.hz.stopRate * r.p.value, 0) / invested;
+    return { invested, expected, expectedPct: (expected / capital) * 100, hitRate, stopRate, trades: rows.length };
+  }, [mix, ideas, capital]);
+  const focus = useMemo(() => sectors.filter((s) => s.stance === "focus").map((s) => ({
+    sector: s.sector, row: s,
+    picks: ideas.filter((i) => i.stock.sector === s.sector && i.view.verdict !== "avoid" && (i.hz?.expectancyPct ?? 0) > 0).slice(0, 4),
+  })).filter((f) => f.picks.length > 0), [sectors, ideas]);
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Scan the market</CardTitle>
-          <CardDescription>Reads daily and weekly price trends for each stock, scores them, then checks news and broker calls on the best. Scores come from fixed rules you can see below; they are not predictions.</CardDescription>
+          <CardDescription>Choose how much to invest, for how many days, and the return you want. It scans stocks, scores them, then shows how often each stock actually made that move within that time in its own past. Choose &ldquo;All&rdquo; to scan every listed large, mid and small cap (a few minutes).</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="w-60 space-y-1"><Label className="text-xs text-muted-foreground">Method</Label>
@@ -160,11 +180,16 @@ export function IdeasView() {
             <SimpleSelect className="w-full" value={method === "trend" ? frame : "daily"} onChange={setFrame} options={[{ value: "daily", label: "Daily (1–3 weeks)" }, { value: "weekly", label: "Weekly (3–8 weeks)" }, { value: "monthly", label: "Monthly (2–6 months)" }]} /></div>
           <div className="w-52 space-y-1"><Label className="text-xs text-muted-foreground">Stock size</Label>
             <SimpleSelect className="w-full" value={cap} onChange={setCap} options={[{ value: "mixed" as const, label: "Mixed (large + mid + small)" }, ...(["large", "mid", "small"] as Cap[]).map((c) => ({ value: c, label: CAP_LABEL[c] }))]} /></div>
-          <div className="w-32 space-y-1"><Label className="text-xs text-muted-foreground">How many</Label>
-            <SimpleSelect className="w-full" value={count} onChange={setCount} options={[30, 60, 100].map((n) => ({ value: String(n), label: `${n} stocks` }))} /></div>
-          <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Capital (₹)</Label><NumberField min={10000} step={50000} value={capital} onChange={setCapital} /></div>
+          <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">How many</Label>
+            <SimpleSelect className="w-full" value={count} onChange={setCount} options={[...[30, 60, 100, 250].map((n) => ({ value: String(n), label: `${n} stocks` })), { value: "0", label: `All ${pool.length || ""} stocks` }]} /></div>
+          <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Amount to invest (₹)</Label><NumberField min={1000} step={25000} value={capital} onChange={setCapital} /></div>
+          <div className="w-44 space-y-1"><Label className="text-xs text-muted-foreground">For how many days</Label>
+            <div className="flex items-center gap-1.5">
+              <NumberField min={2} max={365} value={days} onChange={(d) => setDays(Math.max(2, Math.round(d)))} />
+              {[7, 15, 30].map((d) => <button key={d} type="button" onClick={() => { setDays(d); setTarget(d <= 7 ? 3 : d <= 15 ? 6 : 10); }} aria-pressed={days === d} className={cn("rounded-md border px-2 py-1 text-xs", days === d ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground")}>{d}d</button>)}
+            </div></div>
+          <div className="w-36 space-y-1"><Label className="text-xs text-muted-foreground">Return you want (%)</Label><NumberField min={0.5} max={200} step={0.5} value={target} onChange={setTarget} /></div>
           <div className="w-32 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (%)</Label><NumberField min={0.25} max={5} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
-          <p className="w-full text-xs text-muted-foreground"><b>{METHODS.find((m) => m.id === method)!.label}:</b> {METHODS.find((m) => m.id === method)!.blurb} <i>({METHODS.find((m) => m.id === method)!.source})</i>{method !== "trend" && " Uses daily candles."}</p>
           <Button size="lg" onClick={scan} disabled={running || uniLoading || !pool.length}>{running ? <Loader2 className="animate-spin" /> : <Play />}{running ? "Scanning…" : "Scan now"}</Button>
           {running && <Button size="lg" variant="outline" onClick={() => { stopRef.current = true; }}>Stop</Button>}
           {progress && (
@@ -173,6 +198,7 @@ export function IdeasView() {
               <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>
             </div>
           )}
+          <p className="w-full text-xs text-muted-foreground"><b>{METHODS.find((m) => m.id === method)!.label}:</b> {METHODS.find((m) => m.id === method)!.blurb} <i>({METHODS.find((m) => m.id === method)!.source})</i>{method !== "trend" && " Uses daily candles."}</p>
         </CardContent>
       </Card>
 
@@ -239,21 +265,47 @@ export function IdeasView() {
         </Card>
       )}
 
-      {buys.length > 0 && (
+      {expectation && (
         <Card>
           <CardHeader>
-            <CardTitle>Plan for {fmtInr(capital)}</CardTitle>
-            <CardDescription>Top buy setups sized so each one risks {riskPct}% of capital if its stop is hit. This is the arithmetic of the plan, not a forecast.</CardDescription>
+            <CardTitle>What to expect: {fmtInr(capital)} for {ranCfg.days} days, aiming for {ranCfg.target}%</CardTitle>
+            <CardDescription>Worked out from how the picked stocks behaved over {ranCfg.days}-day windows in their own past 3 years: reached the target, hit the stop, or ended in between. History, not a forecast.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {plan.kept.length === 0 ? <p className="text-muted-foreground">No setup fits the capital at this risk setting.</p> : (
-              <>
-                <p><b>{plan.kept.length} trades</b>, {fmtInr(plan.used)} invested ({((plan.used / capital) * 100).toFixed(0)}% of capital).
-                  If every first target is hit: <b className="text-up">{fmtInr(plan.win, { sign: true })} ({((plan.win / capital) * 100).toFixed(1)}%)</b>.
-                  If every stop is hit: <b className="text-down">{fmtInr(-plan.loss, { sign: true })} ({((plan.loss / capital) * 100).toFixed(1)}%)</b>.</p>
-                <p className="text-xs text-muted-foreground">Swing trades of 1–3 weeks free up money to reuse, so about 2–3 rounds a month are possible. A steady 10% a month is not something any rule can promise: most months some trades hit their stop. Paper trade these first and check the backtest on the Backtest page.</p>
-              </>
-            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div><div className="text-xs text-muted-foreground">Typical result</div><div className={cn("tabular font-mono text-lg font-semibold", expectation.expected >= 0 ? "text-up" : "text-down")}>{fmtInr(expectation.expected, { sign: true })}</div><div className="text-xs text-muted-foreground">{expectation.expectedPct >= 0 ? "+" : ""}{expectation.expectedPct.toFixed(1)}% of your amount</div></div>
+              <div><div className="text-xs text-muted-foreground">Reached +{ranCfg.target}%</div><div className="tabular font-mono text-lg font-semibold">{(expectation.hitRate * 100).toFixed(0)}%</div><div className="text-xs text-muted-foreground">of past windows</div></div>
+              <div><div className="text-xs text-muted-foreground">Hit the stop first</div><div className="tabular font-mono text-lg font-semibold text-down">{(expectation.stopRate * 100).toFixed(0)}%</div><div className="text-xs text-muted-foreground">of past windows</div></div>
+              <div><div className="text-xs text-muted-foreground">Best / worst case</div><div className="tabular font-mono text-sm"><span className="text-up">{fmtInr(mix.rewardIfTarget1, { sign: true })}</span> / <span className="text-down">{fmtInr(-mix.riskIfAllStopped, { sign: true })}</span></div><div className="text-xs text-muted-foreground">all targets / all stops</div></div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {expectation.hitRate < 0.4 ? `A ${ranCfg.target}% move in ${ranCfg.days} days is a stretch: the picks reached it in under ${Math.ceil(expectation.hitRate * 10) * 10}% of past windows. A lower target or longer period gives better odds. ` : ""}
+              Past windows are overlapping and one market phase (mostly a rising market) so they flatter results; real outcomes vary a lot. Each stock below shows its own numbers.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {focus.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Focus: stocks in the bullish sectors</CardTitle>
+            <CardDescription>For each sector marked Focus, the best setups whose past {ranCfg.days}-day windows paid off on average.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {focus.map((f) => (
+              <div key={f.sector} className="space-y-1.5 rounded-lg border p-3">
+                <div className="flex items-baseline justify-between"><b>{f.sector}</b><span className="text-xs text-muted-foreground">{f.row.breadth.toFixed(0)}% in uptrend · {pct(f.row.m1)} in a month</span></div>
+                {f.picks.map((i) => (
+                  <button key={i.stock.symbol} type="button" onClick={() => { setOpen(i.stock.symbol); setShowAll(true); document.getElementById(`idea-${i.stock.symbol}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }}
+                    className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent">
+                    <span className="font-mono font-semibold">{displaySymbol(i.stock.symbol)}</span>
+                    <span className="text-xs text-muted-foreground">{i.stock.cap} cap · {VERDICT[i.view.verdict]}</span>
+                    <span className="tabular font-mono text-xs">{((i.hz?.hitRate ?? 0) * 100).toFixed(0)}% reached target</span>
+                  </button>
+                ))}
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -262,12 +314,12 @@ export function IdeasView() {
         <div className="space-y-2">
           <h2 className="text-lg font-semibold">Stocks</h2>
           {asOf && <p className="text-xs text-muted-foreground">Scanned at {new Date(asOf).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} on the latest daily candles. Click a stock for the reasons, news and broker calls.</p>}
-          {ideas.slice(0, 40).map((i) => {
+          {ideas.slice(0, showAll ? 300 : 40).map((i) => {
             const v = i.view, p = v.plan;
             const size = p ? positionSize(capital, riskPct, 25, p) : null;
             const isOpen = open === i.stock.symbol;
             return (
-              <Card key={i.stock.symbol} size="sm">
+              <Card key={i.stock.symbol} size="sm" id={`idea-${i.stock.symbol}`}>
                 <CardContent className="space-y-2">
                   <button type="button" className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-left" onClick={() => setOpen(isOpen ? null : i.stock.symbol)} aria-expanded={isOpen}>
                     <span className="min-w-28">
@@ -292,6 +344,12 @@ export function IdeasView() {
                       <span><span className="text-muted-foreground">Size at {riskPct}% risk</span><b className="block font-mono text-sm">{size?.qty ?? 0} sh · {fmtInr(size?.value ?? 0)}</b></span>
                     </div>
                   )}
+                  {i.hz && (
+                    <p className="text-xs text-muted-foreground">
+                      In its last 3 years, {ranCfg.days}-day windows reached <b className="text-foreground">+{ranCfg.target}%</b> {(i.hz.hitRate * 100).toFixed(0)}% of the time and hit the stop first {(i.hz.stopRate * 100).toFixed(0)}%. Average result per trade <b className={i.hz.expectancyPct >= 0 ? "text-up" : "text-down"}>{pct(i.hz.expectancyPct)}</b>
+                      {Number.isFinite(i.hz.hitRateUptrend) && <> · {(i.hz.hitRateUptrend * 100).toFixed(0)}% when it started in an uptrend</>} · {i.hz.samples} windows.
+                    </p>
+                  )}
                   {isOpen && (
                     <div className="space-y-3 pt-1">
                       <ul className="space-y-1 text-sm">
@@ -308,6 +366,7 @@ export function IdeasView() {
               </Card>
             );
           })}
+          {ideas.length > 40 && !showAll && <Button variant="outline" onClick={() => setShowAll(true)}>Show all {ideas.length} stocks</Button>}
         </div>
       )}
       <p className="text-xs text-muted-foreground">For learning and paper trading. These are rule-based screens from price trends, headlines and published broker calls, not investment advice. Past patterns do not guarantee future results.</p>
