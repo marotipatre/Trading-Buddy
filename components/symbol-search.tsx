@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import type { SymbolHit } from "@/lib/data/types";
 
 export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RELIANCE)" }: {
@@ -28,18 +30,14 @@ export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RE
 
   return (
     <div className="relative w-72">
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-md border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-      />
+      <Search className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
+      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} className="pl-8" />
       {q.trim().length >= 2 && hits.length > 0 && (
-        <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-line bg-panel shadow-lg">
+        <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border bg-popover p-1 shadow-xl">
           {hits.map((h) => (
             <li key={h.symbol}>
               <button
-                className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-accent/20"
+                className="flex w-full flex-col rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"
                 onClick={() => {
                   onPick(h);
                   setQ("");
@@ -47,7 +45,7 @@ export function SymbolSearch({ onPick, placeholder = "Search NSE symbol (e.g. RE
                 }}
               >
                 <span className="font-medium">{h.symbol}</span>
-                <span className="truncate text-xs text-muted">{h.name}</span>
+                <span className="truncate text-xs text-muted-foreground">{h.name}</span>
               </button>
             </li>
           ))}
