@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { rememberName } from "@/lib/symbols";
-import type { UniverseStock } from "@/lib/universe-data";
+import type { UniverseStock } from "@/lib/universe-lists";
 
 interface Loaded { stocks: UniverseStock[]; sectors: { name: string; count: number }[] }
 const KEY = "trading-buddy:universe:v1";

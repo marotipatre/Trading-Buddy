@@ -12,7 +12,7 @@ import { StockRow } from "@/components/stock-row";
 import { useBatchedQuotes } from "@/components/use-batched-quotes";
 import { useUniverse } from "@/components/use-universe";
 import { useWatchlist } from "@/components/use-watchlist";
-import { CAP_LABEL, filterUniverse, type Cap } from "@/lib/universe-data";
+import { CAP_LABEL, filterUniverse, type Cap } from "@/lib/universe-lists";
 import { cn } from "@/lib/utils";
 
 const CAPS = ["all", "large", "mid", "small"] as const;
