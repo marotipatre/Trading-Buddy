@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight, StickyNote } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, StickyNote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { normalizeTags, PRESET_TAGS } from "@/lib/paper/journal";
 import type { ClosedTrade } from "@/lib/paper/types";
 import { cn } from "@/lib/utils";
 import { usePaper } from "./paper-provider";
+import { downloadText, tradesToCsv } from "@/lib/export-csv";
 import { SymbolLabel } from "@/components/symbol-label";
 
 function Editor({ trade, onSave }: { trade: ClosedTrade; onSave: (patch: { note: string; tags: string[] }) => void }) {
@@ -46,7 +47,7 @@ export function JournalTable() {
   const rows = [...state.trades].reverse();
   return (
     <Card className="py-0">
-      <CardHeader className="pt-4"><CardTitle>Trade journal ({rows.length})</CardTitle></CardHeader>
+      <CardHeader className="flex-row items-center justify-between pt-4"><CardTitle>Trade journal ({rows.length})</CardTitle>{rows.length > 0 && <Button size="sm" variant="outline" onClick={() => downloadText("trading-buddy-trades.csv", tradesToCsv(state.trades))}><Download /> Download CSV</Button>}</CardHeader>
       {rows.length === 0 ? (
         <p className="px-4 pb-4 text-sm text-muted-foreground">Closed trades appear here. Click a row to add notes and tags; the insights panel learns from them.</p>
       ) : (

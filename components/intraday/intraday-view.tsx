@@ -24,6 +24,7 @@ import { evaluatePick, summarize, type PickResult } from "@/lib/intraday/scoreca
 import { fmtInr, fmtPct } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
+import { downloadText, tradesToCsv } from "@/lib/export-csv";
 import { AccountEquityChart } from "@/components/paper/account-equity-chart";
 import { capitalOf } from "@/lib/paper/funds";
 import { IntradayProvider, useIntraday } from "./intraday-provider";
@@ -310,6 +311,7 @@ function Results() {
           </div>
         </div>
 
+        <Button size="sm" variant="outline" className="mr-2" onClick={() => downloadText("intraday-trades.csv", tradesToCsv(acc.state.trades))}>Download trades (CSV)</Button>
         <ExplainButton kind="intraday" label="Explain my results in plain words" data={{ trades: total, winnersPct: total ? Math.round((wins / total) * 100) : 0, days: days.slice(0, 10).map((d) => ({ date: d.date, trades: d.trades, wins: d.wins, pnlInr: Math.round(d.pnl) })), ruleBreaksLast30Days: breaks, cleanTradesPct: Math.round(clean * 100) }} />
         {fromPicks.length > 0 && (
           <div className="space-y-2 rounded-lg border p-3">
