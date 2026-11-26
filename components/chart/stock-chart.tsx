@@ -17,7 +17,7 @@ import { loadDrawings, saveDrawings, type Drawing } from "@/lib/drawings";
 import type { Tool } from "./drawing-layer";
 import { PriceChart, type ChartLine, type ChartMarker, type Hover, type ScaleMode } from "./price-chart";
 import { useChartData } from "./use-chart-data";
-import { computeIndicators, loadSpecs, PRESETS, saveSpecs, specId, specLabel, INDICATOR_LABEL, type IndicatorKind, type IndicatorSpec } from "@/lib/chart-indicators";
+import { computeIndicators, loadSpecs, PRESETS, saveSpecs, specId, specLabel, INDICATOR_HELP, INDICATOR_LABEL, type IndicatorKind, type IndicatorSpec } from "@/lib/chart-indicators";
 
 const compact = (n: number) => (n >= 1e7 ? `${(n / 1e7).toFixed(2)}Cr` : n >= 1e5 ? `${(n / 1e5).toFixed(2)}L` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(Math.round(n)));
 
@@ -131,7 +131,7 @@ export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: n
                 <div className="flex flex-wrap gap-1.5">
                   {PRESETS.map((sp) => {
                     const on = specs.some((x) => x.id === sp.id);
-                    return <button key={sp.id} type="button" aria-pressed={on} onClick={() => toggleSpec(sp)}
+                    return <button key={sp.id} type="button" aria-pressed={on} title={INDICATOR_HELP[sp.kind]} onClick={() => toggleSpec(sp)}
                       className={cn("rounded-md border px-2 py-1 text-xs", on ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:text-foreground")}>{specLabel(sp)}</button>;
                   })}
                 </div>
@@ -170,7 +170,7 @@ export function StockChart({ symbol, plan }: { symbol: string; plan?: { entry: n
               const lines = indicatorLines.filter((l) => l.label.startsWith(specLabel(sp)) && !/ (upper|lower)$/.test(l.label));
               const l = lines[0];
               return (
-                <span key={sp.id} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono">
+                <span key={sp.id} title={INDICATOR_HELP[sp.kind]} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono">
                   <span className="size-2 rounded-full" style={{ background: l?.color }} />{specLabel(sp)}
                   <b className="text-foreground">{l?.points.at(-1)?.value.toFixed(2) ?? "—"}</b>
                   <button type="button" aria-label={`Remove ${specLabel(sp)}`} onClick={() => toggleSpec(sp)} className="text-muted-foreground hover:text-foreground"><X className="size-3" /></button>

@@ -7,6 +7,14 @@ export interface Pt { time: number; value: number; color?: string }
 export interface IndicatorLine { label: string; color: string; points: Pt[]; pane: number; levels?: number[]; dashed?: boolean }
 
 export const INDICATOR_LABEL: Record<IndicatorKind, string> = { ema: "EMA", sma: "SMA", bb: "Bollinger Bands", supertrend: "Supertrend", rsi: "RSI" };
+/** One-line explanations shown on hover, for people new to indicators. */
+export const INDICATOR_HELP: Record<IndicatorKind, string> = {
+  ema: "Exponential moving average: the average price over the last N bars, weighting recent bars more. Price above a rising EMA suggests an uptrend.",
+  sma: "Simple moving average: the plain average of the last N closes. The 50 and 200 SMA are widely watched trend lines.",
+  bb: "Bollinger Bands: an average with bands two standard deviations away. Price touching a band shows a stretched move, not a signal by itself.",
+  supertrend: "Supertrend: a volatility-based trend line. Green below price means uptrend, red above price means downtrend; it flips when price closes through it.",
+  rsi: "Relative Strength Index (0 to 100): above 70 is often called overbought, below 30 oversold. In strong trends it can stay extreme for a long time.",
+};
 export const PRESETS: IndicatorSpec[] = [
   { id: "ema9", kind: "ema", period: 9 }, { id: "ema20", kind: "ema", period: 20 }, { id: "ema50", kind: "ema", period: 50 },
   { id: "ema100", kind: "ema", period: 100 }, { id: "ema200", kind: "ema", period: 200 },
