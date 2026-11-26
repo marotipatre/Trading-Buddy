@@ -4,6 +4,8 @@ import { sma } from "@/lib/engine/indicators";
 export type Regime = "bull" | "bear" | "sideways";
 export interface MarketRegime {
   regime: Regime;
+  /** Short name for display: Uptrend, Downtrend, Recovering, Weakening or Choppy. */
+  label: string;
   /** Distance of the close from its 200-day average, percent. */
   vs200: number;
   /** 50-day average above (+) or below (-) the 200-day, percent. */
@@ -27,7 +29,9 @@ export function marketRegime(index: Candle[], band = 3): MarketRegime | null {
   if (!Number.isFinite(s50) || !Number.isFinite(s200)) return null;
   const vs200 = (closes[n] / s200 - 1) * 100;
   const trend = (s50 / s200 - 1) * 100;
-  if (vs200 > band && s50 > s200) return { regime: "bull", vs200, trend, sizeFactor: 1, advice: "Healthy market: normal position size, favour breakouts and trend continuation." };
-  if (vs200 < -band && s50 < s200) return { regime: "bear", vs200, trend, sizeFactor: 0.4, advice: "Market in a downtrend: cut position size sharply, take only the best setups, keep more cash." };
-  return { regime: "sideways", vs200, trend, sizeFactor: 0.6, advice: "Choppy or transitioning market: halve size, prefer pullbacks and quick profits, expect false breakouts." };
+  if (vs200 > band && s50 > s200) return { regime: "bull", label: "Uptrend", vs200, trend, sizeFactor: 1, advice: "Healthy market: normal position size, favour breakouts and trend continuation." };
+  if (vs200 < -band && s50 < s200) return { regime: "bear", label: "Downtrend", vs200, trend, sizeFactor: 0.4, advice: "Market in a downtrend: cut position size sharply, take only the best setups, keep more cash." };
+  if (vs200 > band) return { regime: "sideways", label: "Recovering", vs200, trend, sizeFactor: 0.7, advice: "Early recovery: the index is back above its 200-day average but the 50-day has not crossed yet. Build positions gradually (about 70% size) and favour clear leaders." };
+  if (vs200 < -band) return { regime: "sideways", label: "Weakening", vs200, trend, sizeFactor: 0.5, advice: "Weakening: the index is below its 200-day average but the trend is not confirmed down. Trade at about half size and keep stops tight." };
+  return { regime: "sideways", label: "Choppy", vs200, trend, sizeFactor: 0.6, advice: "Choppy market: halve size, prefer pullbacks and quick profits, expect false breakouts." };
 }

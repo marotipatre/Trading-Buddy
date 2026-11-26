@@ -172,7 +172,7 @@ function Picks({ lock }: { lock: string | null }) {
         </div>
         {regime && (
           <p className={cn("rounded-lg border p-2.5 text-xs", regime.regime === "bull" ? "border-up/40 bg-up/5" : regime.regime === "bear" ? "border-down/40 bg-down/5" : "border-warn/40 bg-warn/5")}>
-            <b>Market: {regime.regime === "bull" ? "uptrend" : regime.regime === "bear" ? "downtrend" : "choppy"}.</b> {regime.advice}{regime.sizeFactor < 1 && <> Sizes below use {Math.round(regime.sizeFactor * 100)}% of your normal risk.</>}
+            <b>Market: {regime.label.toLowerCase()}.</b> {regime.advice}{regime.sizeFactor < 1 && <> Sizes below use {Math.round(regime.sizeFactor * 100)}% of your normal risk.</>}
           </p>
         )}
         {batch && (

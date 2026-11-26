@@ -250,7 +250,7 @@ export function IdeasView() {
       <AiSentimentToggle className="block" />
       {regime && (
         <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border p-3 text-sm", regime.regime === "bull" ? "border-up/40 bg-up/5" : regime.regime === "bear" ? "border-down/40 bg-down/5" : "border-warn/40 bg-warn/5")}>
-          <b>Market: {regime.regime === "bull" ? "uptrend" : regime.regime === "bear" ? "downtrend" : "choppy"}</b>
+          <b>Market: {regime.label.toLowerCase()}</b>
           <span className="font-mono text-xs text-muted-foreground">Nifty {regime.vs200 >= 0 ? "+" : ""}{regime.vs200.toFixed(1)}% vs its 200-day average</span>
           <span className="text-muted-foreground">{regime.advice}</span>
           {regime.sizeFactor < 1 && <span className="font-medium">Position sizes below are scaled to {Math.round(regime.sizeFactor * 100)}%.</span>}

@@ -26,7 +26,7 @@ export function TodayCard() {
             <>
               <div className="flex items-center gap-2">
                 <span className={cn("size-2.5 rounded-full", r.regime === "bull" ? "bg-up" : r.regime === "bear" ? "bg-down" : "bg-warn")} />
-                <span className="text-lg font-semibold">{r.regime === "bull" ? "Uptrend" : r.regime === "bear" ? "Downtrend" : "Choppy"}</span>
+                <span className="text-lg font-semibold">{r.label}</span>
                 <span className="font-mono text-xs text-muted-foreground">Nifty {r.vs200 >= 0 ? "+" : ""}{r.vs200.toFixed(1)}% vs 200-day average</span>
               </div>
               <p className="text-sm text-muted-foreground">{r.advice}</p>

@@ -11,6 +11,7 @@ describe("marketRegime", () => {
     expect(marketRegime(mk((i) => 100 + i * 0.5))!.regime).toBe("bull");
     expect(marketRegime(mk((i) => 300 - i * 0.5))!.regime).toBe("bear");
     expect(marketRegime(mk(() => 100))!.regime).toBe("sideways");
+    expect(marketRegime(mk(() => 100))!.label).toBe("Choppy");
   });
   it("cuts suggested size in worse regimes and needs history", () => {
     expect(marketRegime(mk((i) => 100 + i * 0.5))!.sizeFactor).toBeGreaterThan(marketRegime(mk((i) => 300 - i * 0.5))!.sizeFactor);
