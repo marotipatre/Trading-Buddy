@@ -33,6 +33,7 @@ function open(state: PaperState, req: OrderRequest, direction: Direction, rawPri
 
   const existing = state.positions.find((p) => p.symbol === req.symbol && p.direction === direction && p.product === req.product);
   const trailDist = req.trailing && req.stop !== undefined ? Math.abs(fill - req.stop) : undefined;
+  const risk = req.stop !== undefined ? Math.abs(fill - req.stop) * req.qty : undefined;
   let positions: PaperPosition[];
   let nextId = state.nextId;
   if (existing) {
@@ -40,13 +41,13 @@ function open(state: PaperState, req: OrderRequest, direction: Direction, rawPri
     const avg = (existing.entryPrice * existing.qty + fill * req.qty) / qty;
     positions = state.positions.map((p) =>
       p === existing
-        ? { ...p, qty, entryPrice: avg, entryCharges: p.entryCharges + charges, stop: req.stop ?? p.stop, target: req.target ?? p.target, trailDist: trailDist ?? p.trailDist, best: sign === 1 ? Math.max(p.best, fill) : Math.min(p.best, fill) }
+        ? { ...p, qty, entryPrice: avg, entryCharges: p.entryCharges + charges, stop: req.stop ?? p.stop, target: req.target ?? p.target, trailDist: trailDist ?? p.trailDist, best: sign === 1 ? Math.max(p.best, fill) : Math.min(p.best, fill), worst: sign === 1 ? Math.min(p.worst ?? fill, fill) : Math.max(p.worst ?? fill, fill), initialRisk: risk !== undefined ? (p.initialRisk ?? 0) + risk : p.initialRisk }
         : p,
     );
   } else {
     positions = [...state.positions, {
       id: nextId++, symbol: req.symbol, direction, product: req.product, qty: req.qty, entryPrice: fill, entryTime: time,
-      entryCharges: charges, stop: req.stop, target: req.target, trailDist, best: fill, lastCheckedAt: time, note: req.note,
+      entryCharges: charges, stop: req.stop, target: req.target, trailDist, best: fill, worst: fill, initialRisk: risk, lastCheckedAt: time, note: req.note,
     }];
   }
   return { state: { ...state, cash: state.cash - cost, positions, nextId }, filled: true };
@@ -63,13 +64,19 @@ export function closePosition(state: PaperState, positionId: number, qty: number
   const gross = sgn(pos.direction) * (exit - pos.entryPrice) * q;
   const charges = entryShare + exitCharges;
   const net = gross - charges;
+  const s = sgn(pos.direction);
+  const adverse = Math.min(s * (pos.worst ?? pos.entryPrice) - s * pos.entryPrice, s * exit - s * pos.entryPrice);
+  const favourable = Math.max(s * pos.best - s * pos.entryPrice, s * exit - s * pos.entryPrice);
+  const riskShare = pos.initialRisk !== undefined ? pos.initialRisk * (q / pos.qty) : undefined;
   const trade: ClosedTrade = {
     id: state.nextId, symbol: pos.symbol, direction: pos.direction, product: pos.product, qty: q, entryPrice: pos.entryPrice, exitPrice: exit,
     entryTime: pos.entryTime, exitTime: time, grossPnl: gross, charges, netPnl: net, returnPct: (net / (q * pos.entryPrice)) * 100, reason, note: pos.note,
+    maePct: (Math.max(0, -adverse) / pos.entryPrice) * 100, mfePct: (Math.max(0, favourable) / pos.entryPrice) * 100,
+    initialRisk: riskShare, rMultiple: riskShare ? net / riskShare : undefined,
   };
   const remaining = pos.qty - q;
   const positions = remaining > 0
-    ? state.positions.map((p) => (p.id === pos.id ? { ...p, qty: remaining, entryCharges: p.entryCharges - entryShare } : p))
+    ? state.positions.map((p) => (p.id === pos.id ? { ...p, qty: remaining, entryCharges: p.entryCharges - entryShare, initialRisk: p.initialRisk !== undefined ? p.initialRisk - (riskShare ?? 0) : undefined } : p))
     : state.positions.filter((p) => p.id !== pos.id);
   return {
     state: { ...state, cash: state.cash + q * pos.entryPrice + gross - exitCharges, positions, trades: [...state.trades, trade], nextId: state.nextId + 1 },
@@ -136,11 +143,12 @@ export function evaluateBar(pos: PaperPosition, bar: Bar): { pos: PaperPosition;
   if (pos.target !== undefined && s * (favourable - pos.target) >= 0) {
     return { pos, exit: { price: s * (bar.open - pos.target) >= 0 ? bar.open : pos.target, reason: "target" } };
   }
-  let next = { ...pos, lastCheckedAt: Math.max(pos.lastCheckedAt, bar.time) };
+  const best = s === 1 ? Math.max(pos.best, bar.high) : Math.min(pos.best, bar.low);
+  const worst = s === 1 ? Math.min(pos.worst ?? pos.entryPrice, bar.low) : Math.max(pos.worst ?? pos.entryPrice, bar.high);
+  let next = { ...pos, best, worst, lastCheckedAt: Math.max(pos.lastCheckedAt, bar.time) };
   if (pos.trailDist !== undefined && pos.stop !== undefined) {
-    const best = s === 1 ? Math.max(pos.best, bar.high) : Math.min(pos.best, bar.low);
     const candidate = best - s * pos.trailDist;
-    next = { ...next, best, stop: s * (candidate - pos.stop) > 0 ? candidate : pos.stop };
+    next = { ...next, stop: s * (candidate - pos.stop) > 0 ? candidate : pos.stop };
   }
   return { pos: next };
 }

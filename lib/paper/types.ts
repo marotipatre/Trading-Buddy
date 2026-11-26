@@ -17,8 +17,12 @@ export interface PaperPosition {
   target?: number;
   /** Trailing distance in price terms; the stop follows the best price by this much. */
   trailDist?: number;
-  /** Best price seen in the trade's favour (for trailing). */
+  /** Best price seen in the trade's favour (for trailing and MFE). */
   best: number;
+  /** Worst price seen against the trade (for MAE). Older saved accounts may lack it. */
+  worst?: number;
+  /** INR risked at entry: qty x distance to the initial stop, summed over add-ons. Undefined if no stop was set. */
+  initialRisk?: number;
   /** Unix seconds of the last bar/tick evaluated, so catch-up never replays old bars. */
   lastCheckedAt: number;
   note?: string;
@@ -53,8 +57,15 @@ export interface ClosedTrade {
   netPnl: number;
   returnPct: number;
   reason: CloseReason;
+  /** Max adverse / favourable excursion over the life of the trade, % of entry price. */
   maePct?: number;
+  mfePct?: number;
+  /** INR risked at entry (this trade's share), if a stop was set. */
+  initialRisk?: number;
+  /** Net P&L divided by initial risk. */
+  rMultiple?: number;
   note?: string;
+  tags?: string[];
 }
 
 export interface PaperState {
