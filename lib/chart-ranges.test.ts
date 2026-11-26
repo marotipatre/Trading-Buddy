@@ -1,20 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { CHART_RANGES, cleanBars, istDay, lastSessionOf, moveOver, snapToBar, toChartTime } from "./chart-ranges";
+import { cleanBars, istDay, lastSessionOf, moveOver, snapToBar, toChartTime } from "./chart-ranges";
 import type { Candle } from "@/lib/data/types";
 
 const IST = 19800;
 const at = (y: number, m: number, d: number, h: number, mi: number) => Date.UTC(y, m, d, h, mi) / 1000 - IST;
 const bar = (time: number, o = 1, c = 1): Candle => ({ time, open: o, high: Math.max(o, c), low: Math.min(o, c), close: c, volume: 1 });
-
-describe("ranges", () => {
-  it("has unique ids, intraday for short ranges and daily for long ones", () => {
-    expect(new Set(CHART_RANGES.map((r) => r.id)).size).toBe(CHART_RANGES.length);
-    expect(CHART_RANGES.find((r) => r.id === "1d")).toMatchObject({ interval: "5m", lastSession: true });
-    expect(CHART_RANGES.find((r) => r.id === "5y")?.interval).toBe("1d");
-    // every range stays inside what the data layer can serve in a request
-    for (const r of CHART_RANGES) expect(r.days).toBeLessThanOrEqual(3650);
-  });
-});
 
 describe("lastSessionOf", () => {
   it("keeps only the latest trading day", () => {

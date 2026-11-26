@@ -1,19 +1,6 @@
-import type { Candle, Interval } from "@/lib/data/types";
+import type { Candle } from "@/lib/data/types";
 
 const IST = 19800;
-
-export interface ChartRange { id: string; label: string; interval: Interval; days: number; /** Show only the latest session. */ lastSession?: boolean }
-
-/** Timeframes like a broker app: intraday for the short ones, daily bars for the long ones. */
-export const CHART_RANGES: ChartRange[] = [
-  { id: "1d", label: "1D", interval: "5m", days: 6, lastSession: true },
-  { id: "1w", label: "1W", interval: "15m", days: 10 },
-  { id: "1m", label: "1M", interval: "15m", days: 35 },
-  { id: "6m", label: "6M", interval: "1d", days: 190 },
-  { id: "1y", label: "1Y", interval: "1d", days: 370 },
-  { id: "5y", label: "5Y", interval: "1d", days: 1830 },
-  { id: "max", label: "All", interval: "1d", days: 3650 },
-];
 
 export const istDay = (sec: number) => Math.floor((sec + IST) / 86400);
 

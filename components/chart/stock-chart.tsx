@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChangePill } from "@/components/change-pill";
 import { usePaper } from "@/components/paper/paper-provider";
-import { CHART_RANGES, moveOver, snapToBar } from "@/lib/chart-ranges";
+import { moveOver, snapToBar } from "@/lib/chart-ranges";
+import { TIMEFRAMES } from "@/lib/chart-timeframes";
 import { fmtDate } from "@/lib/format";
 import { orderLabel } from "@/lib/paper/broker";
 import { cn } from "@/lib/utils";
@@ -19,13 +20,13 @@ const compact = (n: number) => (n >= 1e7 ? `${(n / 1e7).toFixed(2)}Cr` : n >= 1e
 
 /** Price chart with timeframes. Your open positions, stop-loss, take-profit and pending orders are drawn as price lines, and past trades as markers. */
 export function StockChart({ symbol }: { symbol: string }) {
-  const [rangeId, setRangeId] = useState("6m");
+  const [tfId, setTfId] = useState("1d");
   const [mode, setMode] = useState<"candles" | "line">("candles");
   const [hover, setHover] = useState<Hover | null>(null);
   const { resolvedTheme } = useTheme();
   const { state } = usePaper();
-  const { candles, loading, error, range } = useChartData(symbol, rangeId);
-  const intraday = range.interval !== "1d";
+  const { candles, loading, error, timeframe } = useChartData(symbol, tfId);
+  const intraday = timeframe.intraday;
 
   const lines = useMemo<ChartLine[]>(() => {
     const out: ChartLine[] = [];
@@ -62,11 +63,11 @@ export function StockChart({ symbol }: { symbol: string }) {
     <Card>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-1" role="tablist" aria-label="Timeframe">
-            {CHART_RANGES.map((r) => (
-              <button key={r.id} type="button" role="tab" aria-selected={r.id === rangeId} onClick={() => setRangeId(r.id)}
-                className={cn("rounded-md px-2.5 py-1 text-xs font-medium transition-colors", r.id === rangeId ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>
-                {r.label}
+          <div className="flex gap-1" role="tablist" aria-label="Candle size">
+            {TIMEFRAMES.map((t) => (
+              <button key={t.id} type="button" role="tab" aria-selected={t.id === tfId} onClick={() => setTfId(t.id)}
+                className={cn("rounded-md px-2.5 py-1 text-xs font-medium transition-colors", t.id === tfId ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>
+                {t.label}
               </button>
             ))}
           </div>
@@ -95,12 +96,12 @@ export function StockChart({ symbol }: { symbol: string }) {
         <div className="relative">
           {error && candles.length === 0 ? (
             <div className="grid h-[360px] place-items-center rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground sm:h-[420px]">
-              <div className="space-y-2"><p>{error}</p><Button size="sm" variant="outline" onClick={() => setRangeId((r) => r)}>Try again</Button></div>
+              <div className="space-y-2"><p>{error}</p><Button size="sm" variant="outline" onClick={() => setTfId((x) => x)}>Try again</Button></div>
             </div>
           ) : (
             <>
               <PriceChart candles={candles} intraday={intraday} mode={mode} dark={resolvedTheme !== "light"} lines={lines} markers={markers}
-                resetKey={`${symbol}|${rangeId}`} onHover={setHover} />
+                resetKey={`${symbol}|${tfId}`} onHover={setHover} />
               {loading && candles.length === 0 && <Skeleton className="absolute inset-0" />}
               {!loading && candles.length === 0 && <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">No price data for this period.</div>}
             </>
