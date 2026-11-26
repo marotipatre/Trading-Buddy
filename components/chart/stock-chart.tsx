@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
-import { CandlestickChart, LineChart } from "lucide-react";
+import { CandlestickChart, LineChart, MousePointer2, Minus, Ruler, Trash2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +13,9 @@ import { TIMEFRAMES } from "@/lib/chart-timeframes";
 import { fmtDate } from "@/lib/format";
 import { orderLabel } from "@/lib/paper/broker";
 import { cn } from "@/lib/utils";
-import { PriceChart, type ChartLine, type ChartMarker, type Hover } from "./price-chart";
+import { loadDrawings, saveDrawings, type Drawing } from "@/lib/drawings";
+import type { Tool } from "./drawing-layer";
+import { PriceChart, type ChartLine, type ChartMarker, type Hover, type ScaleMode } from "./price-chart";
 import { useChartData } from "./use-chart-data";
 
 const compact = (n: number) => (n >= 1e7 ? `${(n / 1e7).toFixed(2)}Cr` : n >= 1e5 ? `${(n / 1e5).toFixed(2)}L` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(Math.round(n)));
@@ -23,6 +25,18 @@ export function StockChart({ symbol }: { symbol: string }) {
   const [tfId, setTfId] = useState("1d");
   const [mode, setMode] = useState<"candles" | "line">("candles");
   const [hover, setHover] = useState<Hover | null>(null);
+  const [scale, setScale] = useState<ScaleMode>("price");
+  const [tool, setTool] = useState<Tool>("cursor");
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [loadedFor, setLoadedFor] = useState("");
+  // Drawings are remembered per stock, in this browser.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load this stock's saved drawings after mount
+    setDrawings(loadDrawings(symbol));
+    setLoadedFor(symbol);
+    setTool("cursor");
+  }, [symbol]);
+  const updateDrawings = (d: Drawing[]) => { setDrawings(d); if (loadedFor === symbol) saveDrawings(symbol, d); };
   const { resolvedTheme } = useTheme();
   const { state } = usePaper();
   const { candles, loading, error, timeframe } = useChartData(symbol, tfId);
@@ -73,11 +87,28 @@ export function StockChart({ symbol }: { symbol: string }) {
           </div>
           <div className="flex items-center gap-2">
             {move && <ChangePill pct={move.changePct} amount={move.change} />}
+            <div className="flex gap-0.5" role="group" aria-label="Price scale">
+              {([["price", "Price"], ["percent", "%"], ["log", "Log"]] as const).map(([id, label]) => (
+                <button key={id} type="button" aria-pressed={scale === id} onClick={() => setScale(id)} title={id === "percent" ? "Show percentage change from the first visible candle" : id === "log" ? "Logarithmic price scale" : "Actual prices"}
+                  className={cn("rounded-md px-2 py-1 text-xs font-medium transition-colors", scale === id ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>{label}</button>
+              ))}
+            </div>
             <div className="flex gap-0.5">
               <Button variant={mode === "candles" ? "secondary" : "ghost"} size="icon-sm" aria-label="Candlestick chart" onClick={() => setMode("candles")}><CandlestickChart /></Button>
               <Button variant={mode === "line" ? "secondary" : "ghost"} size="icon-sm" aria-label="Line chart" onClick={() => setMode("line")}><LineChart /></Button>
             </div>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Drawing tools">
+          {([["cursor", MousePointer2, "Cursor"], ["hline", Minus, "Horizontal line"], ["trend", TrendingUp, "Trendline"], ["measure", Ruler, "Measure % change"]] as const).map(([id, Icon, label]) => (
+            <Button key={id} size="sm" variant={tool === id ? "secondary" : "ghost"} aria-pressed={tool === id} title={label} onClick={() => setTool(id)}>
+              <Icon /> <span className="hidden sm:inline">{label}</span>
+            </Button>
+          ))}
+          {drawings.length > 0 && (
+            <Button size="sm" variant="ghost" className="text-muted-foreground" title="Remove all drawings on this stock" onClick={() => updateDrawings([])}><Trash2 /> Clear ({drawings.length})</Button>
+          )}
         </div>
 
         <div className="tabular flex min-h-5 flex-wrap items-center gap-x-4 gap-y-0.5 font-mono text-xs text-muted-foreground">
@@ -101,7 +132,8 @@ export function StockChart({ symbol }: { symbol: string }) {
           ) : (
             <>
               <PriceChart candles={candles} intraday={intraday} mode={mode} dark={resolvedTheme !== "light"} lines={lines} markers={markers}
-                resetKey={`${symbol}|${tfId}`} onHover={setHover} />
+                resetKey={`${symbol}|${tfId}`} onHover={setHover}
+                scale={scale} tool={tool} onToolChange={setTool} drawings={drawings} onDrawingsChange={updateDrawings} />
               {loading && candles.length === 0 && <Skeleton className="absolute inset-0" />}
               {!loading && candles.length === 0 && <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">No price data for this period.</div>}
             </>
