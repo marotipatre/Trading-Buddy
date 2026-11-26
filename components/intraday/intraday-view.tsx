@@ -210,15 +210,6 @@ function DeskHero(p: { todayPnl: number; trades: number; potValue: number; total
   );
 }
 
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("figure truncate text-[1.6rem] leading-tight", tone === "up" && "text-up", tone === "down" && "text-down")}>{value}</div>
-      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
-    </div>
-  );
-}
 
 function Picks({ lock }: { lock: string | null }) {
   const { acc, place } = useIntraday();
@@ -593,5 +584,15 @@ function PickBacktestCard() {
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn("figure truncate text-[1.4rem] leading-tight", tone === "up" && "text-up", tone === "down" && "text-down")}>{value}</div>
+      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+    </div>
   );
 }

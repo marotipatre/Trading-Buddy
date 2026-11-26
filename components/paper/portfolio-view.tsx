@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { motion } from "motion/react";
+import { Money, Percent, PillTabs, SPRING, Swap } from "@/components/motion/primitives";
+import { cn } from "@/lib/utils";
 import { MetricCard } from "@/components/backtest/metric-card";
 import { NumberField } from "@/components/backtest/number-field";
 import { fmtInr, fmtNum, fmtPct } from "@/lib/format";
@@ -30,16 +33,6 @@ import { useNow } from "@/components/use-now";
 const TABS = ["holdings", "positions", "orders", "alerts", "funds", "analysis", "review"] as const;
 type Tab = (typeof TABS)[number];
 
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`tabular truncate font-mono text-xl font-semibold tracking-tight sm:text-2xl ${tone === "up" ? "text-up" : tone === "down" ? "text-down" : ""}`}>{value}</div>
-      {sub && <div className={`tabular font-mono text-xs ${tone === "up" ? "text-up" : tone === "down" ? "text-down" : "text-muted-foreground"}`}>{sub}</div>}
-    </div>
-  );
-}
-
 export function PortfolioView() {
   const { state, equity, quotes, localOnly, error, ready, reset } = usePaper();
   const router = useRouter();
@@ -57,6 +50,8 @@ export function PortfolioView() {
   );
   const total = tradingPnl(state, equity);
   const [lo, hi] = m.winRateCI;
+  const invested = summarizePositions(state, {}, now).invested;
+  const alloc = equity > 0 ? Math.min(100, Math.max(0, (invested / equity) * 100)) : 0;
 
   if (!ready) {
     return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-64 w-full" /></div>;
@@ -75,38 +70,49 @@ export function PortfolioView() {
         </div>
       )}
 
-      <Card>
-        <CardContent className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
-          <Stat label="Trading balance" value={fmtInr(equity)} sub={`Available ${fmtInr(state.cash)}`} />
-          <Stat label="Total returns" value={fmtInr(total.pnl, { sign: true })} sub={fmtPct(total.pct, 2, { sign: true })} tone={total.pnl >= 0 ? "up" : "down"} />
-          <Stat label="1D returns" value={fmtInr(sum.dayPnl, { sign: true })} sub={fmtPct(sum.dayPct, 2, { sign: true })} tone={sum.dayPnl >= 0 ? "up" : "down"} />
-          <Stat label="Bank balance" value={fmtInr(bankOf(state))} sub={`Net worth ${fmtInr(equity + bankOf(state))}`} />
-        </CardContent>
-      </Card>
+      <section className="grid gap-6 rounded-3xl border bg-card p-6 sm:p-8 lg:grid-cols-[1.2fr_1fr]" aria-label="Portfolio summary">
+        <div>
+          <div className="text-sm text-muted-foreground">Trading balance</div>
+          <Money value={equity} className="figure block text-5xl leading-none sm:text-6xl" />
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+            <span className={cn("figure", sum.dayPnl >= 0 ? "text-up" : "text-down")}><Money value={sum.dayPnl} sign /> <span className="text-muted-foreground">today</span> <Percent value={sum.dayPct} className="text-sm" /></span>
+            <span className={cn("figure", total.pnl >= 0 ? "text-up" : "text-down")}><Money value={total.pnl} sign /> <span className="text-muted-foreground">overall</span> <Percent value={total.pct} className="text-sm" /></span>
+          </div>
+        </div>
+        <div className="space-y-4 self-end">
+          <div>
+            <div className="mb-1.5 flex justify-between text-sm"><span className="text-muted-foreground">Where your money is</span><span className="figure"><Percent value={alloc} decimals={0} sign={false} /> invested</span></div>
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+              <motion.div className="h-full bg-primary" initial={false} animate={{ width: `${alloc}%` }} transition={SPRING} />
+            </div>
+            <div className="mt-1.5 flex justify-between text-xs text-muted-foreground"><span>Invested <Money value={invested} /></span><span>Available <Money value={state.cash} /></span></div>
+          </div>
+          <div className="flex justify-between border-t pt-3 text-sm"><span className="text-muted-foreground">Bank balance</span><span className="figure"><Money value={bankOf(state)} /></span></div>
+          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Net worth</span><span className="figure"><Money value={equity + bankOf(state)} /></span></div>
+        </div>
+      </section>
 
-      <Tabs value={tab} onValueChange={(v) => router.replace(`/portfolio?tab=${v}`, { scroll: false })} className="space-y-4">
-        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">
-          <TabsTrigger value="holdings">Holdings{counts.delivery ? ` (${counts.delivery})` : ""}</TabsTrigger>
-          <TabsTrigger value="positions">Positions{counts.intraday ? ` (${counts.intraday})` : ""}</TabsTrigger>
-          <TabsTrigger value="orders">Orders{state.orders.length ? ` (${state.orders.length})` : ""}</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts</TabsTrigger>
-          <TabsTrigger value="funds">Funds</TabsTrigger>
-          <TabsTrigger value="analysis">Analysis</TabsTrigger>
-          <TabsTrigger value="review">My portfolio review</TabsTrigger>
-        </TabsList>
+      <div className="space-y-4">
+        <PillTabs value={tab} onChange={(v) => router.replace(`/portfolio?tab=${v}`, { scroll: false })} ariaLabel="Portfolio sections" options={[
+          { value: "holdings", label: "Holdings", badge: counts.delivery || undefined },
+          { value: "positions", label: "Day positions", badge: counts.intraday || undefined },
+          { value: "orders", label: "Orders", badge: state.orders.length || undefined },
+          { value: "alerts", label: "Alerts" }, { value: "funds", label: "Funds" }, { value: "analysis", label: "Analysis" }, { value: "review", label: "Review" },
+        ]} />
+        <Swap id={tab} className="space-y-4">
 
-        <TabsContent value="holdings" className="space-y-3">
+        {tab === "holdings" && <div className="space-y-3">
           {counts.delivery > 0 && (
             <div className="flex flex-wrap gap-x-8 gap-y-1 px-1 text-sm">
               <span className="text-muted-foreground">Invested <span className="tabular font-mono text-foreground">{fmtInr(summarizePositions(state, {}, now, "delivery").invested)}</span></span>
             </div>
           )}
           <HoldingRows product="delivery" empty="You have no holdings yet. Buy a stock with Delivery (CNC) to hold it for days or weeks." />
-        </TabsContent>
-        <TabsContent value="positions"><HoldingRows product="intraday" empty="No open intraday positions. Intraday (MIS) trades close automatically at 3:15 pm." /></TabsContent>
-        <TabsContent value="orders"><OrdersPanel /></TabsContent>
-        <TabsContent value="alerts"><AlertsPanel /></TabsContent>
-        <TabsContent value="funds" className="space-y-4">
+        </div>}
+        {tab === "positions" && <div className="space-y-3"><p className="text-sm text-muted-foreground">Day trades placed from the Trade page in this account. The separate 5x pot has its own page: <Link className="text-primary underline" href="/intraday">Intraday desk</Link>.</p><HoldingRows product="intraday" empty="No open day positions. Intraday (MIS) trades close automatically at 3:15 pm." /></div>}
+        {tab === "orders" && <div><OrdersPanel /></div>}
+        {tab === "alerts" && <div><AlertsPanel /></div>}
+        {tab === "funds" && <div className="space-y-4">
           <FundsCard />
           <Card>
             <CardHeader>
@@ -126,9 +132,9 @@ export function PortfolioView() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-        <TabsContent value="review"><ReviewPanel /></TabsContent>
-        <TabsContent value="analysis" className="space-y-6">
+        </div>}
+        {tab === "review" && <div><ReviewPanel /></div>}
+        {tab === "analysis" && <div className="space-y-6">
           {m.trades > 0 && (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <MetricCard label="Win rate" value={fmtPct(m.winRate * 100, 0)} sub={`95% range ${fmtPct(lo * 100, 0)} – ${fmtPct(hi * 100, 0)} · ${m.trades} trades`} />
@@ -150,8 +156,9 @@ export function PortfolioView() {
           <GraduationCard trades={state.trades} />
           <InsightsPanel />
           <JournalTable />
-        </TabsContent>
-      </Tabs>
+        </div>}
+        </Swap>
+      </div>
     </div>
   );
 }
