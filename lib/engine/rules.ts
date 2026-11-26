@@ -1,5 +1,6 @@
 import type { Candle } from "@/lib/data/types";
 import * as ind from "./indicators";
+import { swingLevels } from "./indicators/pivots";
 import type { Condition, ConditionGroup, Operand } from "./strategy";
 
 type IndicatorOperand = Extract<Operand, { kind: "indicator" }>;
@@ -42,6 +43,10 @@ export class SeriesCache {
       case "donchian_lower": out = ind.donchian(high, low, period ?? 20).lower; break;
       case "supertrend": out = ind.supertrend(this.candles, period ?? 10, op.mult ?? 3).line; break;
       case "supertrend_dir": out = ind.supertrend(this.candles, period ?? 10, op.mult ?? 3).direction; break;
+      case "support": out = swingLevels(this.candles, period ?? 5).support; break;
+      case "resistance": out = swingLevels(this.candles, period ?? 5).resistance; break;
+      case "trend_support": out = swingLevels(this.candles, period ?? 5).trendSupport; break;
+      case "trend_resistance": out = swingLevels(this.candles, period ?? 5).trendResistance; break;
     }
     this.cache.set(key, out);
     return out;
@@ -52,7 +57,8 @@ export class SeriesCache {
     if (op.kind === "number") return op.value;
     const j = i - op.shift;
     if (j < 0 || j >= this.candles.length) return NaN;
-    return op.kind === "price" ? this.fields[op.field][j] : this.indicator(op)[j];
+    const v = op.kind === "price" ? this.fields[op.field][j] : this.indicator(op)[j];
+    return op.pct ? v * (1 + op.pct / 100) : v;
   }
 }
 

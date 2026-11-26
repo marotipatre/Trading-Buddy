@@ -1,8 +1,7 @@
 import type { Candle } from "@/lib/data/types";
 import { DEFAULT_COSTS, roundTripCharges, type CostConfig } from "./costs";
-import { atr } from "./indicators";
 import { buildSignals, SeriesCache } from "./rules";
-import { resolveDistances, walkRulesFor } from "./simulator";
+import { makeLevelSource, resolveDistances, walkRulesFor, type Levels } from "./simulator";
 import { mean } from "./stats";
 import type { StrategyDef, StopLoss } from "./strategy";
 import type { ExitReason } from "./types";
@@ -67,7 +66,7 @@ function simulateEntries(
   base: StrategyDef,
   strat: StrategyDef,
   exitSig: boolean[] | undefined,
-  atrSeries: number[],
+  levels: (i: number) => Levels,
   notional: number,
   costs: CostConfig,
 ): StudyTrade[] {
@@ -79,8 +78,9 @@ function simulateEntries(
     const entryPrice = entryFill(candles[e].open, strat.direction, costs.slippageBps);
     const qty = Math.floor(notional / entryPrice);
     if (qty < 1) continue;
-    const targetDist = resolveDistances(base, entryPrice, atrSeries[s]).targetDist;
-    const d = { stopDist: resolveDistances(strat, entryPrice, atrSeries[s]).stopDist, targetDist };
+    const baseD = resolveDistances(base, entryPrice, levels(s));
+    if (baseD.invalid) continue; // the strategy itself would not have taken this trade
+    const d = { stopDist: resolveDistances(strat, entryPrice, levels(s)).stopDist, targetDist: baseD.targetDist };
     const w = walkTrade(candles, e, entryPrice, walkRulesFor(strat, d, exitSig, costs));
     const pnl = sign * (w.exitPrice - entryPrice) * qty - roundTripCharges(strat.direction, qty, entryPrice, w.exitPrice, strat.product, costs);
     out.push({ entryIdx: e, exitIdx: w.exitIdx, returnPct: (pnl / (qty * entryPrice)) * 100, pnl, reason: w.exitReason, maePct: w.maePct, mfePct: w.mfePct });
@@ -130,11 +130,11 @@ export function stopLossStudy(
   const cache = new SeriesCache(candles);
   const exitSig = strat.exit ? buildSignals(cache, strat.exit) : undefined;
   const atrP = strat.stopLoss?.atrPeriod ?? 14;
-  const atrSeries = atr(candles, atrP);
+  const levels = makeLevelSource(candles, strat);
   const notional = strat.initialCapital / 10;
   const trailing = strat.stopLoss?.trailing ?? false;
   const run = (stop: StopLoss | undefined) =>
-    simulateEntries(candles, entrySignalIdx, strat, { ...strat, stopLoss: stop }, exitSig, atrSeries, notional, costs);
+    simulateEntries(candles, entrySignalIdx, strat, { ...strat, stopLoss: stop }, exitSig, levels, notional, costs);
   const stat = (label: string, stop: StopLoss | undefined, t: StudyTrade[]) => summarize(label, stop ?? null, t, strat.initialCapital);
 
   const noneTrades = run(undefined);

@@ -7,11 +7,12 @@ export const IndicatorName = z.enum([
   "donchian_upper", "donchian_lower",
   "supertrend", "supertrend_dir",
   "volume_sma",
+  "support", "resistance", "trend_support", "trend_resistance",
 ]);
 export type IndicatorName = z.infer<typeof IndicatorName>;
 
 export const Operand = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("price"), field: z.enum(["open", "high", "low", "close", "volume"]), shift: z.number().int().min(0).max(250).default(0) }),
+  z.object({ kind: z.literal("price"), field: z.enum(["open", "high", "low", "close", "volume"]), shift: z.number().int().min(0).max(250).default(0), pct: z.number().min(-50).max(50).optional() }),
   z.object({
     kind: z.literal("indicator"),
     name: IndicatorName,
@@ -21,6 +22,8 @@ export const Operand = z.discriminatedUnion("kind", [
     slow: z.number().int().min(2).max(400).optional(),
     signal: z.number().int().min(1).max(100).optional(),
     shift: z.number().int().min(0).max(250).default(0),
+    /** Move the value up (+) or down (-) by this percent, e.g. +1 on support = "1% above support". */
+    pct: z.number().min(-50).max(50).optional(),
   }),
   z.object({ kind: z.literal("number"), value: z.number() }),
 ]);
@@ -39,15 +42,18 @@ export const ConditionGroup = z.object({
 export type ConditionGroup = z.infer<typeof ConditionGroup>;
 
 export const StopLoss = z.object({
-  type: z.enum(["percent", "atr"]),
+  /** support / swing_low: place the stop just beyond a structure level; `value` is the buffer in percent. */
+  type: z.enum(["percent", "atr", "support", "swing_low"]),
   value: z.number().positive(),
   trailing: z.boolean().default(false),
   atrPeriod: z.number().int().min(1).max(100).default(14),
+  /** Pivot strength for support, or lookback bars for swing_low. */
+  period: z.number().int().min(2).max(60).optional(),
 });
 export type StopLoss = z.infer<typeof StopLoss>;
 
 export const Target = z.object({
-  type: z.enum(["percent", "rr"]), // rr = multiple of initial risk (needs a stop-loss)
+  type: z.enum(["percent", "rr", "resistance"]), // rr = multiple of initial risk (needs a stop-loss); resistance = just below the next resistance
   value: z.number().positive(),
 });
 export type Target = z.infer<typeof Target>;

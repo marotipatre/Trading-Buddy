@@ -5,6 +5,7 @@ import type { StrategyDef } from "./strategy";
 import type { EquityPoint, Trade } from "./types";
 import { entryFill, walkTrade, type WalkRules } from "./walk";
 import { atr } from "./indicators";
+import { highestHigh, lowestLow, swingLevels } from "./indicators/pivots";
 
 export interface BacktestResult {
   symbol: string;
@@ -16,22 +17,55 @@ export interface BacktestResult {
   bars: number;
 }
 
-export interface Distances { stopDist?: number; targetDist?: number }
+export interface Distances { stopDist?: number; targetDist?: number; /** A structural stop or target was requested but there was no valid level: the trade should be skipped. */ invalid?: boolean }
 
-/** Stop/target distances from the ACTUAL entry fill; ATR is read at the signal bar. */
-export function resolveDistances(strat: StrategyDef, entryPrice: number, atrAtSignal: number): Distances {
+/** Price levels known at the signal bar, used for structural stops and targets. */
+export interface Levels { atr: number; support?: number; resistance?: number; swingLow?: number; swingHigh?: number }
+
+/** Per-bar levels for a strategy, computed once. Only what the strategy needs is computed. */
+export function makeLevelSource(candles: Candle[], strat: StrategyDef): (i: number) => Levels {
+  const sl = strat.stopLoss;
+  const atrS = atr(candles, sl?.atrPeriod ?? 14);
+  const needPivots = sl?.type === "support" || strat.target?.type === "resistance";
+  const pivots = needPivots ? swingLevels(candles, sl?.type === "support" ? sl.period ?? 5 : 5) : null;
+  const lo = sl?.type === "swing_low" ? lowestLow(candles, sl.period ?? 10) : null;
+  const hi = sl?.type === "swing_low" ? highestHigh(candles, sl.period ?? 10) : null;
+  return (i) => ({ atr: atrS[i], support: pivots?.support[i], resistance: pivots?.resistance[i], swingLow: lo?.[i], swingHigh: hi?.[i] });
+}
+
+const MIN_STOP = 0.001; // a structural stop closer than 0.1% to the entry is not a real stop
+const MIN_TARGET = 0.002;
+
+/** Stop/target distances from the ACTUAL entry fill; ATR and structure levels are read at the signal bar. */
+export function resolveDistances(strat: StrategyDef, entryPrice: number, lv: number | Levels): Distances {
+  const L: Levels = typeof lv === "number" ? { atr: lv } : lv;
+  const short = strat.direction === "short";
+  let invalid = false;
   let stopDist: number | undefined;
   if (strat.stopLoss) {
     const { type, value } = strat.stopLoss;
-    stopDist = type === "percent" ? (entryPrice * value) / 100 : value * atrAtSignal;
-    if (!Number.isFinite(stopDist) || stopDist <= 0) stopDist = undefined;
+    if (type === "percent") stopDist = (entryPrice * value) / 100;
+    else if (type === "atr") stopDist = value * L.atr;
+    else {
+      const level = type === "support" ? (short ? L.resistance : L.support) : short ? L.swingHigh : L.swingLow;
+      const stopPrice = level === undefined ? NaN : short ? level * (1 + value / 100) : level * (1 - value / 100);
+      stopDist = short ? stopPrice - entryPrice : entryPrice - stopPrice;
+      if (!Number.isFinite(stopDist) || stopDist < entryPrice * MIN_STOP) { stopDist = undefined; invalid = true; }
+    }
+    if (stopDist !== undefined && (!Number.isFinite(stopDist) || stopDist <= 0)) stopDist = undefined;
   }
   let targetDist: number | undefined;
   if (strat.target) {
     if (strat.target.type === "percent") targetDist = (entryPrice * strat.target.value) / 100;
-    else if (stopDist !== undefined) targetDist = stopDist * strat.target.value;
+    else if (strat.target.type === "rr") { if (stopDist !== undefined) targetDist = stopDist * strat.target.value; }
+    else {
+      const level = short ? L.support : L.resistance;
+      const targetPrice = level === undefined ? NaN : short ? level * (1 + strat.target.value / 100) : level * (1 - strat.target.value / 100);
+      targetDist = short ? entryPrice - targetPrice : targetPrice - entryPrice;
+      if (!Number.isFinite(targetDist) || targetDist < entryPrice * MIN_TARGET) { targetDist = undefined; invalid = true; }
+    }
   }
-  return { stopDist, targetDist };
+  return { stopDist, targetDist, ...(invalid ? { invalid } : {}) };
 }
 
 export function walkRulesFor(strat: StrategyDef, d: Distances, exitSignal: boolean[] | undefined, costs: CostConfig): WalkRules {
@@ -70,7 +104,7 @@ export function runBacktest(
   const cache = new SeriesCache(candles);
   const entrySig = buildSignals(cache, strat.entry);
   const exitSig = strat.exit ? buildSignals(cache, strat.exit) : undefined;
-  const atrSeries = atr(candles, strat.stopLoss?.atrPeriod ?? 14);
+  const levels = makeLevelSource(candles, strat);
 
   const trades: Trade[] = [];
   const equity: EquityPoint[] = candles.map((c) => ({ time: c.time, equity: strat.initialCapital }));
@@ -88,7 +122,8 @@ export function runBacktest(
     if (!entrySig[i]) { i++; continue; }
     const entryIdx = i + 1;
     const entryPrice = entryFill(candles[entryIdx].open, strat.direction, costs.slippageBps);
-    const d = resolveDistances(strat, entryPrice, atrSeries[i]);
+    const d = resolveDistances(strat, entryPrice, levels(i));
+    if (d.invalid) { i++; continue; } // a stop or target "at support/resistance" needs a real level: no level, no trade
     const qty = sizePosition(strat, cash, entryPrice, d.stopDist, costs);
     if (qty < 1) { i++; continue; }
 

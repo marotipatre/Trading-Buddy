@@ -28,6 +28,10 @@ export const INDICATORS: IndicatorMeta[] = [
   { name: "donchian_upper", label: "Donchian high", group: "Volatility", params: [period(20)] },
   { name: "donchian_lower", label: "Donchian low", group: "Volatility", params: [period(20)] },
   { name: "volume_sma", label: "Volume SMA", group: "Volume", params: [period(20)] },
+  { name: "support", label: "Support (nearest swing low below)", group: "Levels", params: [{ key: "period", label: "Pivot strength", default: 5, min: 2 }] },
+  { name: "resistance", label: "Resistance (nearest swing high above)", group: "Levels", params: [{ key: "period", label: "Pivot strength", default: 5, min: 2 }] },
+  { name: "trend_support", label: "Rising trendline (through last 2 swing lows)", group: "Levels", params: [{ key: "period", label: "Pivot strength", default: 5, min: 2 }] },
+  { name: "trend_resistance", label: "Falling trendline (through last 2 swing highs)", group: "Levels", params: [{ key: "period", label: "Pivot strength", default: 5, min: 2 }] },
 ];
 
 export const indicatorMeta = (name: IndicatorName) => INDICATORS.find((i) => i.name === name)!;
@@ -44,8 +48,9 @@ export function defaultIndicator(name: IndicatorName): IndicatorOperand {
 export function describeOperand(op: Operand): string {
   if (op.kind === "number") return String(op.value);
   const shift = op.shift ? ` [${op.shift} bar${op.shift > 1 ? "s" : ""} ago]` : "";
-  if (op.kind === "price") return `${op.field}${shift}`;
+  const off = op.pct ? ` ${op.pct > 0 ? "+" : ""}${op.pct}%` : "";
+  if (op.kind === "price") return `${op.field}${off}${shift}`;
   const meta = indicatorMeta(op.name);
   const args = meta.params.map((p) => op[p.key] ?? p.default).join(",");
-  return `${meta.label}(${args})${shift}`;
+  return `${meta.label}(${args})${off}${shift}`;
 }
