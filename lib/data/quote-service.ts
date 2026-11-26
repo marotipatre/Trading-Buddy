@@ -23,7 +23,7 @@ export interface QuoteServiceOptions {
  * quote is returned (marked by its original `time`) rather than a blank row.
  */
 export function createQuoteService({ providers, ttlMs = 8000, cooldownMs = 60_000, concurrency = 3, now = Date.now }: QuoteServiceOptions) {
-  const cache = new Map<string, { q: Quote; at: number }>();
+  const cache = new Map<string, { q: Quote; at: number; fallback: boolean }>();
   const downUntil = new Map<string, number>();
 
   const order = () => {
@@ -35,13 +35,17 @@ export function createQuoteService({ providers, ttlMs = 8000, cooldownMs = 60_00
 
   async function one(symbol: string): Promise<Quote | null> {
     const hit = cache.get(symbol);
-    if (hit && now() - hit.at < (typeof ttlMs === "function" ? ttlMs() : ttlMs)) return hit.q;
-    for (const p of order()) {
+    // A quote that came from a fallback source is only trusted for the cooldown, so a one-off failure
+    // of the primary source does not pin us to the fallback for the whole (possibly long) TTL.
+    const fullTtl = typeof ttlMs === "function" ? ttlMs() : ttlMs;
+    if (hit && now() - hit.at < (hit.fallback ? Math.min(fullTtl, cooldownMs) : fullTtl)) return hit.q;
+    const tried = order();
+    for (const p of tried) {
       try {
         const q = await p.fetch(symbol);
         downUntil.delete(p.name);
         const tagged = { ...q, source: q.source ?? p.name };
-        cache.set(symbol, { q: tagged, at: now() });
+        cache.set(symbol, { q: tagged, at: now(), fallback: p !== providers[0] });
         return tagged;
       } catch {
         downUntil.set(p.name, now() + cooldownMs);

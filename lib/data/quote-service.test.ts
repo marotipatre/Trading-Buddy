@@ -90,3 +90,28 @@ describe("quote service with a time-dependent TTL", () => {
     expect(y.fetch).toHaveBeenCalledTimes(2); // open: 2 minutes is stale
   });
 });
+
+describe("fallback quotes expire quickly", () => {
+  it("a quote from a fallback source is re-asked after the cooldown, not after the long TTL", async () => {
+    let t = 0;
+    let primaryDown = true;
+    const primary = provider("upstox", async (s) => { if (primaryDown) throw new Error("blip"); return q(s, 100); });
+    const backup = provider("yahoo", async (s) => q(s, 99));
+    const svc = createQuoteService({ providers: [primary, backup], ttlMs: () => 600_000, cooldownMs: 60_000, now: () => t });
+    expect((await svc.getQuotes(["A.NS"]))[0]).toMatchObject({ price: 99, source: "yahoo" });
+    primaryDown = false;
+    t = 30_000;
+    expect((await svc.getQuotes(["A.NS"]))[0].source).toBe("yahoo"); // still within the cooldown
+    t = 61_000;
+    expect((await svc.getQuotes(["A.NS"]))[0]).toMatchObject({ price: 100, source: "upstox" }); // back to the primary
+  });
+  it("a quote from the primary source still gets the full TTL", async () => {
+    let t = 0;
+    const primary = provider("upstox", async (s) => q(s, 100));
+    const svc = createQuoteService({ providers: [primary], ttlMs: () => 600_000, cooldownMs: 60_000, now: () => t });
+    await svc.getQuotes(["A.NS"]);
+    t = 300_000;
+    await svc.getQuotes(["A.NS"]);
+    expect(primary.fetch).toHaveBeenCalledTimes(1);
+  });
+});
