@@ -1,5 +1,6 @@
 import { chargesForLeg, DEFAULT_COSTS, DELIVERY_ZERO_BROKERAGE, type CostConfig, type Product } from "@/lib/engine/costs";
-import type { Bar, CloseReason, ClosedTrade, Direction, OrderRequest, PaperPosition, PaperState } from "./types";
+import { displaySymbol } from "@/lib/symbols";
+import type { Bar, CloseReason, ClosedTrade, Direction, OrderEvent, OrderKind, OrderRequest, PaperPosition, PaperState, PendingOrder, Validity } from "./types";
 
 export const INTRADAY_SQUAREOFF_MINUTES = 15 * 60 + 15; // 15:15 IST
 
@@ -85,34 +86,78 @@ export function closePosition(state: PaperState, positionId: number, qty: number
 }
 
 export function validateRequest(state: PaperState, req: OrderRequest): string | undefined {
+  void state;
   if (!req.symbol) return "Choose a symbol";
   if (!Number.isInteger(req.qty) || req.qty < 1) return "Quantity must be a whole number of shares";
   if (req.type === "limit" && !(req.limitPrice && req.limitPrice > 0)) return "Enter a limit price";
-  void state;
+  if (req.type === "stop" && !(req.triggerPrice && req.triggerPrice > 0)) return "Enter a trigger price";
   return undefined;
 }
 
-/** Place an order at the current price `ltp`. Market orders fill now; limits fill if marketable, else rest. */
 export interface PlaceOptions {
   /** Wall-clock unix seconds. When set, OPENING an intraday position is refused outside the session. */
   intradayClock?: number;
 }
 
+const YEAR = 365 * 86400;
+
+/** The first 15:30 IST weekday close at or after `sec` (exchange holidays are not modelled). */
+export function nextSessionEnd(sec: number): number {
+  const dayStart = istStartOfDay(sec);
+  for (let i = 0; i < 8; i++) {
+    const d = dayStart + i * 86400;
+    const dow = istWeekday(d + 12 * 3600);
+    const end = d + 15.5 * 3600;
+    if (dow >= 1 && dow <= 5 && end > sec) return end;
+  }
+  return sec + 86400;
+}
+
+function logEvent(st: PaperState, e: Omit<OrderEvent, "id">): PaperState {
+  const events = [...(st.events ?? []), { ...e, id: st.nextId }];
+  return { ...st, events: events.length > 200 ? events.slice(-200) : events, nextId: st.nextId + 1 };
+}
+
+/** Human label for a resting order. Exits of an existing position are called take-profit / stop-loss. */
+export function orderLabel(kind: OrderKind | undefined, closing: boolean): string {
+  const k = kind ?? "limit";
+  return closing ? (k === "limit" ? "Take-profit order" : "Stop-loss order") : k === "limit" ? "Limit order" : "Stop order";
+}
+
+/**
+ * Place an order at the current price `ltp`. Market orders fill now; a limit that is already
+ * marketable fills now at the better price; everything else rests and executes when the price hits it:
+ *  - limit buy fills at or below the limit, limit sell (take-profit) at or above it;
+ *  - stop sell (stop-loss) triggers at or below the trigger, stop buy at or above it, then fills at market.
+ */
 export function placeOrder(state: PaperState, req: OrderRequest, ltp: number, time: number, opts: PlaceOptions = {}): Result {
   const bad = validateRequest(state, req);
   if (bad) return { state, error: bad };
   if (!(ltp > 0)) return { state, error: "No live price available" };
 
-  const marketable = req.type === "market" || (req.side === "buy" ? req.limitPrice! >= ltp : req.limitPrice! <= ltp);
   const closeDirection: Direction = req.side === "sell" ? "long" : "short";
   const held = state.positions.find((p) => p.symbol === req.symbol && p.direction === closeDirection && p.product === req.product);
   if (!held && req.product === "intraday" && opts.intradayClock !== undefined && !intradayWindowOpen(opts.intradayClock)) {
     return { state, error: "Intraday (MIS) positions can only be opened Mon–Fri, 09:15–15:15 IST. Use Delivery, or try during the session." };
   }
 
+  if (req.type === "stop") {
+    const t = req.triggerPrice!;
+    if (req.side === "sell" && t >= ltp) return { state, error: "A sell stop trigger must be below the current price, or it would trigger immediately" };
+    if (req.side === "buy" && t <= ltp) return { state, error: "A buy stop trigger must be above the current price, or it would trigger immediately" };
+  }
+  const marketable = req.type === "market" || (req.type === "limit" && (req.side === "buy" ? req.limitPrice! >= ltp : req.limitPrice! <= ltp));
+
   if (!marketable) {
     if (!held && req.side === "sell" && req.product === "delivery") return { state, error: "You do not hold this stock; delivery shorts are not allowed on NSE cash" };
-    const order = { id: state.nextId, symbol: req.symbol, side: req.side, qty: req.qty, limitPrice: req.limitPrice!, product: req.product, stop: req.stop, target: req.target, trailing: req.trailing, createdAt: time, note: req.note };
+    if (held && req.qty > held.qty) return { state, error: `You only hold ${held.qty} shares` };
+    const validity: Validity = req.validity ?? (req.product === "intraday" ? "day" : "gtt");
+    const order: PendingOrder = {
+      id: state.nextId, symbol: req.symbol, side: req.side, qty: req.qty,
+      limitPrice: req.type === "stop" ? req.triggerPrice! : req.limitPrice!, kind: req.type === "stop" ? "stop" : "limit",
+      product: req.product, stop: req.stop, target: req.target, trailing: req.trailing, createdAt: time, note: req.note,
+      validity, expiresAt: validity === "day" ? nextSessionEnd(time) : time + YEAR,
+    };
     return { state: { ...state, orders: [...state.orders, order], nextId: state.nextId + 1 } };
   }
   // A marketable limit fills at the (better) current price; only market orders pay slippage.
@@ -128,8 +173,78 @@ export function placeOrder(state: PaperState, req: OrderRequest, ltp: number, ti
   return open(state, req, direction, fillPrice, time, slippage);
 }
 
-export function cancelOrder(state: PaperState, orderId: number): PaperState {
-  return { ...state, orders: state.orders.filter((o) => o.id !== orderId) };
+export function cancelOrder(state: PaperState, orderId: number, time = 0): PaperState {
+  const o = state.orders.find((x) => x.id === orderId);
+  if (!o) return state;
+  const next = { ...state, orders: state.orders.filter((x) => x.id !== orderId) };
+  return logEvent(next, { time, symbol: o.symbol, kind: "cancelled", text: `${orderLabel(o.kind, false)} cancelled: ${o.side} ${o.qty} ${displaySymbol(o.symbol)} @ ${o.limitPrice.toFixed(2)}` });
+}
+
+/** Change a resting order's price (limit or trigger) and/or quantity. */
+export function modifyOrder(state: PaperState, orderId: number, patch: { price?: number; qty?: number }, ltp: number, time: number): Result {
+  const o = state.orders.find((x) => x.id === orderId);
+  if (!o) return { state, error: "Order not found" };
+  const price = patch.price ?? o.limitPrice;
+  const qty = patch.qty ?? o.qty;
+  if (!(price > 0)) return { state, error: "Enter a valid price" };
+  if (!Number.isInteger(qty) || qty < 1) return { state, error: "Quantity must be a whole number of shares" };
+  const kind = o.kind ?? "limit";
+  const held = state.positions.find((p) => p.symbol === o.symbol && p.direction === (o.side === "sell" ? "long" : "short") && p.product === o.product);
+  if (held && qty > held.qty) return { state, error: `You only hold ${held.qty} shares` };
+  if (ltp > 0) {
+    if (kind === "stop" && o.side === "sell" && price >= ltp) return { state, error: "A sell stop trigger must be below the current price" };
+    if (kind === "stop" && o.side === "buy" && price <= ltp) return { state, error: "A buy stop trigger must be above the current price" };
+    if (kind === "limit" && o.side === "buy" && price >= ltp) return { state, error: "A buy limit must be below the current price (otherwise cancel and buy at market)" };
+    if (kind === "limit" && o.side === "sell" && price <= ltp) return { state, error: "A sell limit must be above the current price (otherwise cancel and sell at market)" };
+  }
+  const next = { ...state, orders: state.orders.map((x) => (x.id === orderId ? { ...x, limitPrice: price, qty } : x)) };
+  return { state: logEvent(next, { time, symbol: o.symbol, kind: "updated", text: `${orderLabel(kind, !!held)} changed: ${qty} ${displaySymbol(o.symbol)} @ ${price.toFixed(2)}` }) };
+}
+
+/** Cancel orders whose day/GTT validity has run out. */
+export function expireOrders(state: PaperState, nowSec: number): PaperState {
+  const due = state.orders.filter((o) => o.expiresAt !== undefined && o.expiresAt <= nowSec);
+  if (!due.length) return state;
+  let st: PaperState = { ...state, orders: state.orders.filter((o) => !due.includes(o)) };
+  for (const o of due) {
+    st = logEvent(st, { time: nowSec, symbol: o.symbol, kind: "expired", text: `${orderLabel(o.kind, false)} expired: ${o.side} ${o.qty} ${displaySymbol(o.symbol)} @ ${o.limitPrice.toFixed(2)}` });
+  }
+  return st;
+}
+
+/**
+ * Set, change or remove a position's stop-loss and take-profit (they cancel each other when one hits).
+ * `undefined` leaves a value unchanged, `null` removes it. Prices must be on the correct side of `ltp`.
+ */
+export function setExits(
+  state: PaperState,
+  positionId: number,
+  exits: { stop?: number | null; target?: number | null; trailing?: boolean },
+  ltp: number,
+  time: number,
+): Result {
+  const pos = state.positions.find((p) => p.id === positionId);
+  if (!pos) return { state, error: "Position not found" };
+  const s = sgn(pos.direction);
+  const stop = exits.stop === undefined ? pos.stop : exits.stop ?? undefined;
+  const target = exits.target === undefined ? pos.target : exits.target ?? undefined;
+  if (ltp > 0) {
+    if (exits.stop != null && s * (ltp - exits.stop) <= 0) return { state, error: `Stop-loss must be ${s === 1 ? "below" : "above"} the current price (${ltp.toFixed(2)}), or it would trigger immediately` };
+    if (exits.target != null && s * (exits.target - ltp) <= 0) return { state, error: `Target must be ${s === 1 ? "above" : "below"} the current price (${ltp.toFixed(2)}), or it would trigger immediately` };
+  }
+  if (exits.stop != null && !(exits.stop > 0)) return { state, error: "Enter a valid stop-loss price" };
+  if (exits.target != null && !(exits.target > 0)) return { state, error: "Enter a valid target price" };
+  const trailDist = exits.trailing === false || stop === undefined ? undefined : exits.trailing ? Math.abs(ltp - stop) : pos.trailDist;
+  const lossSide = stop !== undefined && s * (pos.entryPrice - stop) > 0;
+  const next = {
+    ...state,
+    positions: state.positions.map((p) => p.id !== positionId ? p : {
+      ...p, stop, target, trailDist,
+      initialRisk: p.initialRisk ?? (lossSide ? p.qty * Math.abs(p.entryPrice - stop!) : undefined),
+    }),
+  };
+  const parts = [stop !== undefined ? `stop-loss ${stop.toFixed(2)}${trailDist ? " (trailing)" : ""}` : "no stop-loss", target !== undefined ? `take-profit ${target.toFixed(2)}` : "no take-profit"];
+  return { state: logEvent(next, { time, symbol: pos.symbol, kind: "updated", text: `Exit orders for ${displaySymbol(pos.symbol)}: ${parts.join(", ")}` }) };
 }
 
 /** Does this bar trigger the position's stop or target? Stop wins ties; gaps fill at the open. */
@@ -156,20 +271,46 @@ export function evaluateBar(pos: PaperPosition, bar: Bar): { pos: PaperPosition;
 function applyBars(state: PaperState, symbol: string, bars: Bar[]): PaperState {
   let st = state;
   for (const bar of bars) {
-    // resting limit orders first (they were placed before this bar)
+    // Resting orders first (they were placed before this bar).
     for (const o of st.orders.filter((x) => x.symbol === symbol && x.createdAt < bar.time)) {
-      const touched = o.side === "buy" ? bar.low <= o.limitPrice : bar.high >= o.limitPrice;
+      const kind = o.kind ?? "limit";
+      const buy = o.side === "buy";
+      const touched = kind === "limit"
+        ? (buy ? bar.low <= o.limitPrice : bar.high >= o.limitPrice)
+        : (buy ? bar.high >= o.limitPrice : bar.low <= o.limitPrice);
       if (!touched) continue;
-      const px = o.side === "buy" ? Math.min(o.limitPrice, bar.open) : Math.max(o.limitPrice, bar.open);
+
+      const held = st.positions.find((p) => p.symbol === symbol && p.direction === (buy ? "short" : "long") && p.product === o.product);
+      // A delivery sell can only ever be an exit, so call it take-profit / stop-loss even once the position is gone.
+      const label = orderLabel(kind, !!held || (!buy && o.product === "delivery"));
+      const without: PaperState = { ...st, orders: st.orders.filter((x) => x.id !== o.id) };
+      if (!held && !buy && o.product === "delivery") {
+        st = logEvent(without, { time: bar.time, symbol, kind: "cancelled", text: `${label} cancelled: you no longer hold ${displaySymbol(symbol)}` });
+        continue;
+      }
+      let px: number;
+      let slippage = false;
+      if (kind === "limit") px = buy ? Math.min(o.limitPrice, bar.open) : Math.max(o.limitPrice, bar.open);
+      else {
+        // A stop becomes a market order once triggered: a gap fills at the open, and slippage applies.
+        const gapped = buy ? bar.open >= o.limitPrice : bar.open <= o.limitPrice;
+        px = gapped ? bar.open : o.limitPrice;
+        slippage = true;
+      }
       const req: OrderRequest = { symbol, side: o.side, qty: o.qty, type: "market", product: o.product, stop: o.stop, target: o.target, trailing: o.trailing, note: o.note };
-      const held = st.positions.find((p) => p.symbol === symbol && p.direction === (o.side === "sell" ? "long" : "short") && p.product === o.product);
-      const r = held ? closePosition(st, held.id, Math.min(o.qty, held.qty), px, bar.time, "manual", false) : open(st, req, o.side === "buy" ? "long" : "short", px, bar.time, false);
-      st = { ...r.state, orders: r.state.orders.filter((x) => x.id !== o.id) };
+      const r = held
+        ? closePosition(without, held.id, Math.min(o.qty, held.qty), px, bar.time, kind === "limit" ? "target" : "stop", slippage)
+        : open(without, req, buy ? "long" : "short", px, bar.time, slippage);
+      st = r.error
+        ? logEvent(without, { time: bar.time, symbol, kind: "rejected", text: `${label} rejected: ${r.error}` })
+        : logEvent(r.state, { time: bar.time, symbol, kind: "filled", text: `${label} executed: ${buy ? "bought" : "sold"} ${held ? Math.min(o.qty, held.qty) : o.qty} ${displaySymbol(symbol)} @ ${px.toFixed(2)}` });
     }
     for (const p of st.positions.filter((x) => x.symbol === symbol && bar.time > x.lastCheckedAt)) {
       const { pos, exit } = evaluateBar(p, bar);
-      if (exit) st = closePosition(st, p.id, p.qty, exit.price, bar.time, exit.reason).state;
-      else st = { ...st, positions: st.positions.map((x) => (x.id === p.id ? pos : x)) };
+      if (exit) {
+        const r = closePosition(st, p.id, p.qty, exit.price, bar.time, exit.reason).state;
+        st = logEvent(r, { time: bar.time, symbol, kind: "filled", text: `${exit.reason === "stop" ? "Stop-loss" : "Take-profit"} executed: sold ${p.qty} ${displaySymbol(symbol)} @ ${exit.price.toFixed(2)}` });
+      } else st = { ...st, positions: st.positions.map((x) => (x.id === p.id ? pos : x)) };
     }
   }
   return st;
