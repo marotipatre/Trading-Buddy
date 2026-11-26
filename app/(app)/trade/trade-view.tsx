@@ -28,6 +28,8 @@ import { useWatchlist } from "@/components/use-watchlist";
 import { positionStats } from "@/lib/paper/portfolio";
 import { companyName, displaySymbol } from "@/lib/symbols";
 
+const fmtAge = (sec: number) => (sec < 5 ? "just now" : sec < 90 ? `${Math.round(sec)}s ago` : sec < 5400 ? `${Math.round(sec / 60)} min ago` : sec < 129600 ? `${Math.round(sec / 3600)} h ago` : `${Math.round(sec / 86400)} d ago`);
+
 export function TradeView() {
   const router = useRouter();
   const params = useSearchParams();
@@ -39,7 +41,7 @@ export function TradeView() {
   const [loading, setLoading] = useState(true);
   const [recent, setRecent] = useState<string[]>([]);
   const open = useMarketOpen();
-  const now = useNow();
+  const now = useNow(5_000);
   const { state } = usePaper();
   const wl = useWatchlist();
   const held = state.positions.filter((p) => p.symbol === symbol);
@@ -79,7 +81,7 @@ export function TradeView() {
       }
     };
     tick();
-    const id = setInterval(tick, isMarketOpen() ? 10_000 : 60_000);
+    const id = setInterval(tick, isMarketOpen() ? 5_000 : 60_000);
     return () => {
       stop = true;
       clearInterval(id);
@@ -134,7 +136,7 @@ export function TradeView() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {q?.source && <Badge variant="outline">via {q.source === "google" ? "Google Finance" : "Yahoo"}</Badge>}
+                {q?.source && <Badge variant="outline" title={q.source === "nse" ? "NSE's own live feed, about a minute behind the market" : undefined}>{open ? "Live" : "Last session"} · {({ upstox: "Upstox", nse: "NSE (about 1 min delayed)", yahoo: "Yahoo", google: "Google Finance" } as const)[q.source]}{now && q.time ? ` · ${fmtAge(now - q.time)}` : ""}</Badge>}
                 <Button variant="ghost" size="icon-sm" aria-label={wl.has(symbol) ? "Remove from watchlist" : "Add to watchlist"} onClick={() => wl.toggle(symbol, companyName(symbol))}>
                   <Star className={wl.has(symbol) ? "fill-warn text-warn" : ""} />
                 </Button>
