@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, TrendingUp, Wallet } from "lucide-react";
+import { Bell, LogOut, TrendingUp, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { useAlerts } from "@/components/alerts/alerts-provider";
 import { MarketStatus } from "@/components/market-status";
 import { usePaper } from "@/components/paper/paper-provider";
 import { SymbolSearch } from "@/components/symbol-search";
@@ -23,6 +24,8 @@ export function AppHeader() {
   const path = usePathname();
   const router = useRouter();
   const { equity, ready } = usePaper();
+  const { alerts } = useAlerts();
+  const activeAlerts = alerts.filter((a) => a.status === "active").length;
   const open = (symbol: string) => router.push(`/trade?symbol=${encodeURIComponent(symbol)}`);
   return (
     <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -48,6 +51,10 @@ export function AppHeader() {
           <Link href="/portfolio?tab=funds" className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm hover:bg-accent" title="Trading balance">
             <Wallet className="size-4 text-primary" />
             <span className="tabular font-mono font-medium">{ready ? fmtInr(equity) : "—"}</span>
+          </Link>
+          <Link href="/portfolio?tab=alerts" aria-label={`Price alerts (${activeAlerts} active)`} className="relative grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground">
+            <Bell className="size-4" />
+            {activeAlerts > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">{activeAlerts}</span>}
           </Link>
           <ThemeToggle />
           <Button variant="ghost" size="icon" aria-label="Sign out"
