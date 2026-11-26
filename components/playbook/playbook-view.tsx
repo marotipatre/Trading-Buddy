@@ -29,6 +29,9 @@ export function PlaybookView() {
 
 function BookView({ book }: { book: Book }) {
   const [done, setDone] = useState<Record<number, boolean>>({});
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const match = (t: string) => !needle || t.toLowerCase().includes(needle);
   const all = book.checklist.every((_, i) => done[i]);
   return (
     <div className="space-y-6">
@@ -57,11 +60,26 @@ function BookView({ book }: { book: Book }) {
         </CardContent>
       </Card>
 
-      {book.sections.map((s) => (
+      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search the ${book.id === "swing" ? "swing" : "intraday"} rules (for example: stop, margin, VWAP, tilt)`}
+        className="h-10 w-full max-w-xl rounded-lg border bg-background px-3 text-sm" aria-label="Search rules" />
+
+      {book.stages.length > 0 && !needle && (
+        <Card>
+          <CardHeader><CardTitle>Your path: do not skip stages</CardTitle><CardDescription>Move to the next stage only when you pass the one you are on.</CardDescription></CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {book.stages.map((st) => <div key={st.stage} className="space-y-0.5 rounded-lg border p-3 text-sm"><b>{st.stage}</b><p className="text-muted-foreground">{st.do}</p><p><span className="font-medium">Pass when: </span><span className="text-muted-foreground">{st.passWhen}</span></p></div>)}
+          </CardContent>
+        </Card>
+      )}
+
+      {book.sections.map((s) => {
+        const rules = s.rules.filter((r) => match(r.rule) || match(r.why) || match(s.title));
+        if (!rules.length) return null;
+        return (
         <Card key={s.title}>
           <CardHeader><CardTitle>{s.title}</CardTitle>{s.intro && <CardDescription>{s.intro}</CardDescription>}</CardHeader>
           <CardContent className="divide-y">
-            {s.rules.map((r) => (
+            {rules.map((r) => (
               <div key={r.rule} className="space-y-1 py-3 first:pt-0 last:pb-0">
                 <p className="text-sm font-medium">{r.rule}</p>
                 <p className="text-sm text-muted-foreground"><span className="font-medium text-foreground/80">Why: </span>{r.why}</p>
@@ -70,7 +88,54 @@ function BookView({ book }: { book: Book }) {
             ))}
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
+
+      {book.setups.length > 0 && !needle && (
+        <Card>
+          <CardHeader><CardTitle>Setups: exact entry, stop and target</CardTitle><CardDescription>Master one or two. Each needs a plan before you click buy.</CardDescription></CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {book.setups.map((st) => (
+              <div key={st.name} className="space-y-1 rounded-lg border p-3 text-sm">
+                <b>{st.name}</b>
+                <p><span className="font-medium">When: </span><span className="text-muted-foreground">{st.when}</span></p>
+                <p><span className="font-medium">Entry: </span><span className="text-muted-foreground">{st.entry}</span></p>
+                <p><span className="font-medium text-down">Stop: </span><span className="text-muted-foreground">{st.stop}</span></p>
+                <p><span className="font-medium text-up">Target: </span><span className="text-muted-foreground">{st.target}</span></p>
+                <p><span className="font-medium">Avoid: </span><span className="text-muted-foreground">{st.avoid}</span></p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {book.tables.length > 0 && !needle && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {book.tables.map((t) => (
+            <Card key={t.title}>
+              <CardHeader><CardTitle>{t.title}</CardTitle>{t.note && <CardDescription>{t.note}</CardDescription>}</CardHeader>
+              <CardContent className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs text-muted-foreground"><tr>{t.head.map((h) => <th key={h} className="py-1 pr-3 font-medium">{h}</th>)}</tr></thead>
+                  <tbody className="divide-y">{t.rows.map((r) => <tr key={r.join("|")}>{r.map((c, i) => <td key={i} className="py-1.5 pr-3 font-mono text-xs">{c}</td>)}</tr>)}</tbody>
+                </table>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {book.scorecard.length > 0 && !needle && (
+        <Card>
+          <CardHeader><CardTitle>Your monthly scorecard</CardTitle><CardDescription>Track these every month. What gets measured gets better.</CardDescription></CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1 pr-3 font-medium">Metric</th><th className="pr-3 font-medium">How</th><th className="font-medium">Good looks like</th></tr></thead>
+              <tbody className="divide-y">{book.scorecard.map((m) => <tr key={m.metric}><td className="py-1.5 pr-3 font-medium">{m.metric}</td><td className="pr-3 text-muted-foreground">{m.how}</td><td className="text-muted-foreground">{m.target}</td></tr>)}</tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
