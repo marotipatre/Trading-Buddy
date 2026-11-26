@@ -56,7 +56,7 @@ export default function LoginPage() {
               <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             {msg && <p className="text-sm text-warn">{msg}</p>}
-            <Button disabled={busy} className="w-full">
+            <Button type="submit" disabled={busy} className="w-full">
               {busy ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}
             </Button>
             <Button type="button" variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => setMode(mode === "in" ? "up" : "in")}>
