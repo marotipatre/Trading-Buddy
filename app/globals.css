@@ -4,47 +4,88 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Dark-only trading-terminal theme (html carries class="dark"). */
+/* Light theme (default tokens). A green brand accent in the style of retail broker apps. */
 :root {
-  --background: oklch(0.145 0.012 265);
-  --foreground: oklch(0.96 0.005 265);
-  --card: oklch(0.185 0.014 265);
-  --card-foreground: oklch(0.96 0.005 265);
-  --popover: oklch(0.2 0.015 265);
-  --popover-foreground: oklch(0.96 0.005 265);
-  --primary: oklch(0.62 0.2 275);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.25 0.015 265);
-  --secondary-foreground: oklch(0.96 0.005 265);
-  --muted: oklch(0.23 0.014 265);
-  --muted-foreground: oklch(0.68 0.02 265);
-  --accent: oklch(0.27 0.02 270);
-  --accent-foreground: oklch(0.98 0 0);
+  --background: oklch(0.982 0.003 250);
+  --foreground: oklch(0.2 0.015 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.015 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.015 250);
+  --primary: oklch(0.62 0.15 166);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.004 250);
+  --secondary-foreground: oklch(0.25 0.015 250);
+  --muted: oklch(0.96 0.004 250);
+  --muted-foreground: oklch(0.5 0.015 250);
+  --accent: oklch(0.955 0.02 166);
+  --accent-foreground: oklch(0.25 0.03 166);
+  --destructive: oklch(0.6 0.21 27);
+  --border: oklch(0.92 0.005 250);
+  --input: oklch(0.9 0.006 250);
+  --ring: oklch(0.62 0.15 166);
+  --up: oklch(0.58 0.15 162);
+  --down: oklch(0.6 0.21 27);
+  --warn: oklch(0.66 0.15 70);
+  /* Validated categorical series, light surface */
+  --series-1: #257de0;
+  --series-2: #f47230;
+  --series-3: #00b894;
+  --chart-1: oklch(0.62 0.15 166);
+  --chart-2: oklch(0.58 0.15 162);
+  --chart-3: oklch(0.66 0.15 70);
+  --chart-4: oklch(0.6 0.21 27);
+  --chart-5: oklch(0.62 0.12 230);
+  --radius: 0.75rem;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.2 0.015 250);
+  --sidebar-primary: oklch(0.62 0.15 166);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.955 0.02 166);
+  --sidebar-accent-foreground: oklch(0.25 0.03 166);
+  --sidebar-border: oklch(0.92 0.005 250);
+  --sidebar-ring: oklch(0.62 0.15 166);
+}
+
+.dark {
+  --background: oklch(0.15 0.008 250);
+  --foreground: oklch(0.96 0.004 250);
+  --card: oklch(0.19 0.01 250);
+  --card-foreground: oklch(0.96 0.004 250);
+  --popover: oklch(0.21 0.011 250);
+  --popover-foreground: oklch(0.96 0.004 250);
+  --primary: oklch(0.72 0.15 165);
+  --primary-foreground: oklch(0.16 0.02 165);
+  --secondary: oklch(0.25 0.012 250);
+  --secondary-foreground: oklch(0.96 0.004 250);
+  --muted: oklch(0.23 0.011 250);
+  --muted-foreground: oklch(0.69 0.015 250);
+  --accent: oklch(0.27 0.025 165);
+  --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.66 0.21 25);
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 13%);
-  --ring: oklch(0.62 0.2 275);
-  --up: oklch(0.74 0.19 150);
-  --down: oklch(0.66 0.21 25);
+  --ring: oklch(0.72 0.15 165);
+  --up: oklch(0.76 0.17 158);
+  --down: oklch(0.68 0.2 25);
   --warn: oklch(0.8 0.15 80);
-  /* Validated categorical series (dark surface, all-pairs CVD safe) */
+  /* Validated categorical series, dark surface */
   --series-1: #338ced;
   --series-2: #e76624;
   --series-3: #00a888;
-  --chart-1: oklch(0.7 0.17 275);
-  --chart-2: oklch(0.74 0.19 150);
+  --chart-1: oklch(0.72 0.15 165);
+  --chart-2: oklch(0.76 0.17 158);
   --chart-3: oklch(0.8 0.15 80);
-  --chart-4: oklch(0.66 0.21 25);
-  --chart-5: oklch(0.7 0.12 220);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.17 0.013 265);
-  --sidebar-foreground: oklch(0.96 0.005 265);
-  --sidebar-primary: oklch(0.62 0.2 275);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.25 0.02 270);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --chart-4: oklch(0.68 0.2 25);
+  --chart-5: oklch(0.7 0.12 230);
+  --sidebar: oklch(0.17 0.01 250);
+  --sidebar-foreground: oklch(0.96 0.004 250);
+  --sidebar-primary: oklch(0.72 0.15 165);
+  --sidebar-primary-foreground: oklch(0.16 0.02 165);
+  --sidebar-accent: oklch(0.27 0.025 165);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
   --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.62 0.2 275);
+  --sidebar-ring: oklch(0.72 0.15 165);
 }
 
 @theme inline {
@@ -97,8 +138,6 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-html { color-scheme: dark; }
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -109,4 +148,6 @@ html { color-scheme: dark; }
   html {
     @apply font-sans;
   }
+  /* Prices and quantities line up in columns like a trading terminal. */
+  .tabular { font-variant-numeric: tabular-nums; }
 }
