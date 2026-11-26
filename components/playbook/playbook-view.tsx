@@ -19,7 +19,7 @@ export function PlaybookView() {
   const book = BOOKS.find((b) => b.id === id)!;
   return (
     <div className="space-y-6">
-      <div className="grid max-w-md grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Rule book">
+      <div className="grid max-w-md grid-cols-2 gap-1 rounded-lg bg-muted p-1 print:hidden" role="tablist" aria-label="Rule book">
         {BOOKS.map((b) => (
           <button key={b.id} type="button" role="tab" aria-selected={b.id === id} onClick={() => router.replace(`/playbook?book=${b.id}`, { scroll: false })}
             className={cn("rounded-md px-3 py-1.5 text-sm font-medium", b.id === id ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground")}>{b.id === "swing" ? "Swing trading" : "Intraday"}</button>
@@ -79,7 +79,7 @@ function BookView({ book }: { book: Book }) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[230px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-20 lg:self-start">
+      <aside className="lg:sticky lg:top-20 lg:self-start print:hidden">
         <label className="lg:hidden"><span className="sr-only">Jump to a section</span>
           <select className="h-10 w-full rounded-lg border bg-background px-3 text-sm" value={active} onChange={(e) => jump(e.target.value)}>
             <option value="">Jump to…</option>
@@ -105,9 +105,10 @@ function BookView({ book }: { book: Book }) {
         <div>
           <h2 className="text-lg font-semibold">{book.title}</h2>
           <p className="text-sm text-muted-foreground">{book.tagline} <span className="whitespace-nowrap">{total} rules in {book.sections.length} sections.</span></p>
+          <button type="button" onClick={() => window.print()} className="mt-1 text-xs text-primary underline print:hidden">Print or save as PDF</button>
         </div>
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search every ${book.id === "swing" ? "swing" : "intraday"} rule (stop, margin, VWAP, tilt…)`}
-          className="h-10 w-full max-w-xl rounded-lg border bg-background px-3 text-sm" aria-label="Search rules" />
+          className="h-10 w-full max-w-xl rounded-lg border bg-background px-3 text-sm print:hidden" aria-label="Search rules" />
 
         {!needle && (
           <>

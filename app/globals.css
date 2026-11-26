@@ -183,3 +183,9 @@
   header, nav, [aria-label="Main"] { display: none !important; }
   body { background: none; }
 }
+@media print {
+  [data-slot="card"] { break-inside: avoid; box-shadow: none; border-color: #ccc; }
+  main { padding: 0 !important; max-width: none !important; }
+  main > * { animation: none !important; }
+  a { text-decoration: none; color: inherit; }
+}
