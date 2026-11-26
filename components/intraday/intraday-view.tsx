@@ -31,6 +31,8 @@ import { WeeklyReviewCard } from "@/components/weekly-review-card";
 import { AccountEquityChart } from "@/components/paper/account-equity-chart";
 import { capitalOf } from "@/lib/paper/funds";
 import { IntradayProvider, useIntraday } from "./intraday-provider";
+import { AnimatePresence, motion } from "motion/react";
+import { Money, PillTabs, SPRING, Swap } from "@/components/motion/primitives";
 import { backtestPicks, type PickBacktest } from "@/lib/intraday/pick-backtest";
 import { useLivePicks } from "./use-live-picks";
 import { CALL_LABEL, CALL_TONE } from "@/lib/intraday/live";
@@ -43,6 +45,7 @@ export function IntradayView() {
 }
 
 function Inner() {
+  const [deskTab, setDeskTab] = useState<Tab>("today");
   const { acc, ready, view, create, topUp, reset, localOnly } = useIntraday();
   const [potInput, setPotInput] = useState(100000);
   const [add, setAdd] = useState(25000);
@@ -77,33 +80,25 @@ function Inner() {
   const pledged = pledgeDate === dateKey;
   const lockReason = status.reason ?? (pledged ? null : "Read and tick today's pledge below to switch on orders.");
   const today = days.find((d) => d.date === new Date((now + 19800) * 1000).toISOString().slice(0, 10));
+  const todayPnl = today?.pnl ?? 0;
+  const lossBudget = (acc.pot * limits.maxLossPct) / 100;
+  const lossUsed = Math.max(0, -status.pnlToday);
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-5">
-          <Stat label="Pot value" value={fmtInr(view.value)} sub={`Started with ${fmtInr(acc.pot)}`} />
-          <Stat label="Total P&L" value={fmtInr(view.pnl, { sign: true })} sub={fmtPct(view.pnlPct, 1, { sign: true }) + " of pot"} tone={view.pnl >= 0 ? "up" : "down"} />
-          <Stat label="Today" value={fmtInr(today?.pnl ?? 0, { sign: true })} sub={`${today?.trades ?? 0} trades closed`} tone={(today?.pnl ?? 0) >= 0 ? "up" : "down"} />
-          <Stat label="Buying power" value={fmtInr(view.buyingPower)} sub={`${acc.leverage}x margin`} />
-          <Stat label="Margin in use" value={fmtInr(view.marginUsed)} sub="of your own money" />
-        </CardContent>
-        <CardContent className="flex flex-wrap items-center gap-2 pt-0">
-          <div className="w-36"><NumberField min={1000} step={5000} value={add} onChange={setAdd} /></div>
-          <Button variant="outline" size="sm" onClick={() => { const r = topUp(add); if (r.error) toast.error(r.error); else toast.success(`Added ${fmtInr(add)} to the pot`); }}>Add to pot</Button>
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { if (confirm("Erase the intraday account, its trades and P&L, and start again?")) reset(); }}>Reset…</Button>
-          {view.broke && <span className="text-sm text-down">Your pot is used up.</span>}
-        </CardContent>
-      </Card>
+      <DeskHero todayPnl={todayPnl} trades={today?.trades ?? 0} potValue={view.value} totalPnl={view.pnl} buyingPower={view.buyingPower} leverage={acc.leverage}
+        lossUsed={lossUsed} lossBudget={lossBudget} tradesUsed={status.tradesToday} maxTrades={limits.maxTrades} streak={status.lossStreak} maxStreak={limits.maxLossStreak}
+        locked={status.locked} reason={status.reason} pledged={pledged} onPledge={() => setDeskTab("today")} />
       {localOnly && (
         <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">Your intraday account is saved only in this browser. Run <code>supabase/migrations/0004_intraday_account.sql</code> in the Supabase SQL editor to back it up and keep it across devices.</p>
       )}
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-6">
-          <Picks lock={lockReason} />
-          <Open />
-          <Results />
-        </div>
-        <div className="min-w-0 space-y-6">
+      <PillTabs value={deskTab} onChange={setDeskTab} ariaLabel="Intraday desk sections" options={[
+        { value: "today", label: "Today" }, { value: "journal", label: "Journal" }, { value: "proof", label: "Do the picks work?" }, { value: "setup", label: "Pot and limits" },
+      ]} />
+      <Swap id={deskTab} className="space-y-6">
+        {deskTab === "today" && (
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-6"><Picks lock={lockReason} /></div>
+            <div className="min-w-0 space-y-6">
           {!status.locked && !pledged && (
             <Card className="border-primary/40">
               <CardHeader><CardTitle>Today&apos;s pledge</CardTitle><CardDescription>Orders stay off until you tick this, once each day.</CardDescription></CardHeader>
@@ -119,6 +114,28 @@ function Inner() {
               </CardContent>
             </Card>
           )}
+              <Open />
+            </div>
+          </div>
+        )}
+        {deskTab === "journal" && (
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-6"><Results /></div>
+            <div className="min-w-0 space-y-6">
+              <EquityCard />
+              <WeeklyReviewCard trades={acc.state.trades} title="Intraday" />
+            </div>
+          </div>
+        )}
+        {deskTab === "proof" && (
+          <div className="grid items-start gap-6 xl:grid-cols-2">
+            <div className="min-w-0 space-y-6"><Scorecard /><GraduationCard trades={acc.state.trades} book="intraday" /></div>
+            <div className="min-w-0 space-y-6"><PickBacktestCard /></div>
+          </div>
+        )}
+        {deskTab === "setup" && (
+          <div className="grid items-start gap-6 xl:grid-cols-2">
+            <div className="min-w-0 space-y-6">
       <Card className={status.locked ? "border-down/50" : undefined}>
         <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
           <span className="font-medium">Today&apos;s limits</span>
@@ -128,15 +145,68 @@ function Inner() {
           {status.locked ? <span className="w-full font-medium text-down">{status.reason} New orders are switched off. <Link className="underline" href="/playbook?book=intraday">Read the rule book</Link>.</span> : <span className="text-xs text-up">Within limits</span>}
         </CardContent>
       </Card>
-          <EquityCard />
-          <WeeklyReviewCard trades={acc.state.trades} title="Intraday" />
-          <GraduationCard trades={acc.state.trades} book="intraday" />
-          <Scorecard />
-          <PickBacktestCard />
-        </div>
-      </div>
+            </div>
+            <Card>
+              <CardHeader><CardTitle>Your pot</CardTitle><CardDescription>Add money or start again. Changes here never touch your main paper account.</CardDescription></CardHeader>
+              <CardContent className="flex flex-wrap items-center gap-2">
+                <div className="w-36"><NumberField min={1000} step={5000} value={add} onChange={setAdd} /></div>
+                <Button variant="outline" size="sm" onClick={() => { const r = topUp(add); if (r.error) toast.error(r.error); else toast.success(`Added ${fmtInr(add)} to the pot`); }}>Add to pot</Button>
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { if (confirm("Erase the intraday account, its trades and P&L, and start again?")) reset(); }}>Reset…</Button>
+                {view.broke && <span className="text-sm text-down">Your pot is used up.</span>}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </Swap>
       <p className="text-xs text-muted-foreground">Day trading on margin loses money for most people (SEBI&apos;s own studies of Indian traders say so). Read the <Link className="underline" href="/playbook?book=intraday">intraday rule book</Link> before you trade. Paper money only, for learning; picks are rule-based screens, not advice.</p>
     </div>
+  );
+}
+
+type Tab = "today" | "journal" | "proof" | "setup";
+
+function Meter({ label, used, max, text, danger }: { label: string; used: number; max: number; text: string; danger?: boolean }) {
+  const p = max > 0 ? Math.min(100, (used / max) * 100) : 0;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between text-xs text-white/70"><span>{label}</span><span className="figure text-white">{text}</span></div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/15"><motion.div className={cn("h-full rounded-full", danger || p >= 100 ? "bg-rose-400" : p >= 70 ? "bg-amber-300" : "bg-sky-300")} initial={false} animate={{ width: `${p}%` }} transition={SPRING} /></div>
+    </div>
+  );
+}
+
+/** The desk's top band: today's result in large type, and how much of each daily limit has been used. */
+function DeskHero(p: { todayPnl: number; trades: number; potValue: number; totalPnl: number; buyingPower: number; leverage: number; lossUsed: number; lossBudget: number; tradesUsed: number; maxTrades: number; streak: number; maxStreak: number; locked: boolean; reason?: string; pledged: boolean; onPledge: () => void }) {
+  return (
+    <section className="relative overflow-hidden rounded-3xl bg-[oklch(0.2_0.05_264)] p-6 text-white sm:p-8" aria-label="Today at the desk">
+      <div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-[oklch(0.55_0.2_264)] opacity-30 blur-3xl" aria-hidden />
+      <div className="relative grid gap-8 lg:grid-cols-[1.3fr_1fr]">
+        <div>
+          <div className="text-sm text-white/70">Today&apos;s result</div>
+          <Money value={p.todayPnl} sign className={cn("figure block text-5xl leading-none sm:text-6xl", p.todayPnl > 0 ? "text-emerald-300" : p.todayPnl < 0 ? "text-rose-300" : "text-white")} />
+          <div className="mt-2 text-sm text-white/70">{p.trades} trade{p.trades === 1 ? "" : "s"} closed today</div>
+          <dl className="mt-6 grid grid-cols-3 gap-4 text-sm">
+            <div><dt className="text-white/60">Pot value</dt><dd className="figure text-lg"><Money value={p.potValue} /></dd></div>
+            <div><dt className="text-white/60">All-time</dt><dd className={cn("figure text-lg", p.totalPnl >= 0 ? "text-emerald-300" : "text-rose-300")}><Money value={p.totalPnl} sign /></dd></div>
+            <div><dt className="text-white/60">Buying power ({p.leverage}x)</dt><dd className="figure text-lg"><Money value={p.buyingPower} /></dd></div>
+          </dl>
+        </div>
+        <div className="space-y-4 self-end">
+          <Meter label="Daily loss used" used={p.lossUsed} max={p.lossBudget} text={`${fmtInr(p.lossUsed)} of ${fmtInr(p.lossBudget)}`} />
+          <Meter label="Trades taken" used={p.tradesUsed} max={p.maxTrades} text={`${p.tradesUsed} of ${p.maxTrades}`} />
+          <Meter label="Losses in a row" used={p.streak} max={p.maxStreak} text={`${p.streak} of ${p.maxStreak}`} />
+          <AnimatePresence initial={false} mode="wait">
+            {p.locked ? (
+              <motion.p key="locked" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-xl bg-rose-500/20 px-3 py-2 text-sm text-rose-100">{p.reason} New orders are off for today.</motion.p>
+            ) : !p.pledged ? (
+              <motion.button key="pledge" type="button" onClick={p.onPledge} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full rounded-xl bg-white/12 px-3 py-2 text-left text-sm hover:bg-white/20">Orders are off until you take today&apos;s pledge. Open it.</motion.button>
+            ) : (
+              <motion.p key="ok" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-xl bg-emerald-400/15 px-3 py-2 text-sm text-emerald-100">Pledge taken. Trade the plan.</motion.p>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </section>
   );
 }
 

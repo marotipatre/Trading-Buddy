@@ -4,15 +4,17 @@ export interface NavItem { href: string; label: string; icon: LucideIcon; hint: 
 export interface NavGroup { title: string; items: NavItem[] }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { title: "Markets", items: [
+  { title: "Discover", items: [
     { href: "/dashboard", label: "Explore", icon: Compass, hint: "Today at a glance" },
     { href: "/stocks", label: "Stocks", icon: Layers, hint: "Every NSE stock, sortable" },
     { href: "/ideas", label: "Ideas", icon: Lightbulb, hint: "Swing setups and sectors" },
     { href: "/multibagger", label: "Multibagger", icon: Rocket, hint: "Small and penny stocks" },
   ] },
-  { title: "Trade", items: [
-    { href: "/intraday", label: "Intraday", icon: Zap, hint: "Daily picks, 5x pot" },
+  { title: "Invest", items: [
     { href: "/portfolio", label: "Portfolio", icon: Wallet, hint: "Holdings, orders, funds" },
+  ] },
+  { title: "Day trade", items: [
+    { href: "/intraday", label: "Intraday desk", icon: Zap, hint: "Daily picks, separate 5x pot" },
   ] },
   { title: "Learn", items: [
     { href: "/strategies", label: "Backtest", icon: FlaskConical, hint: "Test a strategy on history" },
