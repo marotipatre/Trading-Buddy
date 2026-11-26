@@ -15,6 +15,9 @@ It answers two questions honestly:
 - **Trade**: a live quote, a price chart (candles or line; 1D, 1W, 1M, 6M, 1Y, 5Y, All; volume; hover legend) with your average price, stop-loss, take-profit, pending orders and past trades drawn on it, plus the order ticket (market, limit and stop orders, delivery and intraday, live risk preview).
 - **Portfolio**: Holdings, Positions, Orders, Funds and Analysis tabs, laid out like a broker app. Two money pots (Trading and Bank) with add, move and withdraw; returns are measured against the money you put into trading, so deposits never look like profit.
 - **Analysis**: win rate with a 95% confidence interval, expectancy in R, stop usage, winners given back, MAE/MFE, tags and notes per trade, and plain-language findings about your own behaviour.
+- **Optimizer**: tune the stop-loss distance, hold time or profit target on one stock (with walk-forward) or a whole group. It recommends a value that works across a range of neighbouring values, and shows how it did on the later 30% of history it never saw, so overfitting is visible.
+- **Saved runs**: save any backtest, scan or optimization with its settings, load it again later, and compare up to three side by side.
+- **Price alerts**: "tell me when RELIANCE rises to 1450", checked while the app is open (and by the watcher if enabled), with an in-app notice and an optional browser notification.
 - **Backtester** (`lib/engine`): visual rule builder plus six swing presets, on one stock or on a whole group (size class and/or sector, 5 to 50 stocks) with pooled win probability, how many stocks made money, whether it beat buy-and-hold, and an out-of-sample check. Signals are read at the close and filled at the next open, with pessimistic stop/target ordering, gap handling, trailing and time stops, slippage and Indian transaction charges. Reports win probability, Monte Carlo, in/out-of-sample and a stop-loss study that holds the target fixed so only the stop changes.
 - **Paper broker** (`lib/paper`): shares the backtester's cost model. Stops and targets that triggered while the app was closed are replayed, and intraday positions square off at 15:15 IST.
 - **Orders**: market, limit, and stop (trigger) orders. Take-profit and stop-loss exits can be placed on any holding (or edited later with Exits); they are linked, so when one executes the other cancels. Orders are day or GTT (good till triggered, up to a year), execute when the price hits them, fill gaps at the open, and expire on their own. Activity and executions are announced as toasts, including anything that triggered while the app was closed.
@@ -35,6 +38,24 @@ It answers two questions honestly:
 3. `npm install && npm run dev`, open http://localhost:3000 and create an account.
 
 In Supabase, turn off *Confirm email* for local use, and turn off *Allow new users to sign up* once your own account exists.
+
+## Always-on order watcher (optional)
+
+By default your limit, stop-loss and take-profit orders only execute while the app is open (anything that triggered while it was closed is replayed from candles the next time you open it). To have them execute in the background:
+
+1. Run `supabase/migrations/0003_price_alerts.sql` (price alerts) if you have not.
+2. Add two values to `.env.local` (never commit this file):
+
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=...   # Supabase dashboard > Project Settings > API > service_role
+   CRON_SECRET=...                 # any long random string, at least 16 characters
+   ```
+
+   **The service-role key has full access to your database.** Keep it only in `.env.local` or your host's secret store; never put it in a `NEXT_PUBLIC_` variable and never share it.
+3. Keep the app running and start the watcher in a second terminal: `npm run watch`. It calls `/api/watch` once a minute during market hours.
+   If you deploy the app, a scheduler (for example a GitHub Actions cron or any uptime service) can call `GET /api/watch` with the header `Authorization: Bearer <CRON_SECRET>` instead.
+
+How it stays safe: the watcher only touches an account the open app has not saved to for a few minutes (the app saves a heartbeat every minute); every write is conditional on the row not having changed; and if both ever race, the app reloads the latest version instead of overwriting it. It also fires price alerts. The computer running it must be awake and online.
 
 ## Scripts
 
