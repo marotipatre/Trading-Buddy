@@ -60,4 +60,36 @@ export const PRESETS: Preset[] = [
   }),
 ];
 
+PRESETS.push(
+  preset("support-bounce", "Support bounce", "Buy when price dips to within 1% of the nearest swing-low support in an uptrend and closes back above it. Stop just under support, target just under the next resistance.", {
+    entry: { conditions: [
+      { left: price("close"), op: ">", right: ind("ema", { period: 50 }) },
+      { left: price("low"), op: "<=", right: { ...ind("support", { period: 5 }), pct: 1 } },
+      { left: price("close"), op: ">", right: ind("support", { period: 5 }) },
+    ] },
+    stopLoss: { type: "support", value: 1.5, period: 5 },
+    target: { type: "resistance", value: 1 },
+    maxHoldBars: 20,
+  }),
+  preset("trendline-bounce", "Trendline bounce", "Buy when price touches the rising trendline through the last two swing lows and closes back above it. Stop under the recent swing low, target at 2R.", {
+    entry: { conditions: [
+      { left: price("close"), op: ">", right: ind("ema", { period: 50 }) },
+      { left: price("low"), op: "<=", right: { ...ind("trend_support", { period: 5 }), pct: 0.5 } },
+      { left: price("close"), op: ">", right: ind("trend_support", { period: 5 }) },
+    ] },
+    stopLoss: { type: "swing_low", value: 1, period: 10 },
+    target: { type: "rr", value: 2 },
+    maxHoldBars: 20,
+  }),
+  preset("resistance-breakout", "Resistance breakout", "Buy a close above the last known swing-high resistance on above-average volume. Stop under support, target at 2.5R.", {
+    entry: { conditions: [
+      { left: price("close"), op: ">", right: ind("resistance", { period: 5 }, 1) },
+      { left: price("volume"), op: ">", right: ind("volume_sma", { period: 20 }) },
+    ] },
+    stopLoss: { type: "support", value: 1.5, period: 5 },
+    target: { type: "rr", value: 2.5 },
+    maxHoldBars: 25,
+  }),
+);
+
 export const getPreset = (id: string) => PRESETS.find((p) => p.id === id);

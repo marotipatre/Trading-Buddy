@@ -37,12 +37,22 @@ export function RiskForm({ strategy: s, onChange }: { strategy: StrategyDef; onC
           <div className="grid grid-cols-2 gap-2.5">
             <Field label="Type">
               <SimpleSelect className="w-full" value={s.stopLoss.type}
-                options={[{ value: "percent", label: "% below entry" }, { value: "atr", label: "× ATR" }]}
-                onChange={(type) => set({ stopLoss: { ...s.stopLoss!, type, value: type === "atr" ? 2.5 : 5 } })} />
+                options={[
+                  { value: "percent", label: "% below entry" }, { value: "atr", label: "× ATR" },
+                  { value: "support", label: "Below support" }, { value: "swing_low", label: "Below recent low" },
+                ]}
+                onChange={(type) => set({ stopLoss: { ...s.stopLoss!, type, value: type === "atr" ? 2.5 : type === "support" ? 1.5 : type === "swing_low" ? 1 : 5, period: type === "support" ? 5 : type === "swing_low" ? 10 : undefined } })} />
             </Field>
-            <Field label={s.stopLoss.type === "percent" ? "Distance (%)" : "ATR multiple"}>
+            <Field label={s.stopLoss.type === "percent" ? "Distance (%)" : s.stopLoss.type === "atr" ? "ATR multiple" : "Buffer beyond the level (%)"}>
               <NumberField min={0.1} step={0.5} value={s.stopLoss.value} onChange={(value) => set({ stopLoss: { ...s.stopLoss!, value } })} />
             </Field>
+            {(s.stopLoss.type === "support" || s.stopLoss.type === "swing_low") && (
+              <div className="col-span-2">
+                <Field label={s.stopLoss.type === "support" ? "Pivot strength (bars each side)" : "Look back (bars)"} hint={s.stopLoss.type === "support" ? "A swing low needs this many higher lows on each side. No level, no trade." : "The lowest low of this many bars."}>
+                  <NumberField min={2} max={60} value={s.stopLoss.period ?? (s.stopLoss.type === "support" ? 5 : 10)} onChange={(period) => set({ stopLoss: { ...s.stopLoss!, period: Math.round(period) } })} />
+                </Field>
+              </div>
+            )}
             <div className="col-span-2">
               <Toggle label="Trailing stop" checked={s.stopLoss.trailing} onChange={(trailing) => set({ stopLoss: { ...s.stopLoss!, trailing } })} />
             </div>
@@ -57,10 +67,10 @@ export function RiskForm({ strategy: s, onChange }: { strategy: StrategyDef; onC
           <div className="grid grid-cols-2 gap-2.5">
             <Field label="Type">
               <SimpleSelect className="w-full" value={s.target.type}
-                options={[{ value: "percent", label: "% above entry" }, ...(s.stopLoss ? [{ value: "rr" as const, label: "R multiple" }] : [])]}
-                onChange={(type) => set({ target: { type, value: type === "rr" ? 2 : 10 } })} />
+                options={[{ value: "percent", label: "% above entry" }, { value: "resistance", label: "At resistance" }, ...(s.stopLoss ? [{ value: "rr" as const, label: "R multiple" }] : [])]}
+                onChange={(type) => set({ target: { type, value: type === "rr" ? 2 : type === "resistance" ? 1 : 10 } })} />
             </Field>
-            <Field label={s.target.type === "percent" ? "Distance (%)" : "× initial risk"}>
+            <Field label={s.target.type === "percent" ? "Distance (%)" : s.target.type === "rr" ? "× initial risk" : "Buffer below resistance (%)"}>
               <NumberField min={0.1} step={0.5} value={s.target.value} onChange={(value) => set({ target: { ...s.target!, value } })} />
             </Field>
           </div>

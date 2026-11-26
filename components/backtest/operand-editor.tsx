@@ -31,6 +31,7 @@ export function OperandEditor({ value, onChange }: { value: Operand; onChange: (
         <>
           <SimpleSelect size="sm" className="w-24" value={value.field} options={FIELDS}
             onChange={(f) => onChange({ ...value, field: f as typeof value.field })} />
+          <Offset value={value.pct} onChange={(pct) => onChange({ ...value, pct })} />
           <Shift value={value.shift} onChange={(shift) => onChange({ ...value, shift })} />
         </>
       )}
@@ -45,10 +46,20 @@ export function OperandEditor({ value, onChange }: { value: Operand; onChange: (
                 onChange={(v) => onChange({ ...value, [p.key]: v })} />
             </label>
           ))}
+          <Offset value={value.pct} onChange={(pct) => onChange({ ...value, pct })} />
           <Shift value={value.shift} onChange={(shift) => onChange({ ...value, shift })} />
         </>
       )}
     </div>
+  );
+}
+
+function Offset({ value, onChange }: { value?: number; onChange: (n: number | undefined) => void }) {
+  return (
+    <label className="flex items-center gap-1 text-[11px] text-muted-foreground" title="Move the value up (+) or down (-) by a percent, e.g. +1 on support means 1% above support">
+      Offset %
+      <NumberField className="h-7 w-16" step={0.1} min={-50} max={50} value={value ?? 0} onChange={(v) => onChange(v === 0 ? undefined : v)} />
+    </label>
   );
 }
 
