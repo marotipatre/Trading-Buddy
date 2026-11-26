@@ -30,6 +30,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
   /** The drawing being dragged. It is shown live and only saved when you let go. */
   const [dragInfo, setDragInfo] = useState<{ part: "move" | 0 | 1; x0: number; y0: number; orig: Drawing } | null>(null);
   const [draft, setDraft] = useState<Drawing | null>(null);
+  const latest = useRef<Drawing | null>(null);
   const times = useMemo(() => candles.map((c) => c.time), [candles]);
   const lastClose = candles.at(-1)?.close ?? 0;
   /** Bar counts are only meaningful when both points lie inside the loaded candles; otherwise they are extrapolated. */
@@ -110,26 +111,28 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
         const p = pointFrom(e, true);
         if (!p) return;
         const pts = g.orig.points.map((q, i) => (i === g.part ? p : q));
-        setDraft({ ...g.orig, points: pts });
+        latest.current = { ...g.orig, points: pts };
+        setDraft(latest.current);
         return;
       }
       const l0 = ts.coordinateToLogical(g.x0), l1 = ts.coordinateToLogical(x);
       const p0 = series.coordinateToPrice(g.y0), p1 = series.coordinateToPrice(y);
       if (l0 === null || l1 === null || p0 === null || p1 === null) return;
       const dP = (p1 as number) - (p0 as number), dL = l1 - l0;
-      setDraft({
+      latest.current = {
         ...g.orig,
         points: g.orig.points.map((q) => ({
           price: q.price + dP,
           time: g.orig.kind === "hline" ? q.time : logicalToTime(times, (timeToLogical(times, q.time) as number) + dL),
         })),
-      });
+      };
+      setDraft(latest.current);
     };
     const up = () => {
-      setDraft((d) => {
-        if (d) onChange(drawings.map((x) => (x.id === d.id ? d : x)));
-        return null;
-      });
+      const d = latest.current;
+      latest.current = null;
+      if (d) onChange(drawings.map((x) => (x.id === d.id ? d : x)));
+      setDraft(null);
       setDragInfo(null);
     };
     window.addEventListener("pointermove", move);
