@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +36,12 @@ const pct = (n: number) => (Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixe
 
 const candlesOf = (symbol: string, days: number) => fetchCandles(symbol, days);
 
+const LAST_KEY = "tb.ideas.last.v1";
+interface LastScan { at: number; ideas: Idea[]; sectors: SectorRow[]; bench: number | null; days: number; target: number; method: Method; frame: Frame }
+function loadLast(): LastScan | null {
+  try { const v = JSON.parse(localStorage.getItem(LAST_KEY) ?? "null") as LastScan | null; return v && Array.isArray(v.ideas) && v.ideas.length ? v : null; } catch { return null; }
+}
+
 /** Best first: buy setups before watch before avoid, then by historical expectancy over the chosen period, then by score. */
 const RANK = { buy: 0, watch: 1, avoid: 2 } as const;
 const byEdge = (a: Idea, b: Idea) => RANK[a.view.verdict] - RANK[b.view.verdict] || (b.hz?.expectancyPct ?? -99) - (a.hz?.expectancyPct ?? -99) || b.view.score - a.view.score;
@@ -62,6 +68,17 @@ export function IdeasView() {
   const [asOf, setAsOf] = useState<number | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const stopRef = useRef(false);
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+
+  // Show your last scan at once, so the page is never empty while you decide whether to scan again.
+  useEffect(() => {
+    const last = loadLast();
+    if (!last) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- restore the saved scan after mount */
+    setIdeas(last.ideas); setSectors(last.sectors); setBench(last.bench); setAsOf(last.at); setRestoredAt(last.at);
+    setRanCfg({ days: last.days, target: last.target }); setRanMethod(last.method); setRanFrame(last.frame);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
   const pool = useMemo(() => {
     const all = stocks ?? [];
@@ -134,6 +151,11 @@ export function IdeasView() {
         } catch { /* news is optional */ }
         n++;
       }
+      setRestoredAt(null);
+      try {
+        const keep = [...found].sort(byEdge).slice(0, 150).map((f) => ({ ...f, news: undefined }));
+        localStorage.setItem(LAST_KEY, JSON.stringify({ at: Date.now(), ideas: keep, sectors: rankSectors(found.map((f) => ({ sector: f.stock.sector, view: f.view })), benchM1), bench: benchM1, days, target, method, frame } satisfies LastScan));
+      } catch { /* storage full or unavailable */ }
       toast.success(`${found.length} stocks analysed${failed ? `, ${failed} skipped` : ""}`);
     } catch (e) {
       toast.error((e as Error).message);
@@ -198,6 +220,9 @@ export function IdeasView() {
         </CardContent>
       </Card>
 
+      {restoredAt && !running && (
+        <p className="rounded-lg border bg-muted/40 p-2.5 text-xs text-muted-foreground">Showing your last scan from {new Date(restoredAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Press Scan now to refresh prices and signals.</p>
+      )}
       <RealityCheck />
 
       {sectors.length > 0 && (

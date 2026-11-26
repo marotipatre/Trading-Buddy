@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { AnalystCall, Consensus, NewsItem } from "@/lib/data/news";
 import { cn } from "@/lib/utils";
 
+const memo = new Map<string, { at: number; p: Payload }>();
 interface Payload { news: NewsItem[]; calls: AnalystCall[]; summary: Consensus }
 const ago = (t: number) => {
   const d = Math.max(0, Date.now() / 1000 - t);
@@ -22,9 +23,12 @@ export function NewsPanel({ name, price }: { name: string; price?: number }) {
   const rounded = price ? Math.round(price) : undefined;
 
   useEffect(() => {
+    const hit = memo.get(`${name}|${rounded ?? ""}`);
+    if (hit && Date.now() - hit.at < 10 * 60_000) { /* eslint-disable-next-line react-hooks/set-state-in-effect -- show the remembered result at once */
+      setData({ name, p: hit.p }); return; }
     const ctl = new AbortController();
     fetch(`/api/news?name=${encodeURIComponent(name)}${rounded ? `&price=${rounded}` : ""}`, { signal: ctl.signal })
-      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? "failed"); setData({ name, p: j }); })
+      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? "failed"); memo.set(`${name}|${rounded ?? ""}`, { at: Date.now(), p: j }); setData({ name, p: j }); })
       .catch((e: Error) => { if (e.name !== "AbortError") setData({ name, error: e.message }); });
     return () => ctl.abort();
   }, [name, rounded]);
