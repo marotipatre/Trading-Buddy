@@ -22,6 +22,9 @@ export async function proxy(request: NextRequest) {
     },
   );
 
+  // The order watcher is called by a scheduler with a shared secret, not by a signed-in browser; the route checks it.
+  if (request.nextUrl.pathname === "/api/watch") return response;
+
   const { data } = await supabase.auth.getClaims();
   const signedIn = !!data?.claims;
   const { pathname } = request.nextUrl;
