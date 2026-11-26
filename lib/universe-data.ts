@@ -27,16 +27,17 @@ async function download(name: string, fetchImpl: typeof fetch): Promise<Constitu
 }
 
 /** The universe, cached in memory and in a temp file for a week (index membership changes twice a year). */
-export async function getUniverse(fetchImpl: typeof fetch = fetch): Promise<Universe> {
-  if (memo && Date.now() - memo.asOf < WEEK_MS) return memo;
+export async function getUniverse(fetchImpl: typeof fetch = fetch, opts: { cacheFile?: string | null } = {}): Promise<Universe> {
+  const cacheFile = opts.cacheFile === undefined ? CACHE_FILE : opts.cacheFile; // null disables the on-disk cache (tests)
+  if (opts.cacheFile === undefined && memo && Date.now() - memo.asOf < WEEK_MS) return memo;
   return loading("u", async () => {
     let stale: Universe | null = null;
     try {
-      if (existsSync(CACHE_FILE)) {
-        const u = JSON.parse(readFileSync(CACHE_FILE, "utf8")) as Universe;
+      if (cacheFile && existsSync(cacheFile)) {
+        const u = JSON.parse(readFileSync(cacheFile, "utf8")) as Universe;
         if (u.stocks?.length > 300) {
           stale = u;
-          if (Date.now() - statSync(CACHE_FILE).mtimeMs < WEEK_MS) return (memo = u);
+          if (Date.now() - statSync(cacheFile).mtimeMs < WEEK_MS) return (memo = u);
         }
       }
     } catch {}
@@ -45,10 +46,10 @@ export async function getUniverse(fetchImpl: typeof fetch = fetch): Promise<Univ
       const stocks = buildUniverse(large, mid, small);
       if (stocks.length < 300) throw new Error("NSE constituent lists looked wrong");
       const u = { stocks, asOf: Date.now() };
-      try { writeFileSync(CACHE_FILE, JSON.stringify(u)); } catch {}
-      return (memo = u);
+      try { if (cacheFile) writeFileSync(cacheFile, JSON.stringify(u)); } catch {}
+      return opts.cacheFile === undefined ? (memo = u) : u;
     } catch (e) {
-      if (stale) return (memo = stale); // an out-of-date list is far better than none
+      if (stale) return opts.cacheFile === undefined ? (memo = stale) : stale; // an out-of-date list is far better than none
       throw e;
     }
   });
