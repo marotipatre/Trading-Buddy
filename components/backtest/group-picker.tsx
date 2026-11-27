@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { CAP_LABEL, CAP_ORDER, type UniverseStock } from "@/lib/universe-lists";
 import { SimpleSelect } from "./simple-select";
 
-export type GroupCap = import("@/lib/universe-lists").Cap | "all";
+export type GroupCap = import("@/lib/universe-lists").Cap | import("@/lib/universe-lists").ScanScope;
 const COUNTS = [5, 10, 20, 30, 50].map((n) => ({ value: String(n), label: `${n} stocks` }));
 
 export function GroupPicker({ cap, setCap, sector, setSector, count, setCount, sectors, matching, loading }: {
@@ -20,9 +20,9 @@ export function GroupPicker({ cap, setCap, sector, setSector, count, setCount, s
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2.5">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Size class</Label>
+          <Label className="text-xs text-muted-foreground">Index or size class</Label>
           <SimpleSelect className="w-full" value={cap} onChange={setCap}
-            options={[{ value: "all", label: "All sizes" }, ...CAP_ORDER.map((c) => ({ value: c, label: CAP_LABEL[c] }))]} />
+            options={[{ value: "all", label: "All stocks" }, { value: "n50", label: "Nifty 50" }, { value: "n200", label: "Nifty 200" }, { value: "n500", label: "Nifty 500" }, { value: "m30", label: "Nifty 200 Momentum 30" }, ...CAP_ORDER.map((c) => ({ value: c, label: c === "mid" ? "Midcap 150" : c === "small" ? "Smallcap 250" : CAP_LABEL[c] }))]} />
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Sector</Label>

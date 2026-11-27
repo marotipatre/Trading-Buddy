@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ScanScope } from "@/lib/universe-lists";
+import { SCAN_SCOPES, type ScanScope } from "@/lib/universe-lists";
 
 interface Job { running: boolean; scope: ScanScope; total: number; cached: number; done: number; failed: number; paused: boolean }
 
@@ -27,7 +27,7 @@ export function WarmCard({ scope }: { scope: ScanScope | null }) {
       {running && job && <span className="ml-2 inline-flex items-center gap-1.5"><Loader2 className="size-3 animate-spin" />{job.paused ? "paused: the price source is limiting requests, retrying" : `${job.cached} of ${job.total} stocks saved`}</span>}
       {open && (
         <div className="mt-2 max-w-xl space-y-2 rounded-lg border bg-card p-3">
-          <p>Price history is kept in our database after the first download, so later scans read it from there. The first download of a stock is the slow part: the free price source allows only a limited number of requests (roughly a few thousand per half hour), so about 2,300 stocks can take an hour or more. This saves history for the <b>{scope === "all" ? "whole market" : scope === "n50" ? "Nifty 50" : scope === "m30" ? "Nifty 200 Momentum 30" : "Nifty 500"}</b> in the background; you can keep using the app and stop it any time. Stocks already saved are skipped.</p>
+          <p>Price history is kept in our database after the first download, so later scans read it from there. The first download of a stock is the slow part: the free price source allows only a limited number of requests (roughly a few thousand per half hour), so about 2,300 stocks can take an hour or more. This saves history for the <b>{scope === "all" ? "whole market" : SCAN_SCOPES.find((o) => o.id === scope)?.label ?? "Nifty 500"}</b> in the background; you can keep using the app and stop it any time. Stocks already saved are skipped.</p>
           {running ? <Button size="sm" variant="outline" onClick={() => void stop()}>Stop</Button> : <Button size="sm" onClick={() => void start()}>Save history now</Button>}
           {job && !running && job.total > 0 && <p>Last run: {job.cached} of {job.total} stocks have saved history{job.failed ? `, ${job.failed} could not be loaded` : ""}.</p>}
         </div>

@@ -264,7 +264,7 @@ export function Workbench() {
         await new Promise((r) => setTimeout(r, 0)); // let the progress bar paint
       }
       if (!rows.length) throw new Error("None of the stocks could be tested. Check your connection and try again.");
-      const scope = [cap === "all" ? "all sizes" : `${cap} cap`, sector === "all" ? "all sectors" : sector].join(", ");
+      const scope = [cap === "all" ? "all stocks" : ({ n50: "Nifty 50", n200: "Nifty 200", n500: "Nifty 500", m30: "Nifty 200 Momentum 30", mid: "Midcap 150", small: "Smallcap 250" } as Record<string, string>)[cap] ?? `${cap} cap`, sector === "all" ? "all sectors" : sector].join(", ");
       setScanOut({ summary: summarizeScan(rows), rows, failed, label: `${parsed.data.name}: ${rows.length} stocks (${scope})` });
       toast.success(stopRef.current ? `Stopped early: ${rows.length} stocks tested` : `${rows.length} stocks tested`);
     } catch (e) {

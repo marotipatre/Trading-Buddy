@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   if (job?.running) return NextResponse.json({ job: { ...job } });
   const body = (await req.json().catch(() => ({}))) as { scope?: ScanScope; cancel?: boolean };
   if (body.cancel) { if (job) job.cancel = true; return NextResponse.json({ job: job && { ...job } }); }
-  const scope: ScanScope = ["n50", "n500", "m30", "all"].includes(body.scope ?? "") ? (body.scope as ScanScope) : "n500";
+  const scope: ScanScope = ["n50", "n200", "n500", "mid", "small", "m30", "all"].includes(body.scope ?? "") ? (body.scope as ScanScope) : "n500";
   const universe = await getUniverse();
   const symbols = universe.stocks.filter((s) => inScope(s, scope)).map((s) => s.symbol);
   const j: Job = { running: true, scope, total: symbols.length, cached: 0, done: 0, failed: 0, paused: false, startedAt: Date.now(), cancel: false };
