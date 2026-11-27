@@ -1,7 +1,8 @@
 "use client";
 
+import { Info } from "@/components/ui/info";
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/backtest/number-field";
 import { expectancy, intradayBreakEven, positionSize, recoveryNeeded, streakProbability } from "@/lib/playbook/calc";
@@ -32,7 +33,7 @@ function SizeCalc({ intraday }: { intraday: boolean }) {
   const s = positionSize(cap, risk, entry, stop, lev);
   return (
     <Card>
-      <CardHeader><CardTitle>Position size</CardTitle><CardDescription>Shares so that being stopped out costs a fixed share of your money.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-1.5">Position size<Info title="Position size"><p>Shares so that being stopped out costs a fixed share of your money.</p></Info></CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-2.5">
           <F label={intraday ? "Your money in the pot (₹)" : "Capital (₹)"}><NumberField min={1000} step={10000} value={cap} onChange={setCap} /></F>
@@ -61,7 +62,7 @@ function ExpectancyCalc() {
   const e = expectancy(win / 100, aw, al);
   return (
     <Card>
-      <CardHeader><CardTitle>Expectancy</CardTitle><CardDescription>What your average trade earns, in R, before costs.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-1.5">Expectancy<Info title="Expectancy"><p>What your average trade earns, in R, before costs.</p></Info></CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 gap-2.5">
           <F label="You win this % of trades"><NumberField min={1} max={99} value={win} onChange={setWin} /></F>
@@ -85,7 +86,7 @@ function StreakCalc() {
   const p = streakProbability(1 - win / 100, n, k);
   return (
     <Card>
-      <CardHeader><CardTitle>How many losses in a row to expect</CardTitle><CardDescription>Type your win rate and see how likely a bad run is. Bad runs are normal, not a sign your method is broken.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-1.5">How many losses in a row to expect<Info title="How many losses in a row to expect"><p>Type your win rate and see how likely a bad run is. Bad runs are normal, not a sign your method is broken.</p></Info></CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 gap-2.5">
           <F label="Win rate (%)"><NumberField min={1} max={99} value={win} onChange={setWin} /></F>
@@ -104,7 +105,7 @@ function RecoveryCalc() {
   const [loss, setLoss] = useState(20);
   return (
     <Card>
-      <CardHeader><CardTitle>Recovery after a loss</CardTitle><CardDescription>Why protecting capital comes first.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-1.5">Recovery after a loss<Info title="Recovery after a loss"><p>Why protecting capital comes first.</p></Info></CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <F label="Loss (%)"><NumberField min={1} max={99} value={loss} onChange={setLoss} /></F>
         <div className="rounded-lg bg-muted/50 p-3 text-sm">After losing <b>{loss}%</b> you need a gain of <b className="font-mono text-lg">{recoveryNeeded(loss).toFixed(1)}%</b> just to get back to where you started.</div>
@@ -120,7 +121,7 @@ function CostCalc() {
   const c = intradayBreakEven(price, qty, undefined, slip);
   return (
     <Card>
-      <CardHeader><CardTitle>Break-even after costs</CardTitle><CardDescription>Charges and slippage on one intraday round trip, using this app&apos;s typical Indian charge model (your broker&apos;s may differ).</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-1.5">Break-even after costs<Info title="Break-even after costs"><p>Charges and slippage on one intraday round trip, using this app&apos;s typical Indian charge model (your broker&apos;s may differ).</p></Info></CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-3 gap-2.5">
           <F label="Price"><NumberField min={0} step={0.05} value={price} onChange={setPrice} /></F>

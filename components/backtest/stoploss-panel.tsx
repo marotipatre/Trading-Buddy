@@ -1,4 +1,5 @@
 import { Info } from "lucide-react";
+import { Info as InfoPop } from "@/components/ui/info";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -51,8 +52,7 @@ export function StopLossPanel({ s }: { s: StopLossStudy }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Total P&amp;L by stop setting</CardTitle>
-          <CardDescription>Bars above the dashed line beat having no stop. Prefer a wide, flat range of good values over one lucky peak.</CardDescription>
+          <CardTitle className="flex items-center gap-1.5">Total P&amp;L by stop setting<InfoPop title="Total PandL by stop setting"><p>Bars above the dashed line beat having no stop. Prefer a wide, flat range of good values over one lucky peak.</p></InfoPop></CardTitle>
         </CardHeader>
         <CardContent>
           <StopCompareChart variants={[...(s.user ? [s.user] : []), ...s.grid]} baseline={s.none} userLabel={s.user?.label} />
@@ -61,10 +61,7 @@ export function StopLossPanel({ s }: { s: StopLossStudy }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>How far do trades dip against you?</CardTitle>
-          <CardDescription>
-            Without a stop, 90% of eventual winners dipped up to <b>{fmtPct(s.winnersMaeP90, 1)}</b> first. A stop tighter than that would have closed most of them early. The median losing trade had run <b>{fmtPct(s.losersMedianMfePct, 1)}</b> in profit before reversing.
-          </CardDescription>
+          <CardTitle className="flex items-center gap-1.5">How far do trades dip against you?<InfoPop title="How far do trades dip against you?"><p>Without a stop, 90% of eventual winners dipped up to <b>{fmtPct(s.winnersMaeP90, 1)}</b> first. A stop tighter than that would have closed most of them early. The median losing trade had run <b>{fmtPct(s.losersMedianMfePct, 1)}</b> in profit before reversing.</p></InfoPop></CardTitle>
         </CardHeader>
         <CardContent>
           <MaeMfeChart points={s.scatter} stopPct={s.user?.stop?.type === "percent" ? s.user.stop.value : undefined} />

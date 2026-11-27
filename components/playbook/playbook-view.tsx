@@ -1,5 +1,6 @@
 "use client";
 
+import { Info } from "@/components/ui/info";
 import { RichText } from "./rich-text";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -114,7 +115,7 @@ function BookView({ book }: { book: Book }) {
         {!needle && (
           <>
             <Card id="constitution" className="scroll-mt-24 border-primary/40">
-              <CardHeader><CardTitle>The pledge</CardTitle><CardDescription>Read it before every session. If you cannot agree with a line, do not trade today.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">The pledge<Info title="The pledge"><p>Read it before every session. If you cannot agree with a line, do not trade today.</p></Info></CardTitle></CardHeader>
               <CardContent><ol className="list-decimal space-y-1.5 pl-5 text-sm">{book.constitution.map((c) => <li key={c}>{c}</li>)}</ol></CardContent>
             </Card>
 
@@ -124,7 +125,7 @@ function BookView({ book }: { book: Book }) {
             </Card>
 
             <Card id="checklist" className="scroll-mt-24">
-              <CardHeader><CardTitle>Before every trade: checklist</CardTitle><CardDescription>If you cannot tick every line, do not take the trade.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">Before every trade: checklist<Info title="Before every trade: checklist"><p>If you cannot tick every line, do not take the trade.</p></Info></CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {book.checklist.map((c, i) => (
                   <label key={c} className="flex cursor-pointer items-start gap-2.5 text-sm">
@@ -137,7 +138,7 @@ function BookView({ book }: { book: Book }) {
             </Card>
 
             <Card id="path" className="scroll-mt-24">
-              <CardHeader><CardTitle>Your path: do not skip stages</CardTitle><CardDescription>Move to the next stage only when you pass the one you are on.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">Your path: do not skip stages<Info title="Your path: do not skip stages"><p>Move to the next stage only when you pass the one you are on.</p></Info></CardTitle></CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2">
                 {book.stages.map((st) => <div key={st.stage} className="space-y-0.5 rounded-lg border p-3 text-sm"><b>{st.stage}</b><p className="text-muted-foreground"><RichText text={st.do} /></p><p><span className="font-medium">Pass when: </span><span className="text-muted-foreground">{st.passWhen}</span></p></div>)}
               </CardContent>
@@ -167,7 +168,7 @@ function BookView({ book }: { book: Book }) {
         {!needle && (
           <>
             <Card id="setups" className="scroll-mt-24">
-              <CardHeader><CardTitle>Setups: exact entry, stop and target</CardTitle><CardDescription>Master one or two. Each needs a plan before you click buy.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">Setups: exact entry, stop and target<Info title="Setups: exact entry, stop and target"><p>Master one or two. Each needs a plan before you click buy.</p></Info></CardTitle></CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2">
                 {book.setups.map((st) => (
                   <div key={st.name} className="space-y-1 rounded-lg border p-3 text-sm">
@@ -203,7 +204,7 @@ function BookView({ book }: { book: Book }) {
             </section>
 
             <Card id="scorecard" className="scroll-mt-24">
-              <CardHeader><CardTitle>Your monthly scorecard</CardTitle><CardDescription>Track these every month. What gets measured gets better.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">Your monthly scorecard<Info title="Your monthly scorecard"><p>Track these every month. What gets measured gets better.</p></Info></CardTitle></CardHeader>
               <CardContent className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs text-muted-foreground"><tr><th className="py-1 pr-3 font-medium">Metric</th><th className="pr-3 font-medium">How</th><th className="font-medium">Good looks like</th></tr></thead>
@@ -224,7 +225,7 @@ function BookView({ book }: { book: Book }) {
             </div>
 
             <Card id="reading" className="scroll-mt-24">
-              <CardHeader><CardTitle>Reading list</CardTitle><CardDescription>Where these ideas come from. Read the originals.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-1.5">Reading list<Info title="Reading list"><p>Where these ideas come from. Read the originals.</p></Info></CardTitle></CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">{book.reading.map((b) => <div key={b.title} className="text-sm"><b>{b.title}</b> <span className="text-muted-foreground">by {b.author}</span><div className="text-xs text-muted-foreground">{b.why}</div></div>)}</CardContent>
             </Card>
           </>

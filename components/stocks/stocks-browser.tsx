@@ -20,7 +20,7 @@ const CAPS = ["all", ...CAP_ORDER] as const;
 const PAGE = 100;
 type SortKey = "name" | "price" | "chg" | "chg30" | "high" | "turnover";
 const COLS: { key: SortKey; label: string; hide?: string }[] = [
-  { key: "name", label: "Stock" }, { key: "price", label: "Price" }, { key: "chg", label: "Today" },
+  { key: "name", label: "Stock" }, { key: "price", label: "Price" }, { key: "chg", label: "Today", hide: "hidden md:table-cell" },
   { key: "chg30", label: "30 days", hide: "hidden md:table-cell" }, { key: "high", label: "52-week range", hide: "hidden lg:table-cell" }, { key: "turnover", label: "Traded today", hide: "hidden xl:table-cell" },
 ];
 const pct = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? "-" : `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`);
@@ -114,7 +114,7 @@ export function StocksBrowser() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border bg-card">
-        <table className="w-full min-w-[34rem] text-sm">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
               {COLS.map((c) => (
@@ -137,11 +137,11 @@ export function StocksBrowser() {
                     <td className="px-4 py-2.5">
                       <Link href={`/trade?symbol=${encodeURIComponent(s.symbol)}`} className="block min-w-0">
                         <span className="font-semibold">{displaySymbol(s.symbol)}</span>
-                        <span className="mt-0.5 block max-w-[16rem] truncate text-xs text-muted-foreground">{s.name} · {CAP_SHORT[s.cap]}{s.sector !== "Unclassified" ? ` · ${s.sector}` : ""}</span>
+                        <span className="mt-0.5 block max-w-[11rem] truncate text-xs text-muted-foreground sm:max-w-[16rem]">{s.name} · {CAP_SHORT[s.cap]}{s.sector !== "Unclassified" ? ` · ${s.sector}` : ""}</span>
                       </Link>
                     </td>
-                    <td className="figure px-4 py-2.5 text-right text-[15px]">{r ? r.price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</td>
-                    <td className={cn("px-4 py-2.5 text-right font-mono font-medium", tone(r?.chgPct))}>{pct(r?.chgPct)}</td>
+                    <td className="px-4 py-2.5 text-right"><div className="figure text-[15px]">{r ? r.price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"}</div><div className={cn("font-mono text-xs md:hidden", tone(r?.chgPct))}>{pct(r?.chgPct)}</div></td>
+                    <td className={cn("hidden px-4 py-2.5 text-right font-mono font-medium md:table-cell", tone(r?.chgPct))}>{pct(r?.chgPct)}</td>
                     <td className={cn("hidden px-4 py-2.5 text-right font-mono md:table-cell", tone(r?.chg30d))}>{pct(r?.chg30d)}</td>
                     <td className="hidden px-4 py-2.5 lg:table-cell">{r ? <RangeBar r={r} /> : <span className="text-muted-foreground">-</span>}</td>
                     <td className="hidden px-4 py-2.5 text-right font-mono text-muted-foreground xl:table-cell">{r ? crore(r.valueCr) : "-"}</td>

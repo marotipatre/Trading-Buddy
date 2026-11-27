@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Info } from "@/components/ui/info";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Candle } from "@/lib/data/types";
 import type { Analysis } from "@/lib/engine/analyze";
 import { equityVsBuyHold } from "@/lib/chart-data";
@@ -38,8 +39,7 @@ export function OverviewPanel({ a, candles }: { a: Analysis; candles: Candle[] }
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Equity curve</CardTitle>
-          <CardDescription>Strategy versus simply buying and holding the same stock</CardDescription>
+          <CardTitle className="flex items-center gap-1.5">Equity curve<Info title="Equity curve"><p>Strategy versus simply buying and holding the same stock</p></Info></CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <EquityChart rows={rows} />

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Star } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Count } from "@/components/motion/primitives";
 import { useUniverse } from "@/components/use-universe";
 import { CAP_LABEL, THIN_CAPS } from "@/lib/universe-lists";
 import { Badge } from "@/components/ui/badge";
@@ -94,30 +96,24 @@ export function TradeView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Trade</h1>
-          <p className="text-sm text-muted-foreground">Paper trade at live prices</p>
-        </div>
-        <SymbolSearch onPick={(h) => router.push(`/trade?symbol=${encodeURIComponent(h.symbol)}`)} />
+      <div className="flex flex-wrap items-center gap-3">
+        {recent.length > 0 && (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" aria-label="Recent stocks">
+            {recent.map((s) => (
+              <button key={s} type="button" onClick={() => router.push(`/trade?symbol=${encodeURIComponent(s)}`)}
+                className={cn("shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors", s === symbol ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground")}>{displaySymbol(s)}</button>
+            ))}
+          </div>
+        )}
+        <div className="ml-auto w-full sm:w-72"><SymbolSearch onPick={(h) => router.push(`/trade?symbol=${encodeURIComponent(h.symbol)}`)} className="w-full" /></div>
       </div>
-
-      {recent.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {recent.map((s) => (
-            <Button key={s} size="xs" variant={s === symbol ? "default" : "outline"} onClick={() => router.push(`/trade?symbol=${encodeURIComponent(s)}`)}>
-              {displaySymbol(s)}
-            </Button>
-          ))}
-        </div>
-      )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-4">
         <Card>
           <CardContent className="space-y-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
                 <SymbolLabel symbol={symbol} className="[&_span:first-child]:text-lg" />
                 {info && (
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
@@ -126,10 +122,10 @@ export function TradeView() {
                     {THIN_CAPS.includes(info.cap) && <span className="rounded bg-warn/15 px-1.5 py-0.5 text-warn">Thinly traded class: check volume before sizing up</span>}
                   </div>
                 )}
-                <div className="mt-1 flex items-baseline gap-3">
-                  <span className="font-mono text-5xl font-semibold tracking-tight">{q ? q.price.toFixed(2) : loading ? "…" : "—"}</span>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  {q ? <Count value={q.price} decimals={2} className="figure text-5xl leading-none" /> : <span className="figure text-5xl leading-none text-muted-foreground">{loading ? "…" : "—"}</span>}
                   {q && (
-                    <span className={`font-mono text-lg ${up ? "text-up" : "text-down"}`}>
+                    <span className={`figure whitespace-nowrap text-lg ${up ? "text-up" : "text-down"}`}>
                       {up ? "+" : ""}{q.change.toFixed(2)} ({fmtPct(q.changePct, 2, { sign: true })})
                     </span>
                   )}
@@ -158,7 +154,7 @@ export function TradeView() {
                 </div>
                 <div className="flex justify-between pt-1 text-xs text-muted-foreground">
                   <span>Previous close <span className="font-mono text-foreground">{q.prevClose.toFixed(2)}</span></span>
-                  <span>{open === null ? "" : open ? "Market open" : "Market closed — showing the last traded price"}</span>
+                  <span>{open === null ? "" : open ? "Market open" : "Market closed"}</span>
                 </div>
               </div>
             )}
@@ -170,7 +166,7 @@ export function TradeView() {
           <ForecastCard symbol={symbol} />
           <NewsPanel name={companyName(symbol) ?? displaySymbol(symbol)} price={q?.price} />
         </div>
-        <div className="space-y-4">
+        <div className="space-y-4 lg:sticky lg:top-[5.5rem] lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto lg:pb-2">
           {held.length > 0 && (
             <Card>
               <CardContent className="space-y-2">

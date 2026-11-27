@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/ui/page-header";
+import { Info } from "@/components/ui/info";
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata = { title: "Help — Trading Buddy" };
 
@@ -38,7 +39,7 @@ export default function HelpPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Optional extras (all off by default)</CardTitle><CardDescription>Each runs on your own computer. None is needed to use the app.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-1.5">Optional extras (all off by default)<Info title="Optional extras (all off by default)"><p>Each runs on your own computer. None is needed to use the app.</p></Info></CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div><b>AI headline sentiment (FinBERT).</b> Switch it on from the news panel on any stock. One-time download of about 110 MB; then it runs in your browser.</div>
             <div><b>Plain-language explanations (Ollama).</b> Install <a className="underline" href="https://ollama.com" target="_blank" rel="noreferrer noopener">Ollama</a>, run <code>ollama pull llama3.2</code>, add <code>OLLAMA_URL=http://localhost:11434</code> to <code>.env.local</code>, restart. The model only explains numbers the app computed, and answers with invented figures are flagged.</div>

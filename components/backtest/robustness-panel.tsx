@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Info } from "@/components/ui/info";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Analysis } from "@/lib/engine/analyze";
 import type { Metrics } from "@/lib/engine/metrics";
@@ -34,10 +35,7 @@ export function RobustnessPanel({ a }: { a: Analysis }) {
           </div>
           <Card>
             <CardHeader>
-              <CardTitle>Range of outcomes</CardTitle>
-              <CardDescription>
-                Your {mc.tradesPerPath} trades reshuffled and resampled thousands of times. Thin line: 5th–95th percentile. Box: middle half. Vertical bar: median.
-              </CardDescription>
+              <CardTitle className="flex items-center gap-1.5">Range of outcomes<Info title="Range of outcomes"><p>Your {mc.tradesPerPath} trades reshuffled and resampled thousands of times. Thin line: 5th–95th percentile. Box: middle half. Vertical bar: median.</p></Info></CardTitle>
             </CardHeader>
             <CardContent><McRange mc={mc} /></CardContent>
           </Card>
@@ -48,10 +46,7 @@ export function RobustnessPanel({ a }: { a: Analysis }) {
 
       <Card className="py-0">
         <CardHeader className="pt-4">
-          <CardTitle>In-sample vs out-of-sample</CardTitle>
-          <CardDescription>
-            {oos ? `Trades before ${fmtDate(oos.splitTime)} versus after. A real edge should survive the second half.` : "Not enough trades to split the history."}
-          </CardDescription>
+          <CardTitle className="flex items-center gap-1.5">In-sample vs out-of-sample<Info title="In-sample vs out-of-sample"><p>{oos ? `Trades before ${fmtDate(oos.splitTime)} versus after. A real edge should survive the second half.` : "Not enough trades to split the history."}</p></Info></CardTitle>
         </CardHeader>
         {oos && (
           <Table>

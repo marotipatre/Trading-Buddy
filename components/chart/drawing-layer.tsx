@@ -498,7 +498,7 @@ export function DrawingLayer({ chart, series, candles, drawings, onChange, tool,
       )}
 
       {editDrawing && editPos && (
-        <input data-drawing-ui autoFocus defaultValue={editDrawing.text ?? "Note"} maxLength={120} aria-label="Note text"
+        <input data-drawing-ui autoFocus defaultValue={editDrawing.text ?? "Note"} maxLength={120} aria-label="Note text" onFocus={(e) => e.target.select()}
           className="absolute z-30 h-7 w-56 rounded-md border bg-popover px-2 text-sm shadow-lg outline-none ring-2 ring-primary/40"
           style={{ left: Math.min(editPos.x + 8, Math.max(0, plotR - 230)), top: Math.max(4, editPos.y - 28) }}
           onKeyDown={(e) => { if (e.key === "Enter") { patch(editDrawing.id, { text: (e.target as HTMLInputElement).value.trim() || "Note" }); setEditing(null); } if (e.key === "Escape") setEditing(null); }}
