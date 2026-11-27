@@ -34,7 +34,7 @@ const TABS = ["holdings", "positions", "orders", "alerts", "funds", "analysis", 
 type Tab = (typeof TABS)[number];
 
 export function PortfolioView() {
-  const { state, equity, quotes, localOnly, error, ready, reset } = usePaper();
+  const { state, equity, quotes, localOnly, error, ready, reset, available, blocked } = usePaper();
   const router = useRouter();
   const params = useSearchParams();
   const tab: Tab = (TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "holdings";
@@ -85,7 +85,7 @@ export function PortfolioView() {
             <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
               <motion.div className="h-full bg-primary" initial={false} animate={{ width: `${alloc}%` }} transition={SPRING} />
             </div>
-            <div className="mt-1.5 flex justify-between text-xs text-muted-foreground"><span>Invested <Money value={invested} /></span><span>Available <Money value={state.cash} /></span></div>
+            <div className="mt-1.5 flex justify-between text-xs text-muted-foreground"><span>Invested <Money value={invested} /></span><span>{blocked > 0 ? <>Held by orders <Money value={blocked} /> · </> : null}Available <Money value={available} /></span></div>
           </div>
           <div className="flex justify-between border-t pt-3 text-sm"><span className="text-muted-foreground">Bank balance</span><span className="figure"><Money value={bankOf(state)} /></span></div>
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Net worth</span><span className="figure"><Money value={equity + bankOf(state)} /></span></div>

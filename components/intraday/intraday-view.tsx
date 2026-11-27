@@ -87,7 +87,7 @@ function Inner() {
   const lossUsed = Math.max(0, -status.pnlToday);
   return (
     <div className="tone space-y-6" style={{ "--h": 264 } as React.CSSProperties}>
-      <DeskHero todayPnl={todayPnl} trades={today?.trades ?? 0} potValue={view.value} totalPnl={view.pnl} buyingPower={view.buyingPower} leverage={acc.leverage}
+      <DeskHero todayPnl={todayPnl} trades={today?.trades ?? 0} potValue={view.value} totalPnl={view.pnl} buyingPower={view.buyingPower} blocked={view.blocked} leverage={acc.leverage}
         lossUsed={lossUsed} lossBudget={lossBudget} tradesUsed={status.tradesToday} maxTrades={limits.maxTrades} streak={status.lossStreak} maxStreak={limits.maxLossStreak}
         locked={status.locked} reason={status.reason} pledged={pledged} onPledge={() => setDeskTab("today")} />
       {localOnly && (
@@ -177,7 +177,7 @@ function Meter({ label, used, max, text, danger }: { label: string; used: number
 }
 
 /** The desk's top band: today's result in large type, and how much of each daily limit has been used. */
-function DeskHero(p: { todayPnl: number; trades: number; potValue: number; totalPnl: number; buyingPower: number; leverage: number; lossUsed: number; lossBudget: number; tradesUsed: number; maxTrades: number; streak: number; maxStreak: number; locked: boolean; reason?: string; pledged: boolean; onPledge: () => void }) {
+function DeskHero(p: { todayPnl: number; trades: number; potValue: number; totalPnl: number; buyingPower: number; blocked: number; leverage: number; lossUsed: number; lossBudget: number; tradesUsed: number; maxTrades: number; streak: number; maxStreak: number; locked: boolean; reason?: string; pledged: boolean; onPledge: () => void }) {
   return (
     <section className="relative overflow-hidden rounded-3xl bg-[oklch(0.2_0.05_264)] p-6 text-white sm:p-8" aria-label="Today at the desk">
       <div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-[oklch(0.55_0.2_264)] opacity-30 blur-3xl" aria-hidden />
@@ -189,7 +189,7 @@ function DeskHero(p: { todayPnl: number; trades: number; potValue: number; total
           <dl className="mt-6 grid grid-cols-3 gap-4 text-sm">
             <div><dt className="text-white/60">Pot value</dt><dd className="figure text-lg"><Money value={p.potValue} /></dd></div>
             <div><dt className="text-white/60">All-time</dt><dd className={cn("figure text-lg", p.totalPnl >= 0 ? "text-emerald-300" : "text-rose-300")}><Money value={p.totalPnl} sign /></dd></div>
-            <div><dt className="text-white/60">Buying power ({p.leverage}x)</dt><dd className="figure text-lg"><Money value={p.buyingPower} /></dd></div>
+            <div><dt className="text-white/60">Buying power ({p.leverage}x)</dt><dd className="figure text-lg"><Money value={p.buyingPower} /></dd>{p.blocked > 0 && <dd className="text-xs text-white/60">{fmtInr(p.blocked)} held by open orders</dd>}</div>
           </dl>
         </div>
         <div className="space-y-4 self-end">

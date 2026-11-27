@@ -18,7 +18,7 @@ type Mode = "add" | "move" | "withdraw";
 const QUICK = [5_000, 10_000, 50_000, 100_000, 500_000];
 
 export function FundsCard() {
-  const { state, equity, addMoney, withdraw, transfer } = usePaper();
+  const { state, equity, addMoney, withdraw, transfer, available, blocked } = usePaper();
   const [mode, setMode] = useState<Mode>("add");
   const [pot, setPot] = useState<Pot>("trading");
   const [amount, setAmount] = useState(50_000);
@@ -49,7 +49,8 @@ export function FundsCard() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground"><LineChart className="size-4" /> Trading balance</div>
             <div className="font-mono text-3xl font-semibold tracking-tight">{fmtInr(equity)}</div>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><div className="text-muted-foreground">Available to trade</div><div className="font-mono text-sm">{fmtInr(state.cash)}</div></div>
+              <div><div className="text-muted-foreground">Available to trade</div><div className="font-mono text-sm">{fmtInr(available)}</div></div>
+              {blocked > 0 && <div><div className="text-muted-foreground">Held by open orders</div><div className="font-mono text-sm">{fmtInr(blocked)}</div></div>}
               <div><div className="text-muted-foreground">Invested</div><div className="font-mono text-sm">{fmtInr(invested)}</div></div>
             </div>
             <div className="text-xs text-muted-foreground">Capital put in: <span className="font-mono text-foreground">{fmtInr(capitalOf(state))}</span></div>
@@ -94,7 +95,7 @@ export function FundsCard() {
             {QUICK.map((q) => (
               <Button key={q} size="xs" variant="outline" onClick={() => setAmount(q)}>{fmtInr(q)}</Button>
             ))}
-            <Button size="xs" variant="ghost" onClick={() => setAmount(Math.floor(pot === "bank" ? bank : state.cash))}>Max available</Button>
+            <Button size="xs" variant="ghost" onClick={() => setAmount(Math.floor(pot === "bank" ? bank : available))}>Max available</Button>
           </div>
           <Button onClick={submit}>{mode === "add" ? "Add money" : mode === "move" ? "Move money" : "Withdraw"}</Button>
         </CardContent>

@@ -17,7 +17,7 @@ import { displaySymbol } from "@/lib/symbols";
 import { useMarketOpen } from "@/components/use-market-open";
 
 export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol: string; ltp?: number; initialSide?: "buy" | "sell"; plan?: { entry: number; stop: number; target: number } | null }) {
-  const { state, place, ready, transfer } = usePaper();
+  const { state, place, ready, transfer, available, blocked } = usePaper();
   const open = useMarketOpen();
   const nowSec = useNow(60_000);
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
@@ -193,7 +193,8 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol
           {est.risk !== undefined && (
             <div className="flex justify-between"><dt className="text-muted-foreground">Risk if stopped</dt><dd className="font-mono">{fmtInr(est.risk)} ({fmtPct(est.riskPct ?? NaN, 2)} of cash)</dd></div>
           )}
-          <div className="flex justify-between"><dt className="text-muted-foreground">Available cash</dt><dd className="font-mono">{fmtInr(state.cash)}</dd></div>
+          {blocked > 0 && <div className="flex justify-between"><dt className="text-muted-foreground">Held by open orders</dt><dd className="font-mono">{fmtInr(blocked)}</dd></div>}
+          <div className="flex justify-between"><dt className="text-muted-foreground">Available cash</dt><dd className="font-mono">{fmtInr(available)}</dd></div>
         </dl>
         {!closing && side === "buy" && (() => {
           const rr = stop !== undefined && target !== undefined && ref > stop ? (target - ref) / (ref - stop) : undefined;
@@ -204,14 +205,14 @@ export function OrderTicket({ symbol, ltp, initialSide = "buy", plan }: { symbol
             </ul>
           ) : null;
         })()}
-        {!closing && side === "buy" && est.value > state.cash && (
+        {!closing && side === "buy" && est.value > available && (
           <div className="space-y-1.5 rounded-lg border border-warn/40 bg-warn/10 p-2.5 text-xs text-warn">
-            <p>Order value is {fmtInr(est.value - state.cash)} more than your available trading balance.</p>
-            {bankOf(state) >= est.value - state.cash && (
+            <p>Order value is {fmtInr(est.value - available)} more than your available trading balance{blocked > 0 ? ` (${fmtInr(blocked)} is held by open orders)` : ""}.</p>
+            {bankOf(state) >= est.value - available && (
               <Button size="xs" variant="outline" onClick={() => {
-                const r = transfer("bank", Math.ceil((est.value - state.cash) * 1.01));
+                const r = transfer("bank", Math.ceil((est.value - available) * 1.01));
                 if (r.error) toast.error(r.error); else toast.success("Moved money from your Bank balance");
-              }}>Move {fmtInr(Math.ceil((est.value - state.cash) * 1.01))} from Bank</Button>
+              }}>Move {fmtInr(Math.ceil((est.value - available) * 1.01))} from Bank</Button>
             )}
           </div>
         )}

@@ -1,4 +1,4 @@
-import { equity as equityOf, newAccount } from "@/lib/paper/broker";
+import { blockedFunds, equity as equityOf, newAccount } from "@/lib/paper/broker";
 import { addMoney, capitalOf } from "@/lib/paper/funds";
 import type { PaperState } from "@/lib/paper/types";
 
@@ -38,6 +38,8 @@ export interface PotView {
   pnlPct: number;
   buyingPower: number;
   marginUsed: number;
+  /** Buying power held back by resting orders (their full order value). */
+  blocked: number;
   /** True when losses have used up the pot. */
   broke: boolean;
 }
@@ -47,7 +49,8 @@ export function potView(acc: IntradayAccount, prices: Record<string, number>): P
   const pnl = eq - capitalOf(acc.state);
   const used = acc.state.positions.reduce((s, p) => s + (p.qty * (prices[p.symbol] ?? p.entryPrice)) / acc.leverage, 0);
   const value = acc.pot + pnl;
-  return { value, pnl, pnlPct: acc.pot > 0 ? (pnl / acc.pot) * 100 : 0, buyingPower: acc.state.cash, marginUsed: used, broke: value <= 0 };
+  const blocked = blockedFunds(acc.state);
+  return { value, pnl, pnlPct: acc.pot > 0 ? (pnl / acc.pot) * 100 : 0, buyingPower: Math.max(0, acc.state.cash - blocked), blocked, marginUsed: used, broke: value <= 0 };
 }
 
 /** Realised profit by day (IST), for the daily results table. */

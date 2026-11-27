@@ -273,3 +273,29 @@ describe("risk, excursions and R multiples", () => {
     expect(s.trades[0].rMultiple).toBeUndefined();
   });
 });
+
+describe("funds held by resting orders", () => {
+  it("blocks the order value of a limit buy and frees it when cancelled", async () => {
+    const { blockedFunds, availableCash } = await import("./broker");
+    const s = must(placeOrder(acct(), buy({ type: "limit", limitPrice: 90, qty: 100 }), 100, 1));
+    expect(s.cash).toBe(100000);
+    expect(blockedFunds(s)).toBe(9000);
+    expect(availableCash(s)).toBe(91000);
+    const c = cancelOrder(s, s.orders[0].id, 2);
+    expect(blockedFunds(c)).toBe(0);
+    expect(availableCash(c)).toBe(100000);
+  });
+  it("refuses a second order that would use money already held", () => {
+    let s = must(placeOrder(acct(10000), buy({ type: "limit", limitPrice: 90, qty: 100 }), 100, 1)); // holds 9,000
+    const r = placeOrder(s, buy({ type: "limit", limitPrice: 95, qty: 20 }), 100, 2); // needs 1,900, only 1,000 free
+    expect(r.error).toMatch(/Insufficient funds/);
+    s = must(placeOrder(s, buy({ type: "limit", limitPrice: 95, qty: 10 }), 100, 3)); // 950 fits
+    expect(s.orders).toHaveLength(2);
+  });
+  it("does not hold money for exits of a position you already own", async () => {
+    const { blockedFunds } = await import("./broker");
+    let s = must(placeOrder(acct(), buy({ qty: 10 }), 100, 1));
+    s = must(placeOrder(s, { symbol: "ABC", side: "sell", qty: 10, type: "limit", limitPrice: 120, product: "delivery" }, 100, 2));
+    expect(blockedFunds(s)).toBe(0);
+  });
+});

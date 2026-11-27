@@ -22,6 +22,20 @@ export function equity(state: PaperState, prices: Record<string, number>): numbe
   }, 0);
 }
 
+/** True when a resting order would open (or add to) a position, as opposed to closing one you hold. */
+const opensPosition = (state: PaperState, o: { symbol: string; side: "buy" | "sell"; product: PendingOrder["product"] }) =>
+  !state.positions.some((p) => p.symbol === o.symbol && p.product === o.product && p.direction === (o.side === "sell" ? "long" : "short"));
+
+const reserveFor = (state: PaperState, o: { qty: number; side: "buy" | "sell"; product: PendingOrder["product"]; price: number }) =>
+  o.qty * o.price + chargesForLeg(side(o.side === "buy" ? "long" : "short", "entry"), o.qty * o.price, o.product, state.costs).total;
+
+/** Money held back for resting orders that would open a position, as a broker blocks margin until they fill or are cancelled. */
+export function blockedFunds(state: PaperState): number {
+  return state.orders.reduce((s, o) => (opensPosition(state, o) ? s + reserveFor(state, { qty: o.qty, side: o.side, product: o.product, price: o.limitPrice }) : s), 0);
+}
+/** Cash you can still use: the balance less money blocked by open orders. */
+export const availableCash = (state: PaperState) => Math.max(0, state.cash - blockedFunds(state));
+
 function open(state: PaperState, req: OrderRequest, direction: Direction, rawPrice: number, time: number, slippage: boolean): Result {
   const bps = slippage ? state.costs.slippageBps : 0;
   const fill = slip(rawPrice, direction === "long" ? "up" : "down", bps);
@@ -151,6 +165,11 @@ export function placeOrder(state: PaperState, req: OrderRequest, ltp: number, ti
   if (!marketable) {
     if (!held && req.side === "sell" && req.product === "delivery") return { state, error: "You do not hold this stock; delivery shorts are not allowed on NSE cash" };
     if (held && req.qty > held.qty) return { state, error: `You only hold ${held.qty} shares` };
+    if (!held) {
+      const need = reserveFor(state, { qty: req.qty, side: req.side, product: req.product, price: req.type === "stop" ? req.triggerPrice! : req.limitPrice! });
+      const free = availableCash(state);
+      if (need > free) return { state, error: `Insufficient funds: this order needs ₹${Math.ceil(need).toLocaleString("en-IN")} and only ₹${Math.floor(free).toLocaleString("en-IN")} is free (the rest is held by open orders)` };
+    }
     const validity: Validity = req.validity ?? (req.product === "intraday" ? "day" : "gtt");
     const order: PendingOrder = {
       id: state.nextId, symbol: req.symbol, side: req.side, qty: req.qty,

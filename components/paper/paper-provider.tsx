@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Candle, Quote } from "@/lib/data/types";
-import { catchUp, closePosition, expireOrders, intradayDue, modifyOrder, newAccount, onPrice, placeOrder, setExits as setExitsFn, squareOffIntraday, cancelOrder, equity as equityOf } from "@/lib/paper/broker";
+import { catchUp, closePosition, expireOrders, intradayDue, modifyOrder, newAccount, onPrice, placeOrder, setExits as setExitsFn, squareOffIntraday, cancelOrder, blockedFunds, equity as equityOf } from "@/lib/paper/broker";
 import { annotateTrade, recordEquity } from "@/lib/paper/journal";
 import { addMoney as addMoneyFn, normalizeState, transferMoney, withdrawMoney } from "@/lib/paper/funds";
 import { loadAccount, saveAccount, type Loaded } from "@/lib/paper/store";
@@ -19,6 +19,9 @@ interface PaperCtx {
   error: string | null;
   quotes: Record<string, Quote>;
   equity: number;
+  /** Money held back for open orders, and the cash left to use. */
+  blocked: number;
+  available: number;
   place: (req: OrderRequest) => Promise<{ error?: string; filled?: boolean }>;
   closeNow: (positionId: number, qty?: number) => Promise<{ error?: string }>;
   cancel: (orderId: number) => void;
@@ -260,10 +263,12 @@ export function PaperProvider({ children }: { children: React.ReactNode }) {
 
   const prices = useMemo(() => Object.fromEntries(Object.values(quotes).map((q) => [q.symbol, q.price])), [quotes]);
   const equity = useMemo(() => equityOf(state, prices), [state, prices]);
+  const blocked = useMemo(() => blockedFunds(state), [state]);
+  const available = Math.max(0, state.cash - blocked);
 
   const value = useMemo<PaperCtx>(
-    () => ({ state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, modify, setExits, annotate, addMoney, withdraw, transfer, reset }),
-    [state, ready, localOnly, error, quotes, equity, place, closeNow, cancel, modify, setExits, annotate, addMoney, withdraw, transfer, reset],
+    () => ({ state, ready, localOnly, error, quotes, equity, blocked, available, place, closeNow, cancel, modify, setExits, annotate, addMoney, withdraw, transfer, reset }),
+    [state, ready, localOnly, error, quotes, equity, blocked, available, place, closeNow, cancel, modify, setExits, annotate, addMoney, withdraw, transfer, reset],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
