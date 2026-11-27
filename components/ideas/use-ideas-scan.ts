@@ -60,13 +60,16 @@ export function useIdeasScan(method: Method, frame: Frame, scope: ScanScope | nu
     // included only if they traded at least about Rs 10 lakh in the last session (from NSE's own live feed).
     let turnover: Map<string, number> | null = null;
     try { const r = await fetch("/api/market"); const j = await r.json(); if (r.ok) turnover = new Map((j.rows as { symbol: string; valueCr: number }[]).map((x) => [x.symbol, x.valueCr])); } catch { /* scan everything without the liquidity gate */ }
-    const tradable = (s: UniverseStock) => !turnover || scope !== "all" || s.cap === "large" || s.cap === "mid" || s.cap === "small" || (turnover.get(s.symbol.replace(/\.NS$/, "")) ?? 0) >= 0.1;
+    // The feed's "traded value" is today's running total, so early in the session it is small for every stock. Use a much lower
+    // first cut while the market is open and judge thin trading properly from each stock's own 20-day average below.
+    const gate = isMarketOpen() ? 0.01 : 0.1;
+    const tradable = (s: UniverseStock) => !turnover || scope !== "all" || s.cap === "large" || s.cap === "mid" || s.cap === "small" || (turnover.get(s.symbol.replace(/\.NS$/, "")) ?? 0) >= gate;
     const all = [...(stocks ?? [])].filter((s) => inScope(s, scope)).filter(tradable).sort((a, b) => ORDER[a.cap] - ORDER[b.cap] || a.name.localeCompare(b.name));
     if (!all.length) return;
     stopRef.current = false;
     setRunning(true);
     const found: BaseIdea[] = [];
-    let done = 0, failed = 0, benchM1 = 0;
+    let done = 0, failed = 0, thin = 0, benchM1 = 0;
     let reg: MarketRegime | null = null;
     try {
       try {
@@ -82,13 +85,18 @@ export function useIdeasScan(method: Method, frame: Frame, scope: ScanScope | nu
       await runPool(all, 12, async (s) => {
         try {
           const candles = await fetchCandles(s.symbol, days);
+          if (scope === "all" && s.cap !== "large" && s.cap !== "mid" && s.cap !== "small") {
+            const last = candles.slice(-20);
+            const avg = last.length ? last.reduce((t, c) => t + c.close * c.volume, 0) / last.length : 0;
+            if (avg < 1_000_000) { thin++; done++; return; } // under about Rs 10 lakh a day: too thin to trade
+          }
           const view = assessMethod(s.symbol, candles, method, frame);
           if (view) found.push({ symbol: s.symbol, name: s.name, sector: s.sector, cap: s.cap, view, patterns: latestPatterns(candles).map((p) => ({ name: p.name, bias: p.bias })), feat: computeFeatures(candles) });
           else failed++;
         } catch { failed++; }
         done++;
         if (done % 12 === 0 || done === all.length) {
-          setProgress({ done, total: all.length, phase: "prices", note: `${found.length} analysed` });
+          setProgress({ done, total: all.length, phase: "prices", note: `${found.length} analysed${thin ? `, ${thin} skipped as too thinly traded` : ""}` });
           setBases([...found]);
         }
       }, () => stopRef.current);
