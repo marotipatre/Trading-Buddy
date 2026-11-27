@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
@@ -11,16 +11,18 @@ import { NumberField } from "@/components/backtest/number-field";
 import { useNow } from "@/components/use-now";
 import { useUniverse } from "@/components/use-universe";
 import { fetchCandles, pool as runPool } from "@/lib/analysis/candle-cache";
-import { moodOf } from "@/lib/analysis/mood";
 import { ExplainButton } from "@/components/coach/explain-button";
-import { AiSentimentToggle } from "@/components/ai-sentiment";
 import { pnlByDay } from "@/lib/intraday/account";
-import { marketRegime, type MarketRegime } from "@/lib/analysis/regime";
+import type { MarketRegime } from "@/lib/analysis/regime";
 import { INTRADAY } from "@/lib/playbook/content";
 import { dayStatus, DEFAULT_LIMITS, type Limits } from "@/lib/intraday/limits";
 import { cleanShare, MISTAKE_TAGS, mistakeCounts, pickDateOf, userNote, withUserNote } from "@/lib/intraday/journal";
-import { loadBatches, saveBatch, type PickBatch } from "@/lib/intraday/log";
-import { intradaySize, scoreIntraday, topPicks, type IntradayPick } from "@/lib/intraday/picks";
+import { loadBatches, saveBatch } from "@/lib/intraday/log";
+import { intradaySize, sessionDates, type IntradayPick } from "@/lib/intraday/picks";
+import { PickTicket } from "./pick-ticket";
+import { useQuotes } from "@/components/use-quotes";
+import { useMarketOpen } from "@/components/use-market-open";
+import { Skeleton } from "@/components/ui/skeleton";
 import { evaluatePick, summarize, type PickResult } from "@/lib/intraday/scorecard";
 import { fmtInr, fmtPct } from "@/lib/format";
 import { displaySymbol } from "@/lib/symbols";
@@ -32,7 +34,7 @@ import { AccountEquityChart } from "@/components/paper/account-equity-chart";
 import { capitalOf } from "@/lib/paper/funds";
 import { IntradayProvider, useIntraday } from "./intraday-provider";
 import { AnimatePresence, motion } from "motion/react";
-import { Collapse, Money, PillTabs, SPRING, Stagger, StaggerItem, Swap } from "@/components/motion/primitives";
+import { Collapse, Money, Percent, PillTabs, SPRING, Stagger, StaggerItem, Swap } from "@/components/motion/primitives";
 import { Info } from "@/components/ui/info";
 import { backtestPicks, type PickBacktest } from "@/lib/intraday/pick-backtest";
 import { useLivePicks } from "./use-live-picks";
@@ -210,129 +212,150 @@ function DeskHero(p: { todayPnl: number; trades: number; potValue: number; total
 }
 
 
+interface PicksState { forDate: string; createdAt: number; picks: IntradayPick[]; regime: MarketRegime | null; scanned?: number }
+const DAY_NAME = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+
+/**
+ * Picks for a chosen session, found on the server from saved history so they are there as soon as the page opens. "Today" is built
+ * from yesterday's close (decide before or at the open); "Next session" is built from today's close and starts being found in the
+ * background as soon as you open the page.
+ */
 function Picks({ lock }: { lock: string | null }) {
-  const { acc, place } = useIntraday();
-  const { stocks } = useUniverse();
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [batch, setBatch] = useState<PickBatch | null>(() => (typeof window === "undefined" ? null : loadBatches().at(-1) ?? null));
+  const { acc, place, view } = useIntraday();
+  const [sessions, setSessions] = useState<ReturnType<typeof sessionDates> | null>(null);
+  const [forDate, setForDate] = useState<string | null>(null);
+  const [byDate, setByDate] = useState<Record<string, PicksState>>({});
+  const [loading, setLoading] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const [riskPct, setRiskPct] = useState(1);
   const [settings, setSettings] = useState(false);
-  const [regime, setRegime] = useState<MarketRegime | null>(null);
-  const stopRef = useRef(false);
-  const live = useLivePicks(batch?.picks, batch?.forDate);
 
-  const generate = useCallback(async () => {
-    const universe = [...(stocks ?? [])].sort((a, b) => (a.cap === "large" ? 0 : a.cap === "mid" ? 1 : 2) - (b.cap === "large" ? 0 : b.cap === "mid" ? 1 : 2)); // the whole market, most liquid first
-    if (!universe.length) { toast.error("Stock list is still loading"); return; }
-    stopRef.current = false;
-    setRunning(true);
-    const found: IntradayPick[] = [];
-    let done = 0;
-    let reg: MarketRegime | null = null;
+  const load = useCallback(async (date: string, refresh = false) => {
+    setLoading(date); setFailed(null);
     try {
-      try { reg = marketRegime(await fetchCandles("^NSEI", 500)); setRegime(reg); } catch { /* the market check is optional */ }
-      await runPool(universe, 8, async (s) => {
-        try { const p = scoreIntraday(s.symbol, s.name, s.sector, await fetchCandles(s.symbol, 400), 0, Math.floor(Date.now() / 1000)); if (p) found.push(p); } catch { /* skip */ }
-        done++;
-        if (done % 10 === 0) setProgress({ done, total: universe.length });
-      }, () => stopRef.current);
-      // Headlines for the strongest candidates, then re-score with the tone.
-      const shortlist = topPicks(found, 12, 4);
-      const rescored: IntradayPick[] = [];
-      for (const p of shortlist) {
-        let mood = 0;
-        try {
-          const j = await (await fetch(`/api/news?name=${encodeURIComponent(p.name)}`)).json();
-          if (j.news) mood = (await moodOf(j.news)).score;
-        } catch { /* headlines are optional */ }
-        const c = await fetchCandles(p.symbol, 400);
-        const again = scoreIntraday(p.symbol, p.name, p.sector, c, mood, Math.floor(Date.now() / 1000));
-        if (again) rescored.push(again);
-      }
-      const picks = topPicks(rescored, reg?.regime === "bear" ? 3 : 5, 2);
-      if (!picks.length) { toast.info("No stock qualified today. Sitting out is a valid trade."); setBatch(null); return; }
-      const b: PickBatch = { forDate: picks[0].forDate, createdAt: Date.now(), picks };
-      saveBatch(b);
-      setBatch(b);
-      toast.success(`${picks.length} picks for ${b.forDate}`);
-    } finally { setRunning(false); setProgress(null); }
-  }, [stocks]);
+      const r = await fetch(`/api/picks?date=${date}${refresh ? "&refresh=1" : ""}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "failed");
+      const st: PicksState = { forDate: j.forDate, createdAt: j.createdAt, picks: j.picks, regime: j.regime, scanned: j.scanned };
+      setByDate((m) => ({ ...m, [date]: st }));
+      saveBatch({ forDate: st.forDate, createdAt: st.createdAt, picks: st.picks });
+    } catch (e) { setFailed((e as Error).message); }
+    finally { setLoading((l) => (l === date ? null : l)); }
+  }, []);
 
-  // Open the page and the picks are there: use the saved ones, and refresh in the background if they are old or missing.
-  const autoRan = useRef(false);
+  // Work out which sessions exist, show anything already saved at once, then fetch both in the background (the one you are looking at first).
   useEffect(() => {
-    if (autoRan.current || !stocks?.length) return;
-    autoRan.current = true;
-    const age = batch ? Date.now() - batch.createdAt : Infinity;
-    if (age > 6 * 3600_000) setTimeout(() => void generate(), 0);
-  }, [stocks, batch, generate]);
+    const s = sessionDates(Math.floor(Date.now() / 1000));
+    const first = s.today && !s.todayOver ? s.today : s.next;
+    const saved: Record<string, PicksState> = {};
+    for (const b of loadBatches()) if (b.forDate === s.today || b.forDate === s.next) saved[b.forDate] = { forDate: b.forDate, createdAt: b.createdAt, picks: b.picks, regime: null };
+    /* eslint-disable react-hooks/set-state-in-effect -- the clock is only available in the browser */
+    setSessions(s); setForDate(first); setByDate(saved);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    const other = first === s.next ? s.today : s.next;
+    void load(first);
+    if (other) setTimeout(() => void load(other), 1500);
+  }, [load]);
 
+  const cur = forDate ? byDate[forDate] : undefined;
+  const picks = useMemo(() => cur?.picks ?? [], [cur]);
+  const regime = cur?.regime ?? null;
+  const open = useMarketOpen();
+  const quotes = useQuotes(useMemo(() => picks.map((p) => p.symbol), [picks]), { openMs: 5_000, closedMs: 120_000 });
+  const isToday = !!sessions && forDate === sessions.today;
+  const live = useLivePicks(isToday ? picks : undefined, isToday ? forDate ?? undefined : undefined);
   const pot = acc?.pot ?? 0;
+  const maxLev = acc?.leverage ?? 5;
+  const availableMoney = (view?.buyingPower ?? 0) / maxLev;
+
+  const tabs = sessions ? [
+    ...(sessions.today ? [{ value: sessions.today, label: <>Today · {DAY_NAME(sessions.today)}</> }] : []),
+    { value: sessions.next, label: <>Next session · {DAY_NAME(sessions.next)}</> },
+  ] : [];
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="flex items-center gap-1.5 text-lg font-semibold">Next session picks
-          <Info title="How the picks are chosen">
-            <p>Liquid stocks in uptrends that closed strong on rising volume, with headline tone checked. Each has a buy-stop entry, a stop-loss and targets.</p>
-            <p>Scan after the close, trade the next morning. If nothing qualifies, sitting out is a valid trade.</p>
+        <h2 className="flex items-center gap-1.5 text-lg font-semibold">Picks
+          <Info title="How the picks work">
+            <p><b>Today</b> picks are built from yesterday&apos;s close, so decide before or at the open. <b>Next session</b> picks are built from today&apos;s close and are found in the background as soon as you open this page.</p>
+            <p>Liquid stocks in uptrends that closed strong on rising volume, each with a buy-stop entry, a stop-loss and targets. If nothing qualifies, sitting out is a valid trade. Headline tone is not part of these picks.</p>
           </Info>
         </h2>
-        {batch && <span className="text-sm text-muted-foreground">for {batch.forDate}</span>}
         <div className="ml-auto flex items-center gap-2">
-          {progress && <span className="figure text-xs text-muted-foreground">{progress.done} of {progress.total}</span>}
-          {running && <Button variant="outline" size="sm" onClick={() => { stopRef.current = true; }}>Stop</Button>}
-          <Button size="sm" onClick={generate} disabled={running}>{running ? <Loader2 className="animate-spin" /> : <RefreshCw />}{running ? "Scanning" : batch ? "Refresh" : "Find picks"}</Button>
+          <Button size="sm" variant="outline" onClick={() => forDate && void load(forDate, true)} disabled={!forDate || loading === forDate}>{loading === forDate ? <Loader2 className="animate-spin" /> : <RefreshCw />}Refresh</Button>
           <button type="button" aria-label="Pick settings" aria-expanded={settings} onClick={() => setSettings((x) => !x)} className="grid size-8 place-items-center rounded-lg border bg-card text-muted-foreground hover:text-foreground"><SlidersHorizontal className="size-4" /></button>
         </div>
       </div>
+      {tabs.length > 0 && forDate && <PillTabs value={forDate} onChange={setForDate} options={tabs} ariaLabel="Session" />}
       <Collapse open={settings}>
         <div className="flex flex-wrap items-end gap-4 rounded-2xl border bg-card p-3.5">
-          <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Risk per trade (% of pot)</Label><NumberField min={0.25} max={3} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
-          <AiSentimentToggle />
+          <div className="w-40 space-y-1"><Label className="text-xs text-muted-foreground">Default risk per trade (% of pot)</Label><NumberField min={0.25} max={3} step={0.25} value={riskPct} onChange={setRiskPct} /></div>
+          <p className="max-w-sm text-xs text-muted-foreground">Sets the starting quantity in each order ticket. You can change quantity, margin, entry, stop-loss and target on the ticket itself.</p>
         </div>
       </Collapse>
+      {isToday && sessions?.todayOver && <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">Today&apos;s session is over. These picks were made for the morning; see the next session for new ones.</p>}
       {regime && (
-        <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2 text-sm", "bg-muted text-foreground")}>
+        <div className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
           <span className="font-medium">Market: {regime.label.toLowerCase()}</span>
-          {regime.sizeFactor < 1 && <span className="text-xs opacity-80">sizes use {Math.round(regime.sizeFactor * 100)}% of normal risk</span>}
+          {regime.sizeFactor < 1 && <span className="text-xs text-muted-foreground">sizes start at {Math.round(regime.sizeFactor * 100)}% of normal risk</span>}
           <Info title="Market condition" className="ml-auto" align="end"><p>{regime.advice}</p></Info>
         </div>
       )}
-      {batch && (
-        <Stagger className="grid gap-4 md:grid-cols-2">
-          {batch.picks.map((p) => {
+      {failed && <p className="rounded-xl bg-down/10 px-3 py-2 text-sm text-down">{failed}</p>}
+      {!cur && loading && (
+        <div className="grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-60 rounded-2xl" />)}</div>
+      )}
+      {cur && picks.length === 0 && <p className="rounded-2xl border bg-card px-4 py-8 text-center text-sm text-muted-foreground">No stock qualified for this session. Sitting out is a valid trade.</p>}
+      {cur && picks.length > 0 && (
+        <Stagger className="grid gap-4 md:grid-cols-2" key={forDate}>
+          {picks.map((p) => {
             const ls = live.status[p.symbol];
-            const size = intradaySize(pot, acc?.leverage ?? 5, riskPct * (regime?.sizeFactor ?? 1), 5, p.plan);
+            const q = quotes.quotes[p.symbol];
+            const price = q?.price ?? ls?.price;
             const tone = ls ? CALL_TONE[ls.call] : null;
+            const toEntry = price ? (p.plan.entry / price - 1) * 100 : null;
+            const size = intradaySize(pot, maxLev, riskPct * (regime?.sizeFactor ?? 1), 5, p.plan);
             return (
               <StaggerItem key={p.symbol} className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-                <div className="flex items-center gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--tone-soft)] font-heading text-sm font-semibold text-[var(--tone)]">{p.score}</span>
-                  <div className="min-w-0">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--tone-soft)] font-heading text-sm font-semibold text-[var(--tone)]" title="Pick score out of 100">{p.score}</span>
+                  <div className="min-w-0 flex-1">
                     <div className="font-heading text-lg font-semibold leading-tight">{displaySymbol(p.symbol)}</div>
-                    <div className="truncate text-xs text-muted-foreground">{p.sector}</div>
+                    <div className="truncate text-xs text-muted-foreground">{p.name} · {p.sector}</div>
                   </div>
-                  {ls && <span title={ls.say} className={cn("ml-auto rounded-full px-2.5 py-1 text-xs font-semibold", tone === "up" ? "bg-up/15 text-up" : tone === "down" ? "bg-down/15 text-down" : "bg-muted text-muted-foreground")}>{CALL_LABEL[ls.call]}</span>}
+                  <div className="text-right">
+                    <div className="figure text-lg leading-tight">{price ? `₹${price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-muted-foreground">-</span>}</div>
+                    {q && <Percent value={q.changePct} className={cn("text-xs", q.changePct >= 0 ? "text-up" : "text-down")} />}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{open && isToday ? "Live" : "Last close"}{toEntry !== null && toEntry > 0 ? ` · ${toEntry.toFixed(2)}% below the buy level` : toEntry !== null && toEntry <= 0 ? " · at or above the buy level" : ""}</span>
+                  {ls && <span title={ls.say} className={cn("ml-auto rounded-full px-2.5 py-0.5 font-semibold", tone === "up" ? "bg-up/15 text-up" : tone === "down" ? "bg-down/15 text-down" : "bg-muted text-muted-foreground")}>{CALL_LABEL[ls.call]}</span>}
                 </div>
                 <div className="grid grid-cols-4 gap-px overflow-hidden rounded-xl border bg-border text-center text-xs">
                   {([["Stop", p.plan.stop, "text-down"], ["Buy above", p.plan.entry, ""], ["Target 1", p.plan.target1, "text-up"], ["Target 2", p.plan.target2, "text-up"]] as const).map(([l, v, c]) => (
                     <div key={l} className="bg-muted/40 px-1 py-2"><div className="text-muted-foreground">{l}</div><div className={cn("figure text-[15px]", c)}>{v.toFixed(2)}</div></div>
                   ))}
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{size.qty} shares · <span className="text-foreground">{fmtInr(size.notional)}</span></span>
-                  <span className="text-muted-foreground">risk <span className="text-down">{fmtInr(size.riskAmt)}</span> → <span className="text-up">{fmtInr(size.rewardAmt)}</span></span>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Suggested {size.qty} shares</span>
+                  <span>risk <span className="text-down">{fmtInr(size.riskAmt)}</span> → <span className="text-up">{fmtInr(size.rewardAmt)}</span></span>
                 </div>
                 <div className="mt-auto flex items-center gap-2">
-                  <Button className="flex-1" disabled={size.qty < 1 || !!lock} title={lock ?? undefined} onClick={async () => {
-                    const r = await place({ symbol: p.symbol, side: "buy", qty: size.qty, type: "stop", triggerPrice: p.plan.entry, validity: "day", stop: p.plan.stop, target: p.plan.target1, note: `pick:${p.forDate}` });
-                    if (r.error) toast.error(r.error); else toast.success(`Order placed: buys ${size.qty} ${displaySymbol(p.symbol)} if it trades up to ${p.plan.entry.toFixed(2)}`);
-                  }}>Place order</Button>
+                  <PickTicket pick={p} live={q ? { price: q.price, changePct: q.changePct } : undefined} pot={pot} maxLeverage={maxLev} availableMoney={availableMoney} riskPct={riskPct} regimeFactor={regime?.sizeFactor ?? 1} lock={lock}
+                    onPlace={async (o) => {
+                      const r = await place({ symbol: o.symbol, side: "buy", qty: o.qty, type: o.type, ...(o.type === "stop" ? { triggerPrice: o.price } : o.type === "limit" ? { limitPrice: o.price } : {}), validity: "day", stop: o.stop, target: o.target, note: `pick:${p.forDate}` });
+                      if (r.error) { toast.error(r.error); return r.error; }
+                      toast.success(r.filled ? `Bought ${o.qty} ${displaySymbol(o.symbol)}` : `Order placed: ${o.type === "stop" ? `buys ${o.qty} ${displaySymbol(o.symbol)} if it trades up to ${o.price.toFixed(2)}` : `${o.type} order for ${o.qty} ${displaySymbol(o.symbol)}`}`);
+                      return null;
+                    }}>
+                    <Button className="flex-1" disabled={!!lock && false} title={lock ?? undefined}>Buy…</Button>
+                  </PickTicket>
                   <Info label="Why this pick" title={`${displaySymbol(p.symbol)}: why and when to skip`} align="end">
                     <ul className="list-disc space-y-1 pl-4">{p.reasons.slice(0, 5).map((r) => <li key={r}>{r}</li>)}</ul>
                     <p><b>Skip it if</b> it opens above {(p.plan.entry * 1.01).toFixed(2)} or below {p.plan.stop.toFixed(2)}. Exit by 3:15 pm if neither level is hit.</p>
-                    <p>Risk {p.plan.riskPct.toFixed(2)}% to the stop, reward 1.5R to target 1. The order is a buy-stop with the stop-loss and target 1 attached. It uses {fmtInr(size.margin)} of your own money.</p>
+                    <p>Risk {p.plan.riskPct.toFixed(2)}% to the stop, reward 1.5R to target 1.</p>
                     {ls && <p><b>Live:</b> {ls.say} Price {ls.price.toFixed(2)}{ls.vwap ? `, VWAP ${ls.vwap.toFixed(2)}` : ""}{ls.orHigh ? `, first 15 minutes ${ls.orLow!.toFixed(2)} to ${ls.orHigh.toFixed(2)}` : ""}.</p>}
                   </Info>
                 </div>
@@ -341,6 +364,7 @@ function Picks({ lock }: { lock: string | null }) {
           })}
         </Stagger>
       )}
+      {cur?.scanned ? <p className="text-xs text-muted-foreground">Screened {cur.scanned} liquid stocks from saved history. Found {cur.createdAt ? new Date(cur.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}.</p> : null}
     </section>
   );
 }

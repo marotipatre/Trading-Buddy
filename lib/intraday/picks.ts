@@ -38,16 +38,31 @@ export function nextSession(date: string): string {
 }
 
 /**
+ * The sessions a trader can pick for right now: today (if it is a weekday), built from yesterday's close, and the next session
+ * after today. Holidays are not known, so a session on an exchange holiday simply finds no data.
+ */
+export function sessionDates(nowSec: number): { today: string | null; next: string; todayOver: boolean } {
+  const ist = new Date((nowSec + 19800) * 1000);
+  const day = ist.getUTCDay();
+  const date = ist.toISOString().slice(0, 10);
+  const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  const weekday = day >= 1 && day <= 5;
+  return { today: weekday ? date : null, next: nextSession(date), todayOver: weekday && mins >= 15 * 60 + 30 };
+}
+
+/**
  * Score a stock for a long intraday trade in the next session from its daily candles: liquid enough to trade with
  * margin, moving enough to reach a target, trending up, closing strong on rising volume. Returns null if it does not
  * qualify. `mood` (-1..1) is the headline tone, worth up to 10 points either way.
  */
-export function scoreIntraday(symbol: string, name: string, sector: string, dailyIn: Candle[], mood = 0, nowSec?: number): IntradayPick | null {
+export function scoreIntraday(symbol: string, name: string, sector: string, dailyIn: Candle[], mood = 0, nowSec?: number, forDate?: string): IntradayPick | null {
   // While today's session is still running its daily candle is incomplete (volume and range are not final), so it is
   // dropped and the plan is built from the last finished day, for the session after today.
   let daily = dailyIn;
   let planFrom: string | undefined;
-  if (nowSec !== undefined && daily.length) {
+  // For a named session only candles from before that day are used, so a pick for today is built from yesterday's close.
+  if (forDate) daily = dailyIn.filter((c) => istDate(c.time) < forDate);
+  else if (nowSec !== undefined && daily.length) {
     const nowIst = new Date((nowSec + 19800) * 1000);
     const mins = nowIst.getUTCHours() * 60 + nowIst.getUTCMinutes();
     const today = istDate(nowSec);
@@ -103,7 +118,7 @@ export function scoreIntraday(symbol: string, name: string, sector: string, dail
   const risk = entry - stop;
   if (!(risk > 0)) return null;
   const plan: IntradayPlan = { entry, stop, target1: tick(entry + 1.5 * risk), target2: tick(entry + 2.5 * risk), risk, riskPct: (risk / entry) * 100, rr1: (tick(entry + 1.5 * risk) - entry) / risk };
-  return { symbol, name, sector, forDate: nextSession(planFrom ?? istDate(L.time)), score, reasons, plan, lastClose: L.close, atrPct, volumeRatio };
+  return { symbol, name, sector, forDate: forDate ?? nextSession(planFrom ?? istDate(L.time)), score, reasons, plan, lastClose: L.close, atrPct, volumeRatio };
 }
 
 /** The best `n` picks, at most `perSector` from one sector, best score first. */

@@ -57,22 +57,36 @@ export function SectorOutlook({ data, loading, error, onShowStocks }: { data: Se
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border bg-card p-3.5"><div className="text-[11px] font-medium text-muted-foreground">{b.index} (the market)</div><div className="mt-1 flex flex-wrap gap-x-3 font-mono text-xs">{(["w1", "m1", "m3", "y1"] as const).map((k) => <span key={k}><span className="text-muted-foreground">{k === "w1" ? "1W" : k === "m1" ? "1M" : k === "m3" ? "3M" : "1Y"} </span><b className={b.returns[k] >= 0 ? "text-up" : "text-down"}>{pct(b.returns[k])}</b></span>)}</div></div>
-        <div className="rounded-xl border bg-card p-3.5"><div className="text-[11px] font-medium text-muted-foreground">Market breadth, all NSE stocks</div>{br ? <><div className="mt-1 text-sm"><b className="text-up">{br.advances}</b> up · <b className="text-down">{br.declines}</b> down <span className="text-xs text-muted-foreground">({br.adRatio.toFixed(2)} advance/decline)</span></div><div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-muted"><span className="bg-up" style={{ width: `${(br.advances / br.total) * 100}%` }} /><span className="bg-down" style={{ width: `${(br.declines / br.total) * 100}%` }} /></div></> : <div className="text-sm text-muted-foreground">Unavailable</div>}</div>
-        <div className="rounded-xl border bg-card p-3.5"><div className="text-[11px] font-medium text-muted-foreground">India VIX (fear gauge)</div>{data.vix ? <div className="mt-1 text-sm"><b className="font-mono text-lg">{data.vix.level.toFixed(1)}</b> <span className={cn("text-xs", (data.vix.change1dPct ?? 0) >= 0 ? "text-down" : "text-up")}>{data.vix.change1dPct !== undefined ? pct(data.vix.change1dPct) : ""} today</span><div className="text-xs text-muted-foreground">{data.vix.level < 14 ? "Calm" : data.vix.level < 20 ? "Normal" : data.vix.level < 25 ? "Nervous" : "Fearful"}</div></div> : <div className="text-sm text-muted-foreground">Unavailable</div>}</div>
+        <div className="rounded-2xl border bg-card p-4"><div className="text-sm text-muted-foreground">{b.index} (the market)</div><div className="mt-2 grid grid-cols-4 gap-2">{(["w1", "m1", "m3", "y1"] as const).map((k) => <div key={k}><div className="text-xs text-muted-foreground">{k === "w1" ? "1 week" : k === "m1" ? "1 month" : k === "m3" ? "3 months" : "1 year"}</div><div className={cn("figure text-lg", b.returns[k] >= 0 ? "text-up" : "text-down")}>{pct(b.returns[k])}</div></div>)}</div></div>
+        <div className="rounded-2xl border bg-card p-4"><div className="text-sm text-muted-foreground">Market breadth, all NSE stocks</div>{br ? <><div className="mt-1 text-sm"><b className="text-up">{br.advances}</b> up · <b className="text-down">{br.declines}</b> down <span className="text-xs text-muted-foreground">({br.adRatio.toFixed(2)} advance/decline)</span></div><div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-muted"><span className="bg-up" style={{ width: `${(br.advances / br.total) * 100}%` }} /><span className="bg-down" style={{ width: `${(br.declines / br.total) * 100}%` }} /></div></> : <div className="text-sm text-muted-foreground">Unavailable</div>}</div>
+        <div className="rounded-2xl border bg-card p-4"><div className="text-sm text-muted-foreground">India VIX (fear gauge)</div>{data.vix ? <div className="mt-1 text-sm"><b className="font-mono text-lg">{data.vix.level.toFixed(1)}</b> <span className={cn("text-xs", (data.vix.change1dPct ?? 0) >= 0 ? "text-down" : "text-up")}>{data.vix.change1dPct !== undefined ? pct(data.vix.change1dPct) : ""} today</span><div className="text-xs text-muted-foreground">{data.vix.level < 14 ? "Calm" : data.vix.level < 20 ? "Normal" : data.vix.level < 25 ? "Nervous" : "Fearful"}</div></div> : <div className="text-sm text-muted-foreground">Unavailable</div>}</div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.25fr_1fr]">
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-muted/40 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Sector</th><th className="font-medium">View</th><th className="text-right font-medium">1 week</th><th className="text-right font-medium">1 month</th><th className="text-right font-medium">3 months</th><th className="text-right font-medium">6 months</th><th className="text-right font-medium">1 year</th><th className="px-3 text-right font-medium">P/E</th></tr></thead>
-            <tbody className="divide-y">
+        <div className="overflow-x-auto rounded-2xl border bg-card">
+          <table className="w-full min-w-[620px] border-separate border-spacing-0 text-sm">
+            <thead className="text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">Sector</th><th className="font-medium">View</th>
+                {(["1 week", "1 month", "3 months", "6 months", "1 year"] as const).map((l) => <th key={l} className="px-1 text-center font-medium">{l}</th>)}
+                <th className="px-4 text-right font-medium" title="Price divided by earnings for the sector index">P/E</th>
+              </tr>
+            </thead>
+            <tbody>
               {data.sectors.map((s) => (
-                <tr key={s.index} onClick={() => setSelected(selected === s.index ? null : s.index)} className={cn("cursor-pointer hover:bg-accent/40", selected === s.index && "bg-accent/50")} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") setSelected(selected === s.index ? null : s.index); }}>
-                  <td className="px-3 py-2"><div className="font-medium">{s.label}</div><div className="flex items-center gap-1.5 text-[11px]"><span className={cn("rounded px-1.5 py-0.5 font-semibold", QUAD[s.quadrant].cls)} title={QUAD[s.quadrant].hint}>{QUAD[s.quadrant].label}</span><span className="text-muted-foreground">{s.trend === "up" ? "uptrend" : s.trend === "down" ? "downtrend" : "mixed trend"}</span></div></td>
-                  <td><span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", STANCE[s.stance])}>{s.stance === "overweight" ? "Favour" : s.stance === "underweight" ? "Avoid" : "Neutral"} · {s.score}</span></td>
-                  {(["w1", "m1", "m3", "m6", "y1"] as const).map((k) => <td key={k} className="tabular text-right font-mono"><span className={s.returns[k] >= 0 ? "text-up" : "text-down"}>{pct(s.returns[k])}</span><div className={cn("text-[10px]", s.vsBench[k] >= 0 ? "text-up/80" : "text-down/80")}>{pct(s.vsBench[k])} vs mkt</div></td>)}
-                  <td className="tabular px-3 text-right font-mono">{s.pe ? s.pe.toFixed(1) : "—"}<div className={cn("text-[10px]", s.valuation === "rich" ? "text-down" : s.valuation === "cheap" ? "text-up" : "text-muted-foreground")}>{s.valuation ?? ""}</div></td>
+                <tr key={s.index} onClick={() => setSelected(selected === s.index ? null : s.index)} className={cn("cursor-pointer transition-colors hover:bg-accent/40", selected === s.index && "bg-accent/50")} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") setSelected(selected === s.index ? null : s.index); }}>
+                  <td className="border-t px-4 py-2.5 font-medium">{s.label}</td>
+                  <td className="border-t"><span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", STANCE[s.stance])} title={`Score ${s.score} out of 100`}>{s.stance === "overweight" ? "Favour" : s.stance === "underweight" ? "Avoid" : "Neutral"}</span></td>
+                  {(["w1", "m1", "m3", "m6", "y1"] as const).map((k) => {
+                    const v = s.returns[k];
+                    const strength = Number.isFinite(v) ? Math.min(38, Math.abs(v) * (k === "w1" ? 6 : k === "m1" ? 3 : k === "m3" ? 1.8 : 1.1)) : 0;
+                    return (
+                      <td key={k} className="border-t px-1 py-1.5" title={`${pct(v)} vs the market's ${pct(data.benchmark.returns[k])}: ${pct(s.vsBench[k])}`}>
+                        <div className="figure rounded-md py-1.5 text-center text-[13px]" style={{ backgroundColor: `color-mix(in oklab, var(${v >= 0 ? "--up" : "--down"}) ${strength}%, transparent)` }}>{pct(v)}</div>
+                      </td>
+                    );
+                  })}
+                  <td className="figure border-t px-4 text-right text-[13px]" title={s.valuation ? `${s.valuation} against its own recent range` : undefined}>{s.pe ? s.pe.toFixed(1) : "-"}</td>
                 </tr>
               ))}
             </tbody>

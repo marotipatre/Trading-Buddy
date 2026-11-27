@@ -127,3 +127,23 @@ describe("evaluatePick with the VWAP confirmation", () => {
     expect(evaluatePick(pick, bars)).not.toBeNull();
   });
 });
+
+describe("picks for a named session", () => {
+  it("builds today's picks from yesterday's close and ignores later candles", async () => {
+    const { scoreIntraday, sessionDates } = await import("./picks");
+    const DAY = 86400, start = Date.UTC(2025, 0, 1, 3, 45) / 1000;
+    const daily = Array.from({ length: 140 }, (_, i) => { const p = 100 * Math.pow(1.004, i); return { time: start + i * DAY, open: p * 0.998, high: p * 1.012, low: p * 0.99, close: p * 1.006, volume: 3_000_000 }; });
+    const date = (i: number) => new Date((daily[i].time + 19800) * 1000).toISOString().slice(0, 10);
+    const forDate = date(120);
+    const p = scoreIntraday("UP.NS", "Up", "IT", daily, 0, undefined, forDate);
+    expect(p?.forDate).toBe(forDate);
+    expect(p?.lastClose).toBeCloseTo(daily[119].close);
+    // a monday morning: today and the next session
+    const monday = Date.UTC(2025, 10, 24, 4, 0) / 1000; // 09:30 IST
+    expect(sessionDates(monday)).toEqual({ today: "2025-11-24", next: "2025-11-25", todayOver: false });
+    const fri = Date.UTC(2025, 10, 28, 11, 0) / 1000; // 16:30 IST Friday
+    expect(sessionDates(fri)).toEqual({ today: "2025-11-28", next: "2025-12-01", todayOver: true });
+    const sat = Date.UTC(2025, 10, 29, 5, 0) / 1000;
+    expect(sessionDates(sat).today).toBeNull();
+  });
+});
