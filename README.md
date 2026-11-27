@@ -112,6 +112,7 @@ Everyone who signs in gets their own private paper account (Supabase row-level s
 
 1. Create a free Supabase project and run the SQL files in `supabase/migrations/` in order (0001 to 0004) in the SQL editor.
 2. Deploy to Vercel (or any Node host): import the repository, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see the table above). Do not put `SUPABASE_SERVICE_ROLE_KEY` anywhere that is not a private server environment.
+   - `vercel.json` runs the functions in Mumbai (`bom1`), close to the Indian exchanges and price sources. NSE's MCP servers can refuse hosts in other regions or on some cloud ranges (HTTP 403); if they still refuse yours, the app falls back to NSE's end-of-day server and then to saved data. Nothing here disguises requests.
 3. Share the link. On a phone, "Add to Home screen" installs it like an app.
 
 Things to keep in mind when sharing: prices come from free, unofficial sources whose terms and limits can change, so keep the number of users small; the news, coach and forecast routes are rate-limited per user; the optional local AI helpers (Ollama, Kronos) only work on the machine that runs them; and the app is for learning, not advice. Set a license of your choice before inviting contributors.
