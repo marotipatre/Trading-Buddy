@@ -48,3 +48,21 @@ describe("liveStatus", () => {
     expect(liveStatus(pick, [bar(0, 100.8, 101.2, 100.7, 101), bar(1, 101, 104.2, 101, 103.9)])!.call).toBe("target");
   });
 });
+
+describe("short picks", () => {
+  const short = { forDate: DATE, side: "short" as const, plan: { entry: 99, stop: 101, target1: 96, target2: 94, risk: 2, riskPct: 2, rr1: 1.5 } };
+  it("waits until price trades down to the entry", () => {
+    expect(liveStatus(short, [bar(0, 100, 100.4, 99.6, 100.1), bar(1, 100.1, 100.3, 99.7, 99.9)])!.call).toBe("waiting");
+  });
+  it("calls go when triggered below VWAP and the opening range low", () => {
+    const bars = [bar(0, 100, 100.4, 99.5, 99.8), bar(1, 99.8, 100, 99.4, 99.5), bar(2, 99.5, 99.7, 99.2, 99.3), bar(3, 99.3, 99.4, 98.4, 98.6), bar(4, 98.6, 98.8, 98.3, 98.5)];
+    const s = liveStatus(short, bars)!;
+    expect(s.call).toBe("go");
+    expect(s.say).toContain("sellers");
+  });
+  it("skips a gap down past the entry and reports a stop or target the other way round", () => {
+    expect(liveStatus(short, [bar(0, 97, 97.5, 96.5, 97.2)])!.call).toBe("skip-gap");
+    expect(liveStatus(short, [bar(0, 99.2, 99.4, 98.8, 98.9), bar(1, 98.9, 101.5, 98.8, 101)])!.call).toBe("stopped");
+    expect(liveStatus(short, [bar(0, 99.2, 99.4, 98.8, 98.9), bar(1, 98.9, 99, 95.5, 96.2)])!.call).toBe("target");
+  });
+});

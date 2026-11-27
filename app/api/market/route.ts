@@ -12,7 +12,7 @@ export async function GET() {
   if (!rl.ok) return NextResponse.json({ error: `Too many requests. Try again in ${rl.retryAfterSec}s.` }, { status: 429 });
   try {
     const f = await loadMarketFeed();
-    return NextResponse.json({ rows: f.rows, updatedAt: f.updatedAt, stale: f.stale, source: f.stale ? "NSE official MCP (saved copy)" : "NSE official MCP (live, delayed)" });
+    return NextResponse.json({ rows: f.rows, updatedAt: f.updatedAt, stale: f.stale, fallback: f.fallback, source: f.stale ? "NSE official MCP (saved copy)" : f.fallback ? "NSE official end-of-day data (live feed unavailable)" : "NSE official MCP (live, delayed)" });
   } catch (e) {
     return NextResponse.json({ error: `Market list unavailable: ${(e as Error).message}` }, { status: 503 });
   }

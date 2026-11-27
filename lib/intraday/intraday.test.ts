@@ -147,3 +147,28 @@ describe("picks for a named session", () => {
     expect(sessionDates(sat).today).toBeNull();
   });
 });
+
+describe("short picks", () => {
+  it("scores a falling, weak-closing, liquid stock as a short with the stop above and targets below", async () => {
+    const { scoreIntradayShort } = await import("./picks");
+    const DAY = 86400, start = Date.UTC(2025, 0, 1, 3, 45) / 1000;
+    const daily = Array.from({ length: 140 }, (_, i) => { const p = 300 * Math.pow(0.996, i); return { time: start + i * DAY, open: p * 1.002, high: p * 1.01, low: p * 0.988, close: p * 0.992, volume: 3_000_000 }; });
+    const p = scoreIntradayShort("DN.NS", "Down", "IT", daily)!;
+    expect(p.side).toBe("short");
+    expect(p.plan.stop).toBeGreaterThan(p.plan.entry);
+    expect(p.plan.target1).toBeLessThan(p.plan.entry);
+    expect(p.plan.rr1).toBeCloseTo(1.5, 1);
+    const up = daily.map((c, i) => ({ ...c, close: 100 + i, high: 101 + i, low: 99 + i, open: 100 + i }));
+    expect(scoreIntradayShort("UP.NS", "Up", "IT", up)).toBeNull();
+  });
+  it("replays a short: a drop to the target wins, a rise to the stop loses", async () => {
+    const { evaluatePick } = await import("./scorecard");
+    const t0 = Date.UTC(2025, 2, 3, 3, 45) / 1000;
+    const mk = (i: number, o: number, h: number, l: number, c: number) => ({ time: t0 + i * 300, open: o, high: h, low: l, close: c });
+    const pick = { forDate: "2025-03-03", side: "short" as const, plan: { entry: 99, stop: 101, target1: 96, target2: 94, risk: 2, riskPct: 2, rr1: 1.5 } };
+    const win = evaluatePick(pick, [mk(0, 99.5, 99.6, 98.8, 99), mk(1, 99, 99.1, 95.5, 96.1), mk(2, 96.1, 96.2, 95.8, 96)])!;
+    expect(win.outcome).toBe("target"); expect(win.r).toBeCloseTo(1.5);
+    const loss = evaluatePick(pick, [mk(0, 99.5, 99.6, 98.8, 99), mk(1, 99, 101.3, 98.9, 101), mk(2, 101, 101.2, 100.8, 101)])!;
+    expect(loss.outcome).toBe("stop"); expect(loss.r).toBeCloseTo(-1);
+  });
+});

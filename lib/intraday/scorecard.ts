@@ -14,36 +14,45 @@ const istMinutes = (t: number) => { const d = new Date((t + 19800) * 1000); retu
  * 1% above entry or at or below the stop); if one bar touches both stop and target, the stop counts first.
  * Costs are not included.
  */
-export function evaluatePick(pick: Pick<IntradayPick, "plan" | "forDate">, bars: Bar[], opts: { confirm?: boolean } = {}): PickResult | null {
+export function evaluatePick(pick: Pick<IntradayPick, "plan" | "forDate"> & { side?: "long" | "short" }, bars: Bar[], opts: { confirm?: boolean } = {}): PickResult | null {
   const day = bars.filter((b) => istDate(b.time) === pick.forDate && istMinutes(b.time) >= 9 * 60 + 15 && istMinutes(b.time) < 15 * 60 + 15).sort((a, b) => a.time - b.time);
   if (day.length < 3) return null; // the session has not happened, or there is no data
+  const dir = pick.side === "short" ? -1 : 1; // a short sale makes money when price falls
   const { entry, stop, target1, risk } = pick.plan;
   const first = day[0];
-  if (first.open > entry * 1.01 || first.open <= stop) return { outcome: "skipped-gap", pnlPct: 0, r: 0 };
+  const triggered = (b: Bar) => (dir > 0 ? b.high >= entry : b.low <= entry);
+  const stopHit = (b: Bar) => (dir > 0 ? b.low <= stop : b.high >= stop);
+  const targetHit = (b: Bar) => (dir > 0 ? b.high >= target1 : b.low <= target1);
+  const gapped = dir > 0 ? first.open > entry * 1.01 || first.open <= stop : first.open < entry * 0.99 || first.open >= stop;
+  if (gapped) return { outcome: "skipped-gap", pnlPct: 0, r: 0 };
+  // With `confirm`, a trigger only counts when that candle also closes on the right side of the day's VWAP so far (buyers or sellers in control).
+  const confirmed = (i: number) => {
+    if (!opts.confirm) return true;
+    const v = vwap(day.slice(0, i + 1).map((b) => ({ ...b, volume: (b as { volume?: number }).volume ?? 1 })));
+    return v === null || (dir > 0 ? day[i].close >= v : day[i].close <= v);
+  };
   let filled: number | null = null;
   let start = 0;
-  // With `confirm`, a trigger only counts when that candle also closes at or above the day's VWAP so far (buyers in control).
-  const confirmed = (i: number) => !opts.confirm || day[i].close >= (vwap(day.slice(0, i + 1).map((b) => ({ ...b, volume: (b as { volume?: number }).volume ?? 1 }))) ?? 0);
   if (opts.confirm) {
-    const i = day.findIndex((b, k) => b.high >= entry && confirmed(k));
+    const i = day.findIndex((b, k) => triggered(b) && confirmed(k));
     if (i < 0) return { outcome: "no-entry", pnlPct: 0, r: 0 };
-    filled = Math.max(entry, day[i].open <= entry ? entry : day[i].open); start = i;
-  } else if (first.open >= entry) { filled = first.open; start = 0; }
+    filled = dir > 0 ? Math.max(entry, day[i].open <= entry ? entry : day[i].open) : Math.min(entry, day[i].open >= entry ? entry : day[i].open); start = i;
+  } else if (dir > 0 ? first.open >= entry : first.open <= entry) { filled = first.open; start = 0; }
   else {
-    const i = day.findIndex((b) => b.high >= entry);
+    const i = day.findIndex(triggered);
     if (i < 0) return { outcome: "no-entry", pnlPct: 0, r: 0 };
     filled = entry; start = i;
   }
   for (let i = start; i < day.length; i++) {
     const b = day[i];
-    if (b.low <= stop) return done("stop", filled, stop, risk); // the stop is checked before the target in every bar
-    if (b.high >= target1) return done("target", filled, target1, risk);
+    if (stopHit(b)) return done("stop", filled, stop, risk, dir); // the stop is checked before the target in every bar
+    if (targetHit(b)) return done("target", filled, target1, risk, dir);
   }
-  return done("eod", filled, day[day.length - 1].close, risk);
+  return done("eod", filled, day[day.length - 1].close, risk, dir);
 }
 
-function done(outcome: Outcome, entry: number, exit: number, risk: number): PickResult {
-  return { outcome, entryPrice: entry, exitPrice: exit, pnlPct: ((exit - entry) / entry) * 100, r: (exit - entry) / risk };
+function done(outcome: Outcome, entry: number, exit: number, risk: number, dir: 1 | -1): PickResult {
+  return { outcome, entryPrice: entry, exitPrice: exit, pnlPct: ((dir * (exit - entry)) / entry) * 100, r: (dir * (exit - entry)) / risk };
 }
 
 export interface Scorecard { evaluated: number; taken: number; wins: number; losses: number; flat: number; skipped: number; winRate: number; avgR: number; totalR: number; avgPnlPct: number }

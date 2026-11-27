@@ -2,7 +2,7 @@ import type { Candle } from "@/lib/data/types";
 import { atr, ema, rsi } from "@/lib/engine/indicators";
 
 export interface IntradayPlan {
-  /** Buy-stop: buy when price trades up to this level. */
+  /** Buy-stop (long) or sell-stop (short): the order triggers when price trades through this level. */
   entry: number;
   stop: number;
   target1: number;
@@ -13,6 +13,8 @@ export interface IntradayPlan {
   rr1: number;
 }
 export interface IntradayPick {
+  /** "short" picks are sold first and bought back: the entry is a sell-stop below, the stop is above, the targets are below. Missing means long. */
+  side?: "long" | "short";
   symbol: string;
   name: string;
   sector: string;
@@ -118,16 +120,78 @@ export function scoreIntraday(symbol: string, name: string, sector: string, dail
   const risk = entry - stop;
   if (!(risk > 0)) return null;
   const plan: IntradayPlan = { entry, stop, target1: tick(entry + 1.5 * risk), target2: tick(entry + 2.5 * risk), risk, riskPct: (risk / entry) * 100, rr1: (tick(entry + 1.5 * risk) - entry) / risk };
-  return { symbol, name, sector, forDate: forDate ?? nextSession(planFrom ?? istDate(L.time)), score, reasons, plan, lastClose: L.close, atrPct, volumeRatio };
+  return { side: "long", symbol, name, sector, forDate: forDate ?? nextSession(planFrom ?? istDate(L.time)), score, reasons, plan, lastClose: L.close, atrPct, volumeRatio };
+}
+
+/**
+ * The mirror image of scoreIntraday for a short sale: a stock in a downtrend that closed weak on rising volume, liquid enough
+ * to sell short with margin and moving enough to reach a target. The plan is a sell-stop just below the last low, a stop-loss
+ * above it and targets below. Needs a stock your broker allows you to sell intraday (MIS). Returns null if it does not qualify.
+ */
+export function scoreIntradayShort(symbol: string, name: string, sector: string, dailyIn: Candle[], mood = 0, forDate?: string): IntradayPick | null {
+  const daily = forDate ? dailyIn.filter((c) => istDate(c.time) < forDate) : dailyIn;
+  const n = daily.length - 1;
+  if (n < 60) return null;
+  const L = daily[n];
+  const closes = daily.map((c) => c.close);
+  const a = atr(daily, 14)[n];
+  const e20 = ema(closes, 20)[n], e50 = ema(closes, 50)[n];
+  const r = rsi(closes, 14)[n];
+  if (![a, e20, e50, r].every(Number.isFinite) || !(L.high > L.low)) return null;
+
+  const atrPct = (a / L.close) * 100;
+  const last20 = daily.slice(n - 20, n);
+  const avgVol = last20.reduce((s, c) => s + c.volume, 0) / 20;
+  const turnover = last20.reduce((s, c) => s + c.close * c.volume, 0) / 20;
+  const volumeRatio = avgVol > 0 ? L.volume / avgVol : 0;
+  if (turnover < 2e8 || atrPct < 1 || atrPct > 4.5) return null;
+
+  const closePos = (L.close - L.low) / (L.high - L.low);
+  const ret3 = (L.close / daily[n - 3].close - 1) * 100;
+  const ret5 = (L.close / daily[n - 5].close - 1) * 100;
+  const reasons: string[] = [];
+  let score = 0;
+  const add = (pts: number, text: string) => { score += pts; reasons.push(text); };
+
+  if (L.close < e20 && e20 < e50) add(25, "In a downtrend: price below its 20-day average, which is below the 50-day");
+  else if (L.close < e50) add(8, "Below its 50-day average");
+  else return null; // no short sales against the trend
+  if (closePos <= 0.3) add(15, `Closed in the bottom ${Math.round(closePos * 100)}% of the day's range (sellers in control)`);
+  else if (closePos <= 0.45) add(7, "Closed in the lower half of the day's range");
+  if (volumeRatio >= 1.5) add(15, `Volume ${volumeRatio.toFixed(1)}x its 20-day average: strong participation`);
+  else if (volumeRatio >= 1) add(8, `Volume ${volumeRatio.toFixed(1)}x its 20-day average`);
+  if (r >= 28 && r <= 45) add(10, `RSI ${r.toFixed(0)}: weak momentum, not yet oversold`);
+  else if (r < 22) score -= 8;
+  if (ret5 < -1 && ret5 > -10) add(10, `Down ${Math.abs(ret5).toFixed(1)}% over five sessions`);
+  else if (ret5 <= -10) reasons.push(`Already down ${Math.abs(ret5).toFixed(0)}% in five sessions: bounce risk`);
+  if (ret3 < 0) add(5, "Falling over the last three sessions");
+  if (atrPct >= 1.3 && atrPct <= 3.5) add(10, `Typical daily range ${atrPct.toFixed(1)}%: enough to reach a target`);
+  add(5, `Trades about ₹${(turnover / 1e7).toFixed(0)} crore a day: easy to enter and exit`);
+  if (Math.abs(mood) > 0.15) { const p = Math.round(-mood * 10); score += p; reasons.push(`Recent headlines read ${mood > 0 ? "positive" : "negative"}`); }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  if (score < 55) return null;
+
+  const entry = tick(Math.min(L.low, L.close * 0.997) * 0.999);
+  const d = Math.min(Math.max(0.45 * a, entry * 0.006), entry * 0.014);
+  const stop = tick(entry + d);
+  const risk = stop - entry;
+  if (!(risk > 0)) return null;
+  const t1 = tick(entry - 1.5 * risk);
+  const plan: IntradayPlan = { entry, stop, target1: t1, target2: tick(entry - 2.5 * risk), risk, riskPct: (risk / entry) * 100, rr1: (entry - t1) / risk };
+  return { side: "short", symbol, name, sector, forDate: forDate ?? nextSession(istDate(L.time)), score, reasons, plan, lastClose: L.close, atrPct, volumeRatio };
 }
 
 /** The best `n` picks, at most `perSector` from one sector, best score first. */
-export function topPicks(picks: IntradayPick[], n = 5, perSector = 2): IntradayPick[] {
+export function topPicks(picks: IntradayPick[], n = 5, perSector = 2, perSide = n): IntradayPick[] {
   const used = new Map<string, number>();
+  const sides = { long: 0, short: 0 };
   const out: IntradayPick[] = [];
   for (const p of [...picks].sort((a, b) => b.score - a.score)) {
     if (out.length >= n) break;
     if ((used.get(p.sector) ?? 0) >= perSector) continue;
+    const side = p.side === "short" ? "short" : "long";
+    if (sides[side] >= perSide) continue;
+    sides[side]++;
     used.set(p.sector, (used.get(p.sector) ?? 0) + 1);
     out.push(p);
   }

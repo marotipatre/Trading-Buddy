@@ -13,9 +13,13 @@ import { displaySymbol } from "@/lib/symbols";
 import { cn } from "@/lib/utils";
 
 type OrderType = "stop" | "limit" | "market";
-export interface TicketOrder { symbol: string; qty: number; type: OrderType; price: number; stop: number; target: number; lev: number }
+export interface TicketOrder { symbol: string; side: "buy" | "sell"; qty: number; type: OrderType; price: number; stop: number; target: number; lev: number }
 
-const TYPES: { id: OrderType; label: string; hint: string }[] = [
+const typesFor = (short: boolean): { id: OrderType; label: string; hint: string }[] => short ? [
+  { id: "stop", label: "Sell-stop", hint: "Sells short only if the price falls to your trigger. The plan's way in." },
+  { id: "limit", label: "Limit", hint: "Sells short at your price or higher." },
+  { id: "market", label: "Market", hint: "Sells short now at the best available price." },
+] : [
   { id: "stop", label: "Buy-stop", hint: "Buys only if the price rises to your trigger. The plan's way in." },
   { id: "limit", label: "Limit", hint: "Buys at your price or lower." },
   { id: "market", label: "Market", hint: "Buys now at the best available price." },
@@ -32,6 +36,9 @@ export function PickTicket({ pick, live, pot, maxLeverage, availableMoney, riskP
 }) {
   const [open, setOpen] = useState(false);
   const { plan } = pick;
+  const short = pick.side === "short";
+  const TYPES = typesFor(short);
+  const dir = short ? -1 : 1; // +1 when a rising price helps the trade
   const [type, setType] = useState<OrderType>("stop");
   const [price, setPrice] = useState(plan.entry);
   const [stop, setStop] = useState(plan.stop);
@@ -40,23 +47,23 @@ export function PickTicket({ pick, live, pot, maxLeverage, availableMoney, riskP
   const ltp = live?.price ?? pick.lastClose;
   const exec = type === "market" ? ltp : price;
   const maxQty = Math.max(0, Math.floor((availableMoney * lev) / Math.max(exec, 0.01)));
-  const riskQty = (pct: number) => Math.max(0, Math.min(maxQty, Math.floor((pot * pct) / 100 / Math.max(exec - stop, 0.01))));
+  const riskQty = (pct: number) => Math.max(0, Math.min(maxQty, Math.floor((pot * pct) / 100 / Math.max(dir * (exec - stop), 0.01))));
   const [qty, setQty] = useState(() => riskQty(riskPct * regimeFactor));
 
   const calc = useMemo(() => {
     const value = qty * exec;
     const margin = value / lev;
-    const risk = qty * (exec - stop), reward = qty * (target - exec);
+    const risk = qty * dir * (exec - stop), reward = qty * dir * (target - exec);
     const costs = intradayBreakEven(exec, qty, undefined, 2);
     return { value, margin, risk, reward, rr: risk > 0 ? reward / risk : NaN, costs };
-  }, [qty, exec, stop, target, lev]);
+  }, [qty, exec, stop, target, lev, dir]);
 
   const problems: string[] = [];
   if (!(qty >= 1)) problems.push("Quantity must be at least 1.");
-  if (!(stop < exec)) problems.push("The stop-loss must be below your entry price.");
-  if (!(target > exec)) problems.push("The target must be above your entry price.");
+  if (!(dir * (exec - stop) > 0)) problems.push(short ? "The stop-loss must be above your entry price." : "The stop-loss must be below your entry price.");
+  if (!(dir * (target - exec) > 0)) problems.push(short ? "The target must be below your entry price." : "The target must be above your entry price.");
   if (calc.margin > availableMoney + 0.5) problems.push(`Needs ${fmtInr(calc.margin)} of margin but only ${fmtInr(availableMoney)} is free.`);
-  if (type === "stop" && price < ltp * 0.995) problems.push("A buy-stop trigger below the current price would fire at once. Use a limit order to buy on a dip.");
+  if (type === "stop" && (short ? price > ltp * 1.005 : price < ltp * 0.995)) problems.push(short ? "A sell-stop trigger above the current price would fire at once. Use a limit order to sell on a bounce." : "A buy-stop trigger below the current price would fire at once. Use a limit order to buy on a dip.");
   const blocked = problems[0] ?? lock;
 
   const setQuick = (q: number) => setQty(Math.max(0, Math.min(maxQty, Math.floor(q))));
@@ -74,7 +81,7 @@ export function PickTicket({ pick, live, pot, maxLeverage, availableMoney, riskP
               <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="figure text-lg">₹{ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 {live ? <Percent value={live.changePct} className={cn("text-sm", live.changePct >= 0 ? "text-up" : "text-down")} /> : <span className="text-xs text-muted-foreground">last close</span>}
-                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">Intraday MIS</span>
+                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">Intraday MIS · {short ? "Short sale" : "Buy"}</span>
               </div>
             </div>
             <Dialog.Close aria-label="Close" className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-4" /></Dialog.Close>
@@ -85,7 +92,7 @@ export function PickTicket({ pick, live, pot, maxLeverage, availableMoney, riskP
               <div className="mb-1.5 text-xs font-medium text-muted-foreground">Order type</div>
               <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Order type">
                 {TYPES.map((t) => (
-                  <button key={t.id} type="button" role="radio" aria-checked={type === t.id} title={t.hint} onClick={() => { setType(t.id); if (t.id === "limit" && price > ltp) setPrice(plan.entry); }}
+                  <button key={t.id} type="button" role="radio" aria-checked={type === t.id} title={t.hint} onClick={() => { setType(t.id); if (t.id === "limit" && (short ? price < ltp : price > ltp)) setPrice(plan.entry); }}
                     className={cn("rounded-[9px] py-1.5 text-sm font-medium transition-colors", type === t.id ? "bg-card shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>{t.label}</button>
                 ))}
               </div>
@@ -138,9 +145,9 @@ export function PickTicket({ pick, live, pot, maxLeverage, availableMoney, riskP
           <div className="sticky bottom-0 flex gap-2 border-t bg-popover px-5 py-3">
             <Dialog.Close render={<Button variant="outline" className="flex-1" />}>Cancel</Dialog.Close>
             <Button className="flex-[2]" disabled={!!blocked} onClick={async () => {
-              const err = await onPlace({ symbol: pick.symbol, qty, type, price: exec, stop, target, lev });
+              const err = await onPlace({ symbol: pick.symbol, side: short ? "sell" : "buy", qty, type, price: exec, stop, target, lev });
               if (!err) setOpen(false);
-            }}>Buy {qty > 0 ? `${qty} ` : ""}{displaySymbol(pick.symbol)}</Button>
+            }}>{short ? "Sell short" : "Buy"} {qty > 0 ? `${qty} ` : ""}{displaySymbol(pick.symbol)}</Button>
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

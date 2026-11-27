@@ -314,14 +314,15 @@ function Picks({ lock }: { lock: string | null }) {
             const q = quotes.quotes[p.symbol];
             const price = q?.price ?? ls?.price;
             const tone = ls ? CALL_TONE[ls.call] : null;
-            const toEntry = price ? (p.plan.entry / price - 1) * 100 : null;
+            const short = p.side === "short";
+            const toEntry = price ? (short ? (price / p.plan.entry - 1) * 100 : (p.plan.entry / price - 1) * 100) : null;
             const size = intradaySize(pot, maxLev, riskPct * (regime?.sizeFactor ?? 1), 5, p.plan);
             return (
               <StaggerItem key={p.symbol} className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
                 <div className="flex items-start gap-3">
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--tone-soft)] font-heading text-sm font-semibold text-[var(--tone)]" title="Pick score out of 100">{p.score}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="font-heading text-lg font-semibold leading-tight">{displaySymbol(p.symbol)}</div>
+                    <div className="flex items-center gap-2"><span className="font-heading text-lg font-semibold leading-tight">{displaySymbol(p.symbol)}</span><span className={cn("rounded-md px-1.5 py-0.5 text-[11px] font-semibold", short ? "bg-down/10 text-down" : "bg-up/10 text-up")}>{short ? "Short ▼" : "Buy ▲"}</span></div>
                     <div className="truncate text-xs text-muted-foreground">{p.name} · {p.sector}</div>
                   </div>
                   <div className="text-right">
@@ -330,31 +331,31 @@ function Picks({ lock }: { lock: string | null }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{open && isToday ? "Live" : "Last close"}{toEntry !== null && toEntry > 0 ? ` · ${toEntry.toFixed(2)}% below the buy level` : toEntry !== null && toEntry <= 0 ? " · at or above the buy level" : ""}</span>
+                  <span>{open && isToday ? "Live" : "Last close"}{toEntry !== null && toEntry > 0 ? ` · ${toEntry.toFixed(2)}% ${short ? "above the sell level" : "below the buy level"}` : toEntry !== null && toEntry <= 0 ? ` · ${short ? "at or below the sell level" : "at or above the buy level"}` : ""}</span>
                   {ls && <span title={ls.say} className={cn("ml-auto rounded-full px-2.5 py-0.5 font-semibold", tone === "up" ? "bg-up/15 text-up" : tone === "down" ? "bg-down/15 text-down" : "bg-muted text-muted-foreground")}>{CALL_LABEL[ls.call]}</span>}
                 </div>
                 <div className="grid grid-cols-4 gap-px overflow-hidden rounded-xl border bg-border text-center text-xs">
-                  {([["Stop", p.plan.stop, "text-down"], ["Buy above", p.plan.entry, ""], ["Target 1", p.plan.target1, "text-up"], ["Target 2", p.plan.target2, "text-up"]] as const).map(([l, v, c]) => (
+                  {([["Stop", p.plan.stop, "text-down"], [short ? "Sell below" : "Buy above", p.plan.entry, ""], ["Target 1", p.plan.target1, "text-up"], ["Target 2", p.plan.target2, "text-up"]] as const).map(([l, v, c]) => (
                     <div key={l} className="bg-muted/40 px-1 py-2"><div className="text-muted-foreground">{l}</div><div className={cn("figure text-[15px]", c)}>{v.toFixed(2)}</div></div>
                   ))}
                 </div>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Suggested {size.qty} shares</span>
+                  <span>Suggested {size.qty} shares{short ? " to sell" : ""}</span>
                   <span>risk <span className="text-down">{fmtInr(size.riskAmt)}</span> → <span className="text-up">{fmtInr(size.rewardAmt)}</span></span>
                 </div>
                 <div className="mt-auto flex items-center gap-2">
                   <PickTicket pick={p} live={q ? { price: q.price, changePct: q.changePct } : undefined} pot={pot} maxLeverage={maxLev} availableMoney={availableMoney} riskPct={riskPct} regimeFactor={regime?.sizeFactor ?? 1} lock={lock}
                     onPlace={async (o) => {
-                      const r = await place({ symbol: o.symbol, side: "buy", qty: o.qty, type: o.type, ...(o.type === "stop" ? { triggerPrice: o.price } : o.type === "limit" ? { limitPrice: o.price } : {}), validity: "day", stop: o.stop, target: o.target, note: `pick:${p.forDate}` });
+                      const r = await place({ symbol: o.symbol, side: o.side, qty: o.qty, type: o.type, ...(o.type === "stop" ? { triggerPrice: o.price } : o.type === "limit" ? { limitPrice: o.price } : {}), validity: "day", stop: o.stop, target: o.target, note: `pick:${p.forDate}` });
                       if (r.error) { toast.error(r.error); return r.error; }
-                      toast.success(r.filled ? `Bought ${o.qty} ${displaySymbol(o.symbol)}` : `Order placed: ${o.type === "stop" ? `buys ${o.qty} ${displaySymbol(o.symbol)} if it trades up to ${o.price.toFixed(2)}` : `${o.type} order for ${o.qty} ${displaySymbol(o.symbol)}`}`);
+                      toast.success(r.filled ? `${o.side === "sell" ? "Sold short" : "Bought"} ${o.qty} ${displaySymbol(o.symbol)}` : `Order placed: ${o.type === "stop" ? `${o.side === "sell" ? "sells short" : "buys"} ${o.qty} ${displaySymbol(o.symbol)} if it trades ${o.side === "sell" ? "down" : "up"} to ${o.price.toFixed(2)}` : `${o.type} order for ${o.qty} ${displaySymbol(o.symbol)}`}`);
                       return null;
                     }}>
-                    <Button className="flex-1" disabled={!!lock && false} title={lock ?? undefined}>Buy…</Button>
+                    <Button className="flex-1" title={lock ?? undefined}>{short ? "Sell short…" : "Buy…"}</Button>
                   </PickTicket>
                   <Info label="Why this pick" title={`${displaySymbol(p.symbol)}: why and when to skip`} align="end">
                     <ul className="list-disc space-y-1 pl-4">{p.reasons.slice(0, 5).map((r) => <li key={r}>{r}</li>)}</ul>
-                    <p><b>Skip it if</b> it opens above {(p.plan.entry * 1.01).toFixed(2)} or below {p.plan.stop.toFixed(2)}. Exit by 3:15 pm if neither level is hit.</p>
+                    <p><b>Skip it if</b> it opens {short ? `below ${(p.plan.entry * 0.99).toFixed(2)} or above ${p.plan.stop.toFixed(2)}` : `above ${(p.plan.entry * 1.01).toFixed(2)} or below ${p.plan.stop.toFixed(2)}`}. Exit by 3:15 pm if neither level is hit.</p>{short && <p>A short sale needs a stock your broker lets you sell intraday (MIS). Check it before you trade for real.</p>}
                     <p>Risk {p.plan.riskPct.toFixed(2)}% to the stop, reward 1.5R to target 1.</p>
                     {ls && <p><b>Live:</b> {ls.say} Price {ls.price.toFixed(2)}{ls.vwap ? `, VWAP ${ls.vwap.toFixed(2)}` : ""}{ls.orHigh ? `, first 15 minutes ${ls.orLow!.toFixed(2)} to ${ls.orHigh.toFixed(2)}` : ""}.</p>}
                   </Info>
@@ -608,6 +609,15 @@ function PickBacktestCard() {
                 <b>With the live VWAP check.</b> Taking a trigger only when that 5-minute candle closes at or above the day&apos;s VWAP: {rc.card.taken} trades, {(rc.card.winRate * 100).toFixed(0)}% winners, <b className={rc.card.avgR >= 0 ? "text-up" : "text-down"}>{rc.card.avgR >= 0 ? "+" : ""}{rc.card.avgR.toFixed(2)}R per trade</b>{rc.card.avgR > c.avgR ? " (better than taking every trigger)." : " (no better than taking every trigger)."} This is what the live Go / Weak call on each pick is based on.
               </div>
             )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {r!.bySide.map((x) => (
+                <div key={x.side} className="rounded-xl border px-3 py-2 text-sm">
+                  <span className="font-medium">{x.side === "long" ? "Buy picks" : "Short picks"}</span>
+                  <span className="text-muted-foreground"> · {x.card.taken} trades · {x.card.taken ? `${(x.card.winRate * 100).toFixed(0)}% winners · ` : ""}</span>
+                  <span className={x.card.avgR >= 0 ? "text-up" : "text-down"}>{x.card.taken ? `${x.card.avgR >= 0 ? "+" : ""}${x.card.avgR.toFixed(2)}R per trade` : "none taken"}</span>
+                </div>
+              ))}
+            </div>
             <p className="text-xs text-muted-foreground">{c.avgR <= 0 ? "On this window the picks did not beat the costs of trading them. Treat them as ideas to study, not a system to follow blindly. " : "Positive on this short window, but intraday charges (about 0.1% to 0.2% a round trip) and slippage are not included. "}{c.taken < 30 ? `Only ${c.taken} trades: too few to judge.` : "Forty sessions is still a small sample."}</p>
           </>
         ))}

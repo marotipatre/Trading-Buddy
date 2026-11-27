@@ -4,7 +4,7 @@ import { readCache } from "@/lib/data";
 import { getBulkQuotes } from "@/lib/data/nse-mcp";
 import { loadMarketFeed } from "@/lib/data/market-feed";
 import { runDailyUpdate, savedCountFromDb } from "@/lib/data/daily-update";
-import { scoreIntraday, topPicks, type IntradayPick } from "@/lib/intraday/picks";
+import { scoreIntraday, scoreIntradayShort, topPicks, type IntradayPick } from "@/lib/intraday/picks";
 import { getUniverse } from "@/lib/universe-data";
 
 export interface PicksResult { forDate: string; createdAt: number; picks: IntradayPick[]; regime: MarketRegime | null; scanned: number; candidates: number }
@@ -43,14 +43,16 @@ export function computePicks(supabase: SupabaseClient, forDate: string, refresh 
           if (candles.length < 70) continue; // needs about 3 months of history
           scanned++;
           const meta = info.get(s)!;
-          const pick = scoreIntraday(s, meta.name, meta.sector, candles, 0, undefined, forDate);
-          if (pick) found.push(pick);
+          const long = scoreIntraday(s, meta.name, meta.sector, candles, 0, undefined, forDate);
+          if (long) found.push(long);
+          const short = scoreIntradayShort(s, meta.name, meta.sector, candles, 0, forDate);
+          if (short) found.push(short);
         } catch { /* skip this one */ }
       }
     }));
     let regime: MarketRegime | null = null;
     try { regime = marketRegime(await readCache(supabase, "^NSEI", "1d", to - 600 * 86400, to)); } catch { /* optional */ }
-    const result: PicksResult = { forDate, createdAt: Date.now(), picks: topPicks(found, regime?.regime === "bear" ? 3 : 5, 2), regime, scanned, candidates: symbols.length };
+    const result: PicksResult = { forDate, createdAt: Date.now(), picks: topPicks(found, 6, 2, 3), regime, scanned, candidates: symbols.length };
     cache.set(forDate, { at: Date.now(), result });
     return result;
   })().finally(() => inflight.delete(forDate));
