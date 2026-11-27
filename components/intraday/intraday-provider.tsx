@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { Quote } from "@/lib/data/types";
 import { fetchCandles } from "@/lib/analysis/candle-cache";
-import { cancelOrder, closePosition, equity as equityOf, expireOrders, intradayDue, onPrice, placeOrder, squareOffIntraday, istStartOfDay } from "@/lib/paper/broker";
+import { cancelOrder, closePosition, equity as equityOf, expireOrders, intradayDue, modifyOrder, onPrice, placeOrder, setExits as setExitsFn, squareOffIntraday, istStartOfDay } from "@/lib/paper/broker";
 import { annotateTrade, recordEquity } from "@/lib/paper/journal";
 import { isMarketOpen } from "@/lib/market-hours";
 import { addToPot, loadIntraday, newIntradayAccount, potView, saveIntraday, type IntradayAccount, type PotView } from "@/lib/intraday/account";
@@ -25,6 +25,12 @@ interface Ctx {
   place: (req: Omit<OrderRequest, "product">) => Promise<{ error?: string; filled?: boolean }>;
   closeNow: (positionId: number) => Promise<{ error?: string }>;
   cancel: (orderId: number) => void;
+  /** Change a resting order's price or quantity. */
+  modify: (orderId: number, patch: { price?: number; qty?: number }) => Promise<{ error?: string }>;
+  /** Set or clear a position's stop-loss and target. */
+  setExits: (positionId: number, exits: { stop?: number | null; target?: number | null }) => Promise<{ error?: string }>;
+  /** Close every open position at the current price. */
+  exitAll: () => Promise<{ error?: string; closed: number }>;
   annotate: (tradeId: number, patch: { note?: string; tags?: string[] }) => void;
   reset: () => void;
 }
@@ -179,6 +185,48 @@ export function IntradayProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { return { error: (e as Error).message }; }
   }, [commit]);
   const cancel = useCallback((orderId: number) => { const cur = ref.current; if (cur) commit({ ...cur, state: cancelOrder(cur.state, orderId, nowSec()) }); }, [commit]);
+  const modify = useCallback(async (orderId: number, patch: { price?: number; qty?: number }) => {
+    const cur = ref.current;
+    const o = cur?.state.orders.find((x) => x.id === orderId);
+    if (!cur || !o) return { error: "Order not found" };
+    try {
+      const [q] = await fetchQuotes([o.symbol]);
+      const r = modifyOrder(cur.state, orderId, patch, q?.price ?? 0, nowSec());
+      if (!r.error) commit({ ...cur, state: r.state });
+      return { error: r.error };
+    } catch (e) { return { error: (e as Error).message }; }
+  }, [commit]);
+  const setExits = useCallback(async (positionId: number, exits: { stop?: number | null; target?: number | null }) => {
+    const cur = ref.current;
+    const p = cur?.state.positions.find((x) => x.id === positionId);
+    if (!cur || !p) return { error: "Position not found" };
+    try {
+      const [q] = await fetchQuotes([p.symbol]);
+      const r = setExitsFn(cur.state, positionId, exits, q?.price ?? 0, nowSec());
+      if (!r.error) commit({ ...cur, state: r.state });
+      return { error: r.error };
+    } catch (e) { return { error: (e as Error).message }; }
+  }, [commit]);
+  const exitAll = useCallback(async () => {
+    let cur = ref.current;
+    if (!cur || !cur.state.positions.length) return { closed: 0 };
+    let closed = 0, error: string | undefined;
+    const ids = cur.state.positions.map((p) => p.id);
+    const qs = await fetchQuotes([...new Set(cur.state.positions.map((p) => p.symbol))]).catch(() => []);
+    const px = Object.fromEntries(qs.map((q) => [q.symbol, q.price]));
+    for (const id of ids) {
+      const pos = cur.state.positions.find((p) => p.id === id);
+      if (!pos) continue;
+      const price = px[pos.symbol] ?? prices.current[pos.symbol];
+      if (!(price > 0)) { error = `No live price for ${pos.symbol}`; continue; }
+      const r = closePosition(cur.state, id, pos.qty, price, nowSec(), "manual");
+      if (r.error) { error = r.error; continue; }
+      prices.current[pos.symbol] = price;
+      cur = { ...cur, state: r.state }; closed++;
+    }
+    commit({ ...cur, state: recordEquity(cur.state, equityOf(cur.state, prices.current), nowSec(), { force: true }) });
+    return { error, closed };
+  }, [commit]);
   const annotate = useCallback((tradeId: number, patch: { note?: string; tags?: string[] }) => { const cur = ref.current; if (cur) commit({ ...cur, state: annotateTrade(cur.state, tradeId, patch) }); }, [commit]);
   const reset = useCallback(() => {
     try { localStorage.removeItem("tb.intraday.v1"); } catch { /* ignore */ }
@@ -187,6 +235,6 @@ export function IntradayProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const view = useMemo(() => (acc ? potView(acc, Object.fromEntries(Object.values(quotes).map((q) => [q.symbol, q.price]))) : null), [acc, quotes]);
-  const value = useMemo<Ctx>(() => ({ acc, ready, localOnly, quotes, view, create, topUp, place, closeNow, cancel, annotate, reset }), [acc, ready, localOnly, quotes, view, create, topUp, place, closeNow, cancel, annotate, reset]);
+  const value = useMemo<Ctx>(() => ({ acc, ready, localOnly, quotes, view, create, topUp, place, closeNow, cancel, modify, setExits, exitAll, annotate, reset }), [acc, ready, localOnly, quotes, view, create, topUp, place, closeNow, cancel, modify, setExits, exitAll, annotate, reset]);
   return <C.Provider value={value}>{children}</C.Provider>;
 }

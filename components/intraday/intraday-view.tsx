@@ -20,6 +20,7 @@ import { cleanShare, MISTAKE_TAGS, mistakeCounts, pickDateOf, userNote, withUser
 import { loadBatches, saveBatch } from "@/lib/intraday/log";
 import { intradaySize, sessionDates, type IntradayPick } from "@/lib/intraday/picks";
 import { PickTicket } from "./pick-ticket";
+import { PositionsDesk } from "./positions-desk";
 import { useQuotes } from "@/components/use-quotes";
 import { useMarketOpen } from "@/components/use-market-open";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,7 +95,7 @@ function Inner() {
         <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">Your intraday account is saved only in this browser. Run <code>supabase/migrations/0004_intraday_account.sql</code> in the Supabase SQL editor to back it up and keep it across devices.</p>
       )}
       <PillTabs value={deskTab} onChange={setDeskTab} ariaLabel="Intraday desk sections" options={[
-        { value: "today", label: "Today" }, { value: "journal", label: "Journal" }, { value: "proof", label: "Do the picks work?" }, { value: "setup", label: "Pot and limits" },
+        { value: "today", label: "Today" }, { value: "positions", label: "Positions", badge: (acc.state.positions.length + acc.state.orders.length) || undefined }, { value: "journal", label: "Journal" }, { value: "proof", label: "Do the picks work?" }, { value: "setup", label: "Pot and limits" },
       ]} />
       <Swap id={deskTab} className="space-y-6">
         {deskTab === "today" && (
@@ -120,6 +121,7 @@ function Inner() {
             </div>
           </div>
         )}
+        {deskTab === "positions" && <PositionsDesk onGoToPicks={() => setDeskTab("today")} />}
         {deskTab === "journal" && (
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
             <div className="min-w-0 space-y-6"><Results /></div>
@@ -164,7 +166,7 @@ function Inner() {
   );
 }
 
-type Tab = "today" | "journal" | "proof" | "setup";
+type Tab = "today" | "positions" | "journal" | "proof" | "setup";
 
 function Meter({ label, used, max, text, danger }: { label: string; used: number; max: number; text: string; danger?: boolean }) {
   const p = max > 0 ? Math.min(100, (used / max) * 100) : 0;
