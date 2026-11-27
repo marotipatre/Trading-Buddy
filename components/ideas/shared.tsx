@@ -35,7 +35,6 @@ export function PlanMeter({ stop, entry, target, price }: { stop: number; entry:
         <span className="absolute top-1/2 h-3.5 w-0.5 -translate-y-1/2 bg-foreground" style={{ left: at(entry) }} title="Entry" />
         <span className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-primary" style={{ left: at(price) }} title="Price now" />
       </div>
-      <div className="flex justify-between font-mono text-[10px] text-muted-foreground"><span className="text-down">{stop.toFixed(2)}</span><span>{entry.toFixed(2)}</span><span className="text-up">{target.toFixed(2)}</span></div>
     </div>
   );
 }
@@ -55,4 +54,12 @@ export function Trend({ frames }: { frames: Idea["v"]["frames"] }) {
       {(["daily", "weekly", "monthly"] as const).map((f) => <span key={f} className={cn("mr-1.5", TONE[frames[f]])}>{f[0].toUpperCase()}{ARROW[frames[f]]}</span>)}
     </span>
   );
+}
+
+/** The three chart directions in one word: Rising, Falling or Mixed. */
+export function TrendWord({ frames }: { frames: Idea["v"]["frames"] }) {
+  const f = [frames.daily, frames.weekly, frames.monthly];
+  const ups = f.filter((x) => x === "up").length, downs = f.filter((x) => x === "down").length;
+  const word = ups === 3 ? "Rising" : downs >= 2 && ups === 0 ? "Falling" : "Mixed";
+  return <span className={cn("text-xs font-medium", word === "Rising" ? "text-up" : word === "Falling" ? "text-down" : "text-muted-foreground")} title={`Day ${frames.daily}, week ${frames.weekly}, month ${frames.monthly}`}>{word}</span>;
 }
